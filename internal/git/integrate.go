@@ -94,8 +94,11 @@ func MergeBlobs(ctx context.Context, base, ours, theirs []byte) (merged []byte, 
 		}
 	}
 
-	// -p writes the result to stdout; the exit code is the number of conflict hunks
-	// (0 = clean, >0 = conflicted), or negative on a real error.
+	// -p writes the result to stdout; a completed merge exits with the number of
+	// conflict hunks (0 = clean, >0 = conflicted) and always writes the full merged
+	// result. A trouble-exit (git could not run the merge) writes nothing, and a
+	// signalled process reports ExitCode -1 — both are operational faults, not a
+	// conflict, so only a positive exit that produced output counts as conflicted.
 	cmd := exec.CommandContext(ctx, "git", "merge-file", "-p",
 		"-L", "ours", "-L", "base", "-L", "theirs",
 		oursPath, basePath, theirsPath)
@@ -104,8 +107,15 @@ func MergeBlobs(ctx context.Context, base, ours, theirs []byte) (merged []byte, 
 		return out, false, nil
 	}
 	var exit *exec.ExitError
-	if errors.As(runErr, &exit) && exit.ExitCode() > 0 {
-		return out, true, nil
+	if errors.As(runErr, &exit) {
+		if exit.ExitCode() > 0 && len(out) > 0 {
+			return out, true, nil
+		}
+		// cmd.Output() populates exit.Stderr because cmd.Stderr is unset; git's
+		// diagnostic is the only actionable detail on a trouble-exit, so surface it.
+		if msg := strings.TrimSpace(string(exit.Stderr)); msg != "" {
+			return nil, false, fmt.Errorf("git merge-file: %s", msg)
+		}
 	}
 	return nil, false, fmt.Errorf("git merge-file: %w", runErr)
 }

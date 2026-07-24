@@ -41,7 +41,7 @@ root; a completed project is archived.
 - After moving, update any references to that document. Cross-project references
   use logical labels (`P1`…`P7`), which stay valid after a move; only path or
   filename references need rewriting.
-- See `docs/archive/` for the completed projects (P1–P5).
+- See `docs/archive/` for the completed projects (P1–P5 and P6a).
 - The sync and merge boundary is split across two documents: `06a` (frontmatter
   merge package, rebase driver, git plumbing) and `06b` (`pj sync`). Documents
   written before that split refer to the pair as `P6`; a `P6` reference to the

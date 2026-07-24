@@ -210,6 +210,31 @@ func TestMergeBlobsCleanAndConflict(t *testing.T) {
 	}
 }
 
+// A trouble-exit (git could not run the merge) exits non-zero with empty stdout,
+// which must surface as an error — never be mistaken for a conflict. Binary blobs
+// (NUL bytes) make git merge-file refuse deterministically, exercising that branch.
+func TestMergeBlobsTroubleExitIsError(t *testing.T) {
+	requireGit(t)
+	ctx := context.Background()
+
+	base := []byte("a\x00b\n")
+	ours := []byte("a\x00X\n")
+	theirs := []byte("a\x00Z\n")
+	merged, conflicted, err := MergeBlobs(ctx, base, ours, theirs)
+	if err == nil {
+		t.Fatalf("binary blobs must fault, got merged=%q conflicted=%v", merged, conflicted)
+	}
+	if conflicted {
+		t.Error("a trouble-exit must not be reported as a conflict")
+	}
+	if merged != nil {
+		t.Errorf("a faulted merge must return nil bytes, got %q", merged)
+	}
+	if !strings.Contains(err.Error(), "git merge-file") {
+		t.Errorf("error must name the failing command: %v", err)
+	}
+}
+
 func TestListFiles(t *testing.T) {
 	requireGit(t)
 	ctx := context.Background()
