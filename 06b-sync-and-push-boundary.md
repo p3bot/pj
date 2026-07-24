@@ -122,10 +122,15 @@ is the sole push boundary and applies only to `autoCommit: true` scopes.
    auto-commit git-root, deduplicated, under `--all` or no ambient scope), applying only to
    `autoCommit: true` scopes. `--scope S` is P2's ordinary ambient override, not a second
    selector: it names the scope whose git-root is targeted, and the run is still the
-   single-root ambient case. `--scope` together with `--all` is a usage error (exit 2) —
-   `design.md` is silent on the pair, and two contradictory target selectors are the
-   exit-2 class rather than a silent precedence rule; flag this if the design later fixes
-   it otherwise. A non-auto-commit ambient scope refuses with a mode-named error;
+   single-root ambient case. `--all` wins over any ambient selector: `--scope S --all` and
+   `PJ_SCOPE=S pj sync --all` both sync every auto-commit git-root, exactly as a bare
+   `pj sync --all` does. `--scope` and `PJ_SCOPE` are one mechanism — both resolve to the
+   ambient scope — so neither narrows `--all`, and the combination is precedence, not a
+   usage error. This matches `pj doctor`, the only other command that arbitrates
+   ambient-versus-`--all` ("`--all` wins over ambient"), and keeps "`--all` means every
+   auto-commit git-root" a single rule with no flag-versus-env fork. `design.md` is silent
+   on the pair; if it later fixes the precedence otherwise, follow it. A non-auto-commit
+   ambient scope refuses with a mode-named error;
    `--all` skips non-auto-commit scopes rather than erroring. When the eligible set is empty
    (no registered auto-commit scopes/git-roots), exit 0 with a terse "nothing to sync" note.
    An auto-commit scope with no git repo/upstream reports `sync_disabled:` with a
@@ -269,11 +274,30 @@ is the sole push boundary and applies only to `autoCommit: true` scopes.
    (`.git/rebase-merge`|`rebase-apply`). If one is present, skip the snapshot entirely —
    a snapshot commit is a pj-authored commit and would land on the rebase's temporary
    HEAD, the exact write the mid-rebase freeze exists to prevent, orphaning the committed
-   work when the rebase finishes — and go straight to resolution: resume with
-   `git rebase --continue`, refusing to continue while any `status_conflict` is present on
-   a conflicted file. Do not scan the body for marker-like lines before `--continue`; stage
-   and push whatever body the human left. Only the structured `status_conflict` key gates
-   `--continue`. If the rebase completes, fall through into the normal flow from step 1, so
+   work when the rebase finishes — and go straight to resolution. A stop pauses in one of
+   two shapes and resume must handle them oppositely, so resume does not blindly
+   `git rebase --continue`: it first re-runs step 2's per-stop procedure (requirement 4) at
+   the current stop, discriminating each conflicted path by whether pj has already merged
+   it. A conflicted project `.md` whose frontmatter still carries conflict markers was never
+   field-merged — the state a real `pj.cue` conflict leaves behind, having failed closed on
+   that scope's `.md` before the driver ran (requirement 4) — so field-merge it now through
+   the driver (the `pj.cue` the human resolved on this re-run parses this time) and stage
+   what stages. A conflicted project `.md` whose frontmatter is already clean is driver
+   output — a body conflict or a `status_conflict` dispute awaiting the human — and must
+   *not* be re-driven: re-reading its still-present stages would overwrite the body the
+   human just resolved. The two shapes therefore cannot share a single "always re-drive" or
+   "never re-drive" rule; the frontmatter's own marker-freeness is the discriminator, and it
+   needs no state persisted across invocations. For a driver-output file, stage the human's
+   resolution so the rebase can continue over it — except when it still carries the
+   structured `status_conflict` key, the one case that is *not* staged and instead blocks
+   the whole continue, because that key is the only reliable signal a terminal dispute is
+   still unresolved: refuse to `git rebase --continue` while any `status_conflict` is present
+   on a conflicted file, and leave that file unstaged so the rebase stays paused at the git
+   level until the human removes it. Body markers are never scanned before staging — a body
+   conflict is the human's say-so, so stage and push whatever body they left. A `pj.cue` (or
+   `.gitignore`) the human resolved and left unstaged is staged the same way, which is also
+   what lets the driver merge that scope's now-freed project `.md`. Once every conflicted
+   path at the stop is staged, `git rebase --continue`. If the rebase completes, fall through into the normal flow from step 1, so
    one `pj sync` after human resolution also snapshots the leftover dirt, runs the integrity
    step, and pushes. If it stops again, it re-enters step 2's per-stop loop (requirement 4)
    rather than exiting: a later replayed commit whose conflicts pj resolves on its own is
@@ -297,13 +321,33 @@ is the sole push boundary and applies only to `autoCommit: true` scopes.
    assumption that the caller holds neither. A flock is per open file description, so a
    second acquire from the same process blocks forever rather than erroring: sync calling
    either under its own span hangs on the ordinary success path — the snapshot commit of a
-   single dirty file. Split acquisition out of both. The self-commit step keeps a lock-free
+   single dirty file.
+   The repair path holds *both* locks, and it holds them at two different levels: the
+   `internal/repair` package is already lock-free (it only builds rewrite ops), so the
+   orchestration that locks lives in the CLI — `repairScope` (`internal/cli/doctor_repair.go`)
+   acquires the scope `.pj.lock` across its reconcile→decide→write span, and the git-root
+   `sync.lock` is acquired one level lower, inside the `selfcommit.CommitPaths` call each
+   repair batch makes to commit its touched files. So the repair path's git-root acquisition
+   is nested inside its own commit call, not taken at the top of the orchestration. A split
+   that only lifts the *scope* lock out of `repairScope` would leave that nested
+   `selfcommit.CommitPaths` in place, and sync — already holding the git-root lock — would
+   deadlock the moment step 3 commits its first repair, the exact hang this contract exists
+   to prevent, one call-level below where it is first visible.
+   Split acquisition out of both, and hoist the repair path's git-root acquisition up with
+   it. The self-commit step keeps a lock-free
    core (stage the matchable paths, commit if anything staged) with its current entry
-   points as thin acquire-then-call wrappers; the per-scope repair orchestration gains the
-   same split, a locks-already-held core and an acquiring wrapper. The write verbs, scope
-   rename, and `pj doctor --repair` keep calling the wrappers with no behaviour change;
-   `pj sync` calls the cores. The core's precondition — both locks already held — is part
-   of the contract and is tested. Do not substitute a caller-supplied "locks held" flag or
+   points as thin acquire-then-call wrappers. The per-scope repair orchestration gains the
+   same split: a locks-already-held core that assumes both the scope and the git-root lock
+   are held and commits via the self-commit *core* (never the acquiring wrapper), and an
+   acquiring wrapper that takes both the scope lock and the git-root lock before calling the
+   core — the git-root acquisition moving from the nested `selfcommit.CommitPaths` call up
+   into that wrapper. The write verbs and scope
+   rename keep calling the self-commit wrappers with no behaviour change; `pj doctor --repair`
+   calls the repair wrapper with no behaviour change (the same two locks end up held — only
+   the git-root acquisition site moves up, so the nested commit can use the core);
+   `pj sync` calls the cores directly, holding all locks. The cores' precondition — both
+   locks already held — is part of the contract and is tested. Do not substitute a
+   caller-supplied "locks held" flag or
    release-and-re-acquire around each commit: the first makes correctness depend on a
    boolean whose wrong value is a hang, and the second reopens the fetch→push window this
    span exists to close.
@@ -339,7 +383,8 @@ is the sole push boundary and applies only to `autoCommit: true` scopes.
    retrofitted after the steps are wired. Confirm the write verbs, `pj scope rename`, and
    `pj doctor --repair` are unchanged.
 2. Build the command shell: target selection and per-git-root dedup, `--scope`/`--all`
-   validation, the non-auto-commit refuse, the empty-set exit 0, and `sync_disabled:`
+   precedence (`--all` wins over the ambient selector), the non-auto-commit refuse, the
+   empty-set exit 0, and `sync_disabled:`
    (requirement 1); then the preflight (requirement 2); then the lock span (scope locks in
    sorted order, then the git-root lock, released on every exit path — requirement 8).
 3. The mid-rebase entry check (requirement 7) ahead of any commit, then step 1 snapshot with
@@ -352,7 +397,13 @@ is the sole push boundary and applies only to `autoCommit: true` scopes.
    with the race loop and step 5 report, including `last-push-error` (requirement 6).
 6. Complete the resume contract on top of the entry check: `--continue` refused while
    `status_conflict` is present, body markers not scanned, the fall-through into step 1 once
-   the rebase completes, and re-entry into the per-stop loop if it stops again.
+   the rebase completes, and re-entry into the per-stop loop if it stops again. Include the
+   re-run of the per-stop procedure at a resumed stop that paused on a `pj.cue` conflict —
+   drive the project `.md` that the fail-closed step left unmerged (their frontmatter still
+   carries markers) while never re-driving an already-field-merged file (clean frontmatter,
+   body/`status_conflict` awaiting the human). Test both: a `pj.cue`-conflict resume that
+   completes the scope's `.md` merges, and a body resolution that survives a resume in the
+   same paused rebase.
 7. Wire the `--all` per-root failure isolation and its exit rule (requirement 1), then verify
    multi-machine flows end to end against two clones: a clean fast-forward; a one-sided
    completion that lands uncontested; a both-sides terminal dispute producing
@@ -395,6 +446,11 @@ is the sole push boundary and applies only to `autoCommit: true` scopes.
 - A body-only conflict leaves a paused, reported rebase with clean field-merged frontmatter
   and markers only in the body; the next `pj sync` after human resolution continues and
   pushes.
+- A `pj.cue` conflict pauses the rebase before that scope's conflicted project `.md` are
+  field-merged; the next `pj sync` after the human resolves `pj.cue` in-file field-merges
+  those `.md` through the driver, stages them, and continues. A project `.md` the driver
+  already field-merged at another stop (body conflict awaiting the human) is not re-driven,
+  so a body resolution made in the same paused rebase survives the resume.
 - A `pj sync` entered while the git-root is mid-rebase makes no commit before resuming: with
   an unrelated dirty allowlisted file present, the resume path leaves it uncommitted until
   the rebase completes, and the same invocation then snapshots it, repairs, and pushes —
@@ -422,8 +478,9 @@ is the sole push boundary and applies only to `autoCommit: true` scopes.
 - A non-auto-commit ambient `pj sync` refuses with the mode-named error; `--all` with no
   auto-commit scopes exits 0 with a "nothing to sync" note; an auto-commit scope lacking
   repo/upstream reports `sync_disabled:`, and so does one on a machine with no `git` on
-  `PATH` — the token, not a raw git error; `--scope` combined with `--all` is a usage error
-  (exit 2); a git-root with an unparseable sibling `pj.cue`, a name-drifted sibling, or
+  `PATH` — the token, not a raw git error; `--scope S --all` (like `PJ_SCOPE=S pj sync
+  --all`) syncs every auto-commit git-root with `--all` winning over the ambient selector,
+  not a usage error; a git-root with an unparseable sibling `pj.cue`, a name-drifted sibling, or
   divergent autoCommit is refused whole (`config_unparseable:`, `name_drift:` naming the
   scope, its dir, and the forget+import recovery, and `auto_commit_mismatch:` respectively),
   including when the drifted or unparseable scope is a sibling rather than the ambient one.
