@@ -36,18 +36,28 @@ type Request struct {
 	OldPath string
 }
 
-// Commit takes the git-root commit lock, stages the matchable touched paths, and
-// commits under the fixed message — synchronously, no push. A byte-identical
-// rewrite that stages nothing is a clean no-op. The caller must have confirmed a
-// git-root exists and git is available; a git failure here is returned so the verb
-// can surface it non-zero, with the file write and index write-through left standing.
+// Commit acquires the git-root commit lock and delegates to CommitCore. It is the
+// entry point for callers that hold no lock — the write verbs and scope rename. pj
+// sync, which already holds the git-root lock across its whole span, calls CommitCore
+// directly: a second acquire from the same process blocks forever (a flock is per open
+// file description), so re-acquiring here would hang the ordinary single-file snapshot
+// commit sync makes under its own span.
 func Commit(ctx context.Context, req Request) error {
 	lock, err := gitstate.AcquireCommitLock(req.StateDir, req.GitRoot)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = lock.Release() }()
+	return CommitCore(ctx, req)
+}
 
+// CommitCore stages the matchable touched paths and commits under the fixed message —
+// synchronously, no push. A byte-identical rewrite that stages nothing is a clean
+// no-op. The caller must have confirmed a git-root exists and git is available, and
+// must already hold the git-root commit lock (the acquiring Commit wrapper, or pj
+// sync's span). A git failure here is returned so the verb can surface it non-zero,
+// with the file write and index write-through left standing.
+func CommitCore(ctx context.Context, req Request) error {
 	paths := []string{req.NewPath}
 	if req.OldPath != "" && req.OldPath != req.NewPath && matchable(ctx, req.GitRoot, req.OldPath) {
 		paths = append(paths, req.OldPath)
@@ -82,17 +92,25 @@ type BatchRequest struct {
 	Paths []string
 }
 
-// CommitPaths takes the git-root commit lock, stages every matchable touched path,
-// and commits them under the fixed message — synchronously, no push. A plan that
-// stages nothing (all paths byte-identical or unmatchable) is a clean no-op. The
-// caller must have confirmed a git-root exists and git is available.
+// CommitPaths acquires the git-root commit lock and delegates to CommitPathsCore. It
+// is the entry point for callers that hold no lock — pj doctor --repair via the
+// repair orchestration's acquiring wrapper. pj sync holds the git-root lock across its
+// span and calls CommitPathsCore directly, so it never re-acquires and hangs.
 func CommitPaths(ctx context.Context, req BatchRequest) error {
 	lock, err := gitstate.AcquireCommitLock(req.StateDir, req.GitRoot)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = lock.Release() }()
+	return CommitPathsCore(ctx, req)
+}
 
+// CommitPathsCore stages every matchable touched path and commits them under the fixed
+// message — synchronously, no push. A plan that stages nothing (all paths
+// byte-identical or unmatchable) is a clean no-op. The caller must have confirmed a
+// git-root exists and git is available, and must already hold the git-root commit lock
+// (the acquiring CommitPaths wrapper, or pj sync's span).
+func CommitPathsCore(ctx context.Context, req BatchRequest) error {
 	var stage []string
 	seen := map[string]bool{}
 	for _, p := range req.Paths {

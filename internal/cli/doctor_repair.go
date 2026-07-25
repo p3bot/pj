@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/start-cli/pj/internal/git"
+	"github.com/start-cli/pj/internal/gitstate"
 	"github.com/start-cli/pj/internal/index"
 	"github.com/start-cli/pj/internal/reconcile"
 	"github.com/start-cli/pj/internal/repair"
@@ -46,19 +47,23 @@ func (e *engine) runRepairs(c *cobra.Command, scopes []string, f doctorFlags) er
 	return nil
 }
 
-// repairScope holds the scope flock across the reconcile, the preflight, and every repair
-// batch for one scope, so the whole plan runs under the U22 durability contract.
+// repairScope is the acquiring wrapper pj doctor --repair calls: it holds the scope flock
+// across the reconcile, the preflight, and every repair batch for one scope, and — on an
+// auto-commit git-root — the git-root sync.lock across the same span, so the whole plan
+// runs under the U22 durability contract and every batch commit uses the lock-free
+// self-commit core rather than re-acquiring.
 //
-// The reconcile is inside the lock, not before it: the repair procedures choose which
+// The git-root lock is taken here, at the top of the orchestration, not one call-level
+// down inside the batch commit as it once was: pj sync holds this lock across its whole
+// span and drives the repairs through runRepairBatches directly, so the acquisition must
+// live where a caller that already holds it can skip it. Doctor still acquires it (the two
+// locks it always held), only at a higher site.
+//
+// The reconcile is inside the scope lock, not before it: the repair procedures choose which
 // files to rewrite from these rows, so the read that decides and the write that acts must
 // sit in one lock span — the same span every complete-state write verb holds. A reconcile
 // taken outside it could be invalidated by a concurrent pj status before the first byte
 // is written.
-//
-// The layout repair runs before the collision repair because an interrupted archive move
-// leaves two same-id copies that the index reports as a collision; completing the move
-// first collapses them, and repairCollisions independently refuses such a pair so the
-// ordering is not the only thing standing between a crash and a forked id.
 func (e *engine) repairScope(c *cobra.Command, scope, dir string, f doctorFlags) error {
 	// Reachability is checked before the flock, because taking the flock creates a file in
 	// the dir and so fails outright on an unmounted one. Under --all that would stop every
@@ -83,6 +88,27 @@ func (e *engine) repairScope(c *cobra.Command, scope, dir string, f doctorFlags)
 		return err
 	}
 
+	if t.autoCommit && t.hasRoot {
+		gitLock, err := gitstate.AcquireCommitLock(e.app.StateDir, t.root)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = gitLock.Release() }()
+	}
+	return e.runRepairBatches(c, t, f)
+}
+
+// runRepairBatches is the locks-already-held core: it assumes both the scope flock and —
+// for an auto-commit git-root — the git-root sync.lock are held, and applies the mutating
+// doctor procedures over one preflighted target, committing each batch through the
+// self-commit core. pj doctor --repair reaches it via repairScope's acquiring wrapper; pj
+// sync reaches it directly, holding both locks across its whole span.
+//
+// The layout repair runs before the collision repair because an interrupted archive move
+// leaves two same-id copies that the index reports as a collision; completing the move
+// first collapses them, and repairCollisions independently refuses such a pair so the
+// ordering is not the only thing standing between a crash and a forked id.
+func (e *engine) runRepairBatches(c *cobra.Command, t *repairTarget, f doctorFlags) error {
 	if f.repair {
 		if err := e.repairArchive(c, t, false); err != nil {
 			return err
@@ -309,6 +335,10 @@ func (e *engine) repairLongOrder(c *cobra.Command, t *repairTarget) error {
 // scope — self-commit them after every write succeeds (or ride sync_disabled without a
 // git-root). Non-auto-commit writes files only; the host or plain-files sync owns
 // durability.
+//
+// It commits through the self-commit core, never the acquiring wrapper: its two callers
+// (repairScope's wrapper and pj sync's span) both already hold the git-root lock, so a
+// re-acquire here would deadlock the moment a repair commits its first batch.
 func (e *engine) applyRepairBatch(c *cobra.Command, t *repairTarget, ops []rewrite.Op, message string) error {
 	if len(ops) == 0 {
 		return nil
@@ -327,7 +357,7 @@ func (e *engine) applyRepairBatch(c *cobra.Command, t *repairTarget, ops []rewri
 		stderrln(c, token.Line(token.SyncDisabled, fmt.Sprintf("%s: no git repository — repaired files written but not committed", t.scope)))
 		return nil
 	}
-	return selfcommit.CommitPaths(c.Context(), selfcommit.BatchRequest{
+	return selfcommit.CommitPathsCore(c.Context(), selfcommit.BatchRequest{
 		StateDir: e.app.StateDir, GitRoot: t.root, Message: message, Paths: touched,
 	})
 }

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/start-cli/pj/internal/gitstate"
 )
 
 func requireGit(t *testing.T) {
@@ -112,6 +114,45 @@ func TestCommitStagesTrackedRemoval(t *testing.T) {
 	}
 	if !strings.Contains(tr, "wc/archive/wc-ab2c-x.md") {
 		t.Errorf("the archive path should be committed, tree=%q", tr)
+	}
+}
+
+// The cores' contract is that the caller already holds the git-root commit lock. pj
+// sync holds it across its whole span and calls the cores directly, so a core must
+// commit without acquiring anything — re-acquiring the same flock in-process would hang.
+// This exercises the precondition: the test holds the lock itself, then commits through
+// both cores under it, proving neither re-acquires.
+func TestCoresCommitUnderCallerHeldLock(t *testing.T) {
+	requireGit(t)
+	ctx := context.Background()
+	state := t.TempDir()
+	repo := newRepo(t)
+
+	lock, err := gitstate.AcquireCommitLock(state, repo)
+	if err != nil {
+		t.Fatalf("acquire commit lock: %v", err)
+	}
+	defer func() { _ = lock.Release() }()
+
+	one := filepath.Join(repo, "wc", "wc-ab2c-x.md")
+	write(t, one, "# x\n")
+	if err := CommitCore(ctx, Request{StateDir: state, GitRoot: repo, Message: "pj: add wc-ab2c x", NewPath: one}); err != nil {
+		t.Fatalf("CommitCore under held lock: %v", err)
+	}
+
+	two := filepath.Join(repo, "wc", "wc-cd3e-y.md")
+	three := filepath.Join(repo, "wc", "wc-ef4g-z.md")
+	write(t, two, "# y\n")
+	write(t, three, "# z\n")
+	if err := CommitPathsCore(ctx, BatchRequest{StateDir: state, GitRoot: repo, Message: "pj: sync 2 path(s)", Paths: []string{two, three}}); err != nil {
+		t.Fatalf("CommitPathsCore under held lock: %v", err)
+	}
+
+	tr := tree(t, repo)
+	for _, want := range []string{"wc/wc-ab2c-x.md", "wc/wc-cd3e-y.md", "wc/wc-ef4g-z.md"} {
+		if !strings.Contains(tr, want) {
+			t.Errorf("expected %s in committed tree, tree=%q", want, tr)
+		}
 	}
 }
 

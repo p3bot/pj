@@ -6,20 +6,21 @@ place. See `design.md` for the full, authoritative design.
 
 ## Project status
 
-P1 through P5 and P6a have landed. `pj` runs as a Cobra CLI with the machine-local CUE
+P1 through P6b have landed. `pj` runs as a Cobra CLI with the machine-local CUE
 registry, scope `pj.cue` evaluation, ambient resolution, and the full `pj scope`
 verb set (`init`, `import`, `rebind`, `forget`, `list`, `rename`); the machine-wide
 SQLite index with reconcile, FTS5 search, and the read/board verbs (`list`, `get`,
 `meta`, `next`, `deps`, `search`, `query`, `lens`); the authoring hot path
 (`create`, `status`, `reorder`, `edit`, `next --claim`) with local git self-commit;
-`pj doctor` with its integrity repairs and the closed token catalogue; and P6a's
+`pj doctor` with its integrity repairs and the closed token catalogue; P6a's
 frontmatter merge package (`internal/fmmerge`), the rebase driver
-(`internal/rebasedriver`), and the read/integrate/push half of the git wrapper — all
-proven before `pj sync` exists.
+(`internal/rebasedriver`), and the read/integrate/push half of the git wrapper; and
+P6b's `pj sync` — the sole push boundary (snapshot, fetch-and-integrate, sync-time
+integrity, push), the per-git-root preflight, the layer-4 resume contract, the `--all`
+per-root failure isolation, and the reentrant lock span (self-commit and repair
+orchestration split into acquiring wrappers over locks-held cores).
 
-Not built yet: `pj sync` and the push boundary (P6b) — no command pushes yet, though
-`internal/git` and `internal/gitstate` now expose the full fetch/rebase/push/stage-read
-surface P6b builds on; and `pj skill` (P7).
+Not built yet: `pj skill` (P7).
 
 - `design.md` is the source of truth for architecture and every locked decision.
   Read it before proposing or writing code.
@@ -41,7 +42,7 @@ root; a completed project is archived.
 - After moving, update any references to that document. Cross-project references
   use logical labels (`P1`…`P7`), which stay valid after a move; only path or
   filename references need rewriting.
-- See `docs/archive/` for the completed projects (P1–P5 and P6a).
+- See `docs/archive/` for the completed projects (P1–P5, P6a, and P6b).
 - The sync and merge boundary is split across two documents: `06a` (frontmatter
   merge package, rebase driver, git plumbing) and `06b` (`pj sync`). Documents
   written before that split refer to the pair as `P6`; a `P6` reference to the
@@ -107,7 +108,7 @@ root; a completed project is archived.
 | Unicode | `golang.org/x/text` | NFKC normalisation for `slugify` (Go has no stdlib normalisation). |
 | Config | CUE (`cuelang.org/go`) | Typed, validated schema for scope config and frontmatter. |
 | Index | SQLite (`modernc.org/sqlite`) | Pure Go, FTS5 compiled in, WAL mode. |
-| Version control | External `git` binary | Shelled out, owner `pj` scopes only. Full commit and read/integrate/push surface built (P6a); `pj sync` wires it in P6b. |
+| Version control | External `git` binary | Shelled out, owner `pj` scopes only. Full commit and read/integrate/push surface built (P6a); `pj sync` is the sole push boundary and wires it (P6b). |
 
 TIP: Both `modernc.org/sqlite` and `cuelang.org/go` are pure Go by design. Do not
 introduce a cgo-based SQLite driver (e.g. `mattn/go-sqlite3`) — it breaks the

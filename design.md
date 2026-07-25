@@ -1778,7 +1778,7 @@ temporary HEAD from pj-authored commits; it is not a ban on human/agent file rep
 | Scaffold write (no self-commit) | `create` | **Refuse** — still a new path under the scope dir during an inconsistent base; not a repair path |
 | Path open / direct-edit convenience | `edit` | **Allow** — resolve id, open `$EDITOR` only; no self-commit (same durability class as agent file tools and raw editor on a `get` path). Humans use this (or file tools) to clear body markers and `status_conflict` |
 | Reads / diagnose | `list`, `next` (no `--claim`), `get`, `meta`, `deps`, `search`, `query`, bare `pj doctor`, `skill`, `help`, scope list | **Allow** |
-| Sync resume | `pj sync` | **Allow** to resume after resolution (refuses `rebase --continue` while `status_conflict` remains; body markers resolved by human before continue) |
+| Sync resume | `pj sync` | **Allow** to resume after resolution (refuses `rebase --continue` while `status_conflict` remains, or while a delete/edit path still stands unactioned — see the delete/edit DECISION in Merge conflict handling; body markers resolved by human before continue) |
 | Integrity rewrite | `pj doctor --repair`, `--re-space-order` | **Refuse** — same class as complete-state (multi-file rewrite and/or self-commit must not land on temporary HEAD). Bare doctor report still **Allow**. Resume path: resolve body markers / `status_conflict`, `pj sync`, then repair if still needed |
 
 Non-auto-commit never self-commits, so their complete-state verbs keep writing files even
@@ -2294,6 +2294,24 @@ Four layers, lightest first.
      the conflict's stages before reading them rather than treating a failed `git show` as
      absence, which would reclassify a genuine git fault as a deletion. Read the "`:1` may be
      empty for add/add" phrasing in the package shape below as `:1` **absent**.
+     DECISION (unactioned re-run): a re-run where the human neither restored nor removed the
+     file must not stage the surviving side. The resumed stop tells a delete/edit apart from
+     driver output by the unmerged path's **stage set** (base present, exactly one side
+     absent), not by frontmatter marker-freeness — driver output and a delete/edit both carry
+     clean frontmatter, so the marker test alone stages the survivor, silently overrules the
+     deletion, and leaves nothing behind to show a choice was made. Every other handoff class
+     either blocks (`status_conflict`) or pushes something visibly unresolved (body markers);
+     a delete/edit that resolves itself pushes an ordinary-looking file, so nobody learns the
+     deletion was overruled. Four outcomes, each with its own signal: remove the file and the
+     deletion wins; modify it and the surviving edit wins as written; `git add` it and it is
+     kept exactly as it stands (the path stops being unmerged, so the resumed stop never sees
+     it); do none of these and the stop pauses again, re-reporting the same handoff detail —
+     path, deleting side, surviving `status` — and naming all three ways out. The
+     discriminator is whether the worktree content still equals the surviving side's stage
+     blob: matching means nothing was decided, absent or differing means the human acted. No
+     state is persisted across invocations; the stage set is read from git at the moment it is
+     needed. The resumed stop never re-drives a file the driver already field-merged —
+     re-reading its still-present stages would overwrite a body the human just resolved.
    pj always resolves the frontmatter to clean YAML (never leaves markers in it, so the
    file stays parseable and indexable); the body is layer 4's concern, resolved
    independently within the one file.
@@ -3603,7 +3621,7 @@ Fail fast. Do not keep authoring on a conflicted or mid-rebase auto-commit git-r
 | Body conflict markers in a project file | Stop. Report path. Do not pick a side or delete markers unless the human already directed the resolution. Body-only markers do **not** set `parse_error` (FM still indexed); do not treat body prose as trusted until markers are gone. Human edits body → `pj sync` to resume. |
 | Markers inside frontmatter / broken YAML | `parse_error:` quarantine — open `pj get` path; fix FM; `status`/`reorder`/`next --claim` refuse until parse succeeds. |
 | `status_conflict` in frontmatter | Stop. Report path and the two disputed statuses (`pj meta` / `pj get` / doctor). Do not choose unless the human (or explicit task) already picked one; then set `status` (either listed value or another known status), remove `status_conflict`, `pj sync`. |
-| `pj sync` reports a delete/edit handoff | Stop. One machine deleted the project file while the other edited it; sync resolves neither. Report the path, which side deleted, and the surviving edit's `status`. Do not restore or re-delete on your own judgement — the human decides, then `pj sync` resumes. |
+| `pj sync` reports a delete/edit handoff | Stop. One machine deleted the project file while the other edited it; sync resolves neither. Report the path, which side deleted, and the surviving edit's `status`. Do not restore or re-delete on your own judgement — the human decides, then `pj sync` resumes. Re-running `pj sync` without acting re-pauses on the same handoff **by design**: it is not a transient failure and retrying is not progress. The three resolutions are the human's — remove the file (deletion wins), edit it (surviving edit wins), or `git add` it (kept as-is). |
 | Self-commit / complete-state verb refuses mid-rebase | Stop. Do not retry `status`/`reorder`/`next --claim`/`create`/`doctor --repair`. Report the refused command and named file/scope. Resolve body markers / `status_conflict` via `pj edit` or file tools, then `pj sync`. Do not invent alternate write verbs. |
 | `pj sync` pauses / reports unresolvable conflict | Stop the turn's project work on that repo. Surface sync output. No parallel "fix it in the background". |
 

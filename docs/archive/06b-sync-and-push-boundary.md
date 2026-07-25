@@ -263,7 +263,12 @@ is the sole push boundary and applies only to `autoCommit: true` scopes.
    reconcile at startup. This reconcile serves the repairs only; the driver's occupied
    short-id set is its own (P6a), not from here.
 6. U25 — step 4 push synchronously (blocking) if ahead, with the fetch→push race handled by
-   looping back to step 2 once more; a sync with nothing to push skips the push. Step 5
+   looping back to step 2 once more — step 2 only, not step 3 (integrity) or the
+   `edge_verify` sweep: the fetch→push window is irreducible without a distributed lock, and
+   re-running integrity would not close it (its repair commit can lose the same race one
+   level down), so a race that merges in a duplicate rides self-heal — the next sync on any
+   machine reconciles and repairs it — rather than a deeper retry loop. A sync with nothing
+   to push skips the push. Step 5
    report: unpushed count (`git rev-list --count @{u}..HEAD`), conflicts, repairs, and any
    non-allowlist residue. On a push failure, record `last-push-error` under the git-root ops
    state (P4's path, P6a's writer) for doctor and write-command warnings; clear it on the

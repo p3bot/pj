@@ -15,10 +15,10 @@ In scope:
   `uninstall` v1 hard-refuse placeholders.
 
 Out of scope (named siblings own the behaviour the skill describes):
-- Every behaviour the skill documents is already implemented by P1–P6. This project renders
-  the contract; it must not change, re-decide, or re-specify any rule. Where the skill would
-  restate a rule that lives elsewhere in `design.md`, prefer a reference over a divergent
-  restatement.
+- Every behaviour the skill documents is already implemented by P1–P6 and by `08`'s delete/edit
+  resume semantics. This project renders the contract; it must not change, re-decide, or
+  re-specify any rule. Where the skill would restate a rule that lives elsewhere in `design.md`,
+  prefer a reference over a divergent restatement.
 - The real `pj skill install` backend (agentdex integration, concrete skills-directory
   targets, list/uninstall semantics) is deferred by the design; v1 ships only the
   hard-refuse placeholders.
@@ -32,6 +32,15 @@ self-commit; integrity repair, doctor, and scope rename; the frontmatter merge p
 rebase driver (P6a); and `pj sync`, the push boundary (P6b). Every
 verb, token, mode, and rule the skill contract references is real and behaves as the design
 specifies. The repo is otherwise as built by P1–P6b.
+
+Prerequisite — `08-delete-edit-resume-semantics.md` must land before this project starts. It
+changes what a resumed `pj sync` does with an unactioned delete/edit, and `design.md` already
+carries the amended rule at three sites: the `DECISION (unactioned re-run)` under the layer-3
+delete/edit DECISION, the `Sync resume` row in the mid-rebase command-classes table, and the
+locked Conflicts-and-paused-sync skill row this project renders. The design leads the code here,
+so rendering the contract before 08's implementation matches it would ship a skill documenting
+behaviour the binary does not yet have — the same drift requirement 4 exists to prevent, only
+in the opposite direction. Confirm 08 is complete and its tests are green before starting.
 
 `design.md` is the source of truth. The Agent skill contract section is the authoritative
 body of the skill output; the skill extract is subordinate to the earlier `DECISION:` /
@@ -55,6 +64,9 @@ and the extract is fixed — never the reverse.
     hard-refuse placeholder bullet.
   - Borrowed from beads — the provenance of `pj skill` (a `prime`/`onboard` dump) and the
     user-initiated `skill install` intent.
+- `08-delete-edit-resume-semantics.md` (in `docs/archive/` once complete) — the delete/edit
+  resume rule the Conflicts-and-paused-sync section must render. Read it for the reasoning that
+  produced the rule; read `design.md` for the rule itself, which is authoritative.
 - `AGENTS.md` — repo state; pure Go no cgo.
 - Project writing guide — `start get project/writing`.
 - Go CLI design guide — `start get golang/design/cli`. Advisory; subordinate to `design.md`.
@@ -141,7 +153,10 @@ and the extract is fixed — never the reverse.
   repo-driven host-commit and `uncommitted:`; plain-files disk-only and one-machine
   `--repair`) matches the behaviour P4 and P6 implement; the Conflicts-and-paused-sync
   section matches the mid-rebase refuse and all three P6 handoffs — body conflict,
-  `status_conflict`, and delete/edit.
+  `status_conflict`, and delete/edit — including `08`'s delete/edit resume rule: an unactioned
+  re-run re-pauses rather than staging the survivor, and the three resolutions are remove the
+  file, edit it, or `git add` it. An agent following the rendered section must not read a
+  paused sync as something to retry.
 - `pj skill install`, `pj skill list`, and `pj skill uninstall` each exit non-zero with the
   same clear message, write nothing into any tree or skills directory, and pull in no
   agentdex dependency.
