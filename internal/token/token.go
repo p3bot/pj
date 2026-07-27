@@ -1,9 +1,9 @@
 // Package token defines the closed set of machine-readable stderr tokens pj
 // emits at line start. The tokens are a wire contract shared by the commands
-// that produce a condition and the doctor report that later re-surfaces it
-// (doctor owns the full table in P5); agents match them as literal ASCII
-// prefixes, so the strings here are frozen and must never be reworded or
-// coloured. This package holds only the P2 subset.
+// that produce a condition and the doctor report that later re-surfaces it;
+// agents match them as literal ASCII prefixes, so the strings here are frozen
+// and must never be reworded or coloured. All() is the complete catalogue for
+// skill-contract and doctor completeness checks.
 package token
 
 import "strings"
@@ -125,8 +125,9 @@ func Line(tok, msg string) string {
 	return tok + " " + msg
 }
 
-// all is the closed token set known so far, used only for prefix classification
-// so the error printer keeps a leading token plain (never coloured or labelled).
+// all is the closed token set known so far, used for prefix classification so
+// the error printer keeps a leading token plain (never coloured or labelled),
+// and for catalogue completeness checks (skill contract, doctor).
 var all = []string{
 	NameDrift, ConfigUnparseable, AutoCommitMismatch, UnreachableScope,
 	ParseError, DuplicateID, EqualOrder, ArchiveNonTerminal, ArchiveTerminalAtRoot,
@@ -134,6 +135,15 @@ var all = []string{
 	SyncDisabled, Uncommitted, OrderLong, StatusConflict, DependsCycle,
 	DependsSelf, DependsOnCancelled, RelatedUnresolvable, StaleInProgress,
 	LastPushError, EdgeVerify, NonAllowlist,
+}
+
+// All returns the closed token catalogue in definition order. Callers that
+// assert catalogue coverage (skill output, doctor) must iterate this rather
+// than re-list the strings.
+func All() []string {
+	out := make([]string, len(all))
+	copy(out, all)
+	return out
 }
 
 // HasKnownPrefix reports whether s begins with one of the closed tokens. The

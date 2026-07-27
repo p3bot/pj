@@ -6,7 +6,7 @@ place. See `design.md` for the full, authoritative design.
 
 ## Project status
 
-P1 through P6b have landed. `pj` runs as a Cobra CLI with the machine-local CUE
+P1 through P7 have landed. `pj` runs as a Cobra CLI with the machine-local CUE
 registry, scope `pj.cue` evaluation, ambient resolution, and the full `pj scope`
 verb set (`init`, `import`, `rebind`, `forget`, `list`, `rename`); the machine-wide
 SQLite index with reconcile, FTS5 search, and the read/board verbs (`list`, `get`,
@@ -14,13 +14,15 @@ SQLite index with reconcile, FTS5 search, and the read/board verbs (`list`, `get
 (`create`, `status`, `reorder`, `edit`, `next --claim`) with local git self-commit;
 `pj doctor` with its integrity repairs and the closed token catalogue; P6a's
 frontmatter merge package (`internal/fmmerge`), the rebase driver
-(`internal/rebasedriver`), and the read/integrate/push half of the git wrapper; and
+(`internal/rebasedriver`), and the read/integrate/push half of the git wrapper;
 P6b's `pj sync` — the sole push boundary (snapshot, fetch-and-integrate, sync-time
 integrity, push), the per-git-root preflight, the layer-4 resume contract, the `--all`
 per-root failure isolation, and the reentrant lock span (self-commit and repair
-orchestration split into acquiring wrappers over locks-held cores).
-
-Not built yet: `pj skill` (P7).
+orchestration split into acquiring wrappers over locks-held cores); and P7's
+`pj skill` — the 18-section agent contract (embedded `skill.md` as the sole runtime
+source, with structure/token/handoff tests; design.md remains human authority while
+present, not a build or drift-test dependency) plus the hard-refuse
+`skill install`/`list`/`uninstall` placeholders.
 
 - `design.md` is the source of truth for architecture and every locked decision.
   Read it before proposing or writing code.
@@ -42,7 +44,7 @@ root; a completed project is archived.
 - After moving, update any references to that document. Cross-project references
   use logical labels (`P1`…`P7`), which stay valid after a move; only path or
   filename references need rewriting.
-- See `docs/archive/` for the completed projects (P1–P5, P6a, and P6b).
+- See `docs/archive/` for the completed projects (P1–P5, P6a, P6b, P7, and P8).
 - The sync and merge boundary is split across two documents: `06a` (frontmatter
   merge package, rebase driver, git plumbing) and `06b` (`pj sync`). Documents
   written before that split refer to the pair as `P6`; a `P6` reference to the
@@ -86,6 +88,7 @@ root; a completed project is archived.
     exports the shared `KeepBefore` loser pick the merge package reuses
   - `fmmerge` — the pure 3-way frontmatter merge over raw stage blobs (P6a)
   - `rebasedriver` — resolves one conflicted project `.md` at a paused rebase (P6a)
+  - `skill` — embedded agent skill contract (`skill.md`; sole source, no design.md dependency) (P7)
   - `cli` — Cobra command tree, exit codes, signals, colour/TTY, path hand-off
 
 ## Build, test, lint, format

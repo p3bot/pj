@@ -1,0 +1,119 @@
+package skill_test
+
+import (
+	"os"
+	"strings"
+	"testing"
+
+	"github.com/start-cli/pj/internal/skill"
+	"github.com/start-cli/pj/internal/token"
+)
+
+func TestRequiredHeadingsInOrder(t *testing.T) {
+	text := skill.Text()
+	var positions []int
+	for _, h := range skill.RequiredHeadings() {
+		marker := "\n## " + h + "\n"
+		i := strings.Index(text, marker)
+		if i < 0 {
+			t.Fatalf("missing heading %q", h)
+		}
+		positions = append(positions, i)
+	}
+	for i := 1; i < len(positions); i++ {
+		if positions[i] <= positions[i-1] {
+			t.Fatalf("heading %q appears before %q", skill.RequiredHeadings()[i], skill.RequiredHeadings()[i-1])
+		}
+	}
+	if !strings.HasPrefix(text, "# Agent skill contract\n") {
+		t.Fatal("skill must open with # Agent skill contract")
+	}
+	for _, bad := range []string{"(locked)", "TODO:", "TBD", "skeleton placeholder"} {
+		if strings.Contains(text, bad) {
+			t.Errorf("skill must not contain %q", bad)
+		}
+	}
+}
+
+func TestClosedTokensPresent(t *testing.T) {
+	text := skill.Text()
+	for _, tok := range token.All() {
+		if !strings.Contains(text, tok) {
+			t.Errorf("skill missing closed token %q", tok)
+		}
+	}
+}
+
+func TestEndOfTurnAndConflictHandoffs(t *testing.T) {
+	text := skill.Text()
+	needles := []string{
+		"pj-driven",
+		"repo-driven",
+		"plain-files",
+		"pj sync",
+		"uncommitted:",
+		"sync_disabled:",
+		"status_conflict",
+		"delete/edit",
+		"re-pauses",
+		"git add",
+		"not a transient failure",
+		"one machine at a time",
+	}
+	for _, n := range needles {
+		if !strings.Contains(text, n) {
+			t.Errorf("skill missing required guidance %q", n)
+		}
+	}
+}
+
+func TestEighteenSectionsOnly(t *testing.T) {
+	text := skill.Text()
+	count := 0
+	for _, line := range strings.Split(text, "\n") {
+		if strings.HasPrefix(line, "## ") {
+			count++
+		}
+	}
+	want := len(skill.RequiredHeadings())
+	if count != want {
+		t.Fatalf("want %d ## sections, got %d", want, count)
+	}
+}
+
+func TestNoDesignDependency(t *testing.T) {
+	// skill.md is the sole runtime contract: body text must not point agents at
+	// design.md, and production sources in this package must not load it
+	// (string path or go:embed). Package comments may name design.md as
+	// human-only reference.
+	text := skill.Text()
+	if strings.Contains(text, "design.md") {
+		t.Error("skill body must not tell agents to read design.md as a runtime dependency")
+	}
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Path-like mentions that would wire a design.md load into the binary.
+	loadMarkers := []string{
+		`"design.md"`,
+		"`design.md`",
+		"//go:embed design.md",
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		b, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		src := string(b)
+		for _, m := range loadMarkers {
+			if strings.Contains(src, m) {
+				t.Errorf("%s must not load design.md (found %s)", name, m)
+			}
+		}
+	}
+}
