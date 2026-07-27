@@ -186,6 +186,204 @@ func TestSyncGitignoreConflictDoesNotBlockProjectMerges(t *testing.T) {
 	}
 }
 
+// A hand-deleted .gitignore meeting a concurrent edit pauses with the delete/edit line
+// (not the markers line) on the first pause and every unactioned re-run; removing the file
+// then completes the rebase with the deletion recorded.
+func TestSyncGitignoreDeleteEditUnactionedThenRemove(t *testing.T) {
+	requireGit(t)
+	a, b, remote := twoMachines(t)
+
+	if err := os.Remove(filepath.Join(a.scopeDir(), ".gitignore")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := a.sync(t, "--scope", "wc"); err != nil {
+		t.Fatalf("A .gitignore delete sync: %v", err)
+	}
+
+	appendLine(t, filepath.Join(b.scopeDir(), ".gitignore"), "b-extra/")
+	_, firstOut, err := b.sync(t, "--scope", "wc")
+	if ExitCodeFromError(err) != exitFailure {
+		t.Fatalf(".gitignore delete/edit must pause non-zero, got %v (stderr %q)", err, firstOut)
+	}
+	assertConfigDeleteEditHandoff(t, firstOut, "wc/.gitignore", true)
+	if strings.Contains(firstOut, "resolve the conflict markers") {
+		t.Errorf("first pause must not use the markers line for a delete/edit, got %q", firstOut)
+	}
+
+	_, secondOut, err := b.sync(t, "--scope", "wc")
+	if ExitCodeFromError(err) != exitFailure {
+		t.Fatalf("unactioned .gitignore re-run must stay paused, got %v (stderr %q)", err, secondOut)
+	}
+	assertConfigDeleteEditHandoff(t, secondOut, "wc/.gitignore", true)
+	assertSameDeleteEditLine(t, firstOut, secondOut)
+	if remoteHas(t, remote, "wc/.gitignore") {
+		t.Errorf("unactioned re-run must not resurrect .gitignore on the remote")
+	}
+
+	// Human removes the survivor → deletion wins.
+	if err := os.Remove(filepath.Join(b.scopeDir(), ".gitignore")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := b.sync(t, "--scope", "wc"); err != nil {
+		t.Fatalf("remove resolution should complete: %v", err)
+	}
+	if remoteHas(t, remote, "wc/.gitignore") {
+		t.Errorf("deletion should be recorded on the remote")
+	}
+}
+
+// A .gitignore delete/edit the human modifies stages as their resolution and completes.
+func TestSyncGitignoreDeleteEditModifiedResumes(t *testing.T) {
+	requireGit(t)
+	a, b, remote := twoMachines(t)
+
+	if err := os.Remove(filepath.Join(a.scopeDir(), ".gitignore")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := a.sync(t, "--scope", "wc"); err != nil {
+		t.Fatalf("A .gitignore delete sync: %v", err)
+	}
+
+	appendLine(t, filepath.Join(b.scopeDir(), ".gitignore"), "b-extra/")
+	if _, _, err := b.sync(t, "--scope", "wc"); ExitCodeFromError(err) != exitFailure {
+		t.Fatalf("expected .gitignore delete/edit pause, got %v", err)
+	}
+
+	resolved := ".pj.lock\nb-extra/\nhuman-kept/\n"
+	if err := os.WriteFile(filepath.Join(b.scopeDir(), ".gitignore"), []byte(resolved), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := b.sync(t, "--scope", "wc"); err != nil {
+		t.Fatalf("modified .gitignore re-run should complete: %v", err)
+	}
+	if !remoteHas(t, remote, "wc/.gitignore") {
+		t.Errorf("the human's modified .gitignore should land on the remote")
+	}
+	if got := readFile(t, filepath.Join(b.scopeDir(), ".gitignore")); got != resolved {
+		t.Errorf("staged content = %q, want %q", got, resolved)
+	}
+}
+
+// A .gitignore delete/edit resolved with git add never reaches the resumed stop.
+func TestSyncGitignoreDeleteEditGitAddResumes(t *testing.T) {
+	requireGit(t)
+	a, b, remote := twoMachines(t)
+
+	if err := os.Remove(filepath.Join(a.scopeDir(), ".gitignore")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := a.sync(t, "--scope", "wc"); err != nil {
+		t.Fatalf("A .gitignore delete sync: %v", err)
+	}
+
+	appendLine(t, filepath.Join(b.scopeDir(), ".gitignore"), "b-extra/")
+	if _, _, err := b.sync(t, "--scope", "wc"); ExitCodeFromError(err) != exitFailure {
+		t.Fatalf("expected .gitignore delete/edit pause, got %v", err)
+	}
+
+	before := readFile(t, filepath.Join(b.scopeDir(), ".gitignore"))
+	gitIn(t, b.clone, "add", "--", "wc/.gitignore")
+	if _, _, err := b.sync(t, "--scope", "wc"); err != nil {
+		t.Fatalf("git-add .gitignore resolution should complete: %v", err)
+	}
+	if !remoteHas(t, remote, "wc/.gitignore") {
+		t.Errorf("the git-add-ed .gitignore should land on the remote")
+	}
+	if got := readFile(t, filepath.Join(b.scopeDir(), ".gitignore")); got != before {
+		t.Errorf("git add keeps exact content; worktree drifted")
+	}
+}
+
+// An unactioned pj.cue delete/edit at a stop that also has an unmerged project .md under
+// that scope keeps the project file unmerged on the next pj sync (schema fail-closed) —
+// it must not field-merge under the worktree survivor.
+func TestSyncCueDeleteEditKeepsProjectFailClosed(t *testing.T) {
+	requireGit(t)
+	a, b, _ := twoMachines(t)
+
+	// A's hand commit deletes pj.cue and edits the project (pj sync would refuse a
+	// root whose schema will not evaluate, so the deletion arrives only by hand commit).
+	dirA := a.scopeDir()
+	if err := os.Remove(filepath.Join(dirA, "pj.cue")); err != nil {
+		t.Fatal(err)
+	}
+	setStatusLine(t, mustSeedProject(t, dirA), "in-progress")
+	gitIn(t, a.clone, "add", "-A")
+	gitIn(t, a.clone, "commit", "-m", "hand: delete pj.cue and edit project")
+	gitIn(t, a.clone, "push")
+
+	// B modifies pj.cue (so the delete meets an edit) and the project differently —
+	// both conflict at the same stop when B syncs.
+	dirB := b.scopeDir()
+	writeCue(t, dirB, "name: \"wc\"\nautoCommit: true\nfields: {b: {type: \"string\"}}\n")
+	pB := mustSeedProject(t, dirB)
+	setStatusLine(t, pB, "review")
+	_, firstOut, err := b.sync(t, "--scope", "wc")
+	if ExitCodeFromError(err) != exitFailure {
+		t.Fatalf("pj.cue delete/edit must pause non-zero, got %v (stderr %q)", err, firstOut)
+	}
+	assertConfigDeleteEditHandoff(t, firstOut, "wc/pj.cue", false)
+	if !strings.Contains(firstOut, "config_unparseable:") {
+		t.Errorf("pj.cue delete/edit should ride config_unparseable, got %q", firstOut)
+	}
+	if !frontmatterHasMarkers(pB) {
+		t.Errorf("project .md must stay unmerged while pj.cue is an open delete/edit:\n%s", readFile(t, pB))
+	}
+
+	// Unactioned re-run: still fail-closed on the project — never field-merge under the
+	// worktree survivor while the schema deletion stands open.
+	_, secondOut, err := b.sync(t, "--scope", "wc")
+	if ExitCodeFromError(err) != exitFailure {
+		t.Fatalf("unactioned pj.cue re-run must stay paused, got %v (stderr %q)", err, secondOut)
+	}
+	assertConfigDeleteEditHandoff(t, secondOut, "wc/pj.cue", false)
+	assertSameDeleteEditLine(t, firstOut, secondOut)
+	if !strings.Contains(secondOut, "not merged") || !strings.Contains(secondOut, "pj.cue is conflicted") {
+		t.Errorf("project pass must report schema fail-closed, got %q", secondOut)
+	}
+	if !frontmatterHasMarkers(pB) {
+		t.Errorf("project .md must still carry markers after unactioned re-run:\n%s", readFile(t, pB))
+	}
+}
+
+// assertConfigDeleteEditHandoff checks a config-file delete/edit line: path, reader-term
+// side naming, and the ways out (three for .gitignore; edit/git-add only for pj.cue).
+// Way-out checks use path-qualified or "edit it" phrases so narrative "edited it" cannot
+// satisfy them alone.
+func assertConfigDeleteEditHandoff(t *testing.T, errOut, path string, threeWays bool) {
+	t.Helper()
+	if !strings.Contains(errOut, "delete/edit") {
+		t.Errorf("expected delete/edit handoff, got %q", errOut)
+	}
+	if !strings.Contains(errOut, path) {
+		t.Errorf("expected path %q in handoff, got %q", path, errOut)
+	}
+	if strings.Contains(errOut, "resolve the conflict markers") {
+		t.Errorf("delete/edit must not use the markers line, got %q", errOut)
+	}
+	if !strings.Contains(errOut, "incoming side") && !strings.Contains(errOut, "this machine's replayed commit") {
+		t.Errorf("handoff must name the deleting side in reader terms, got %q", errOut)
+	}
+	if !strings.Contains(errOut, "git add") {
+		t.Errorf("handoff must name git add as a way out, got %q", errOut)
+	}
+	if threeWays {
+		for _, way := range []string{"remove " + path, "edit it"} {
+			if !strings.Contains(errOut, way) {
+				t.Errorf(".gitignore handoff must name %q as a way out, got %q", way, errOut)
+			}
+		}
+		return
+	}
+	// pj.cue: edit <path> or git add — never offer remove as a resolution.
+	if !strings.Contains(errOut, "edit "+path) {
+		t.Errorf("pj.cue handoff must name edit %q as a way out, got %q", path, errOut)
+	}
+	if strings.Contains(errOut, "remove "+path) || strings.Contains(errOut, "— remove") {
+		t.Errorf("pj.cue handoff must not offer removal as a way out, got %q", errOut)
+	}
+}
+
 // appendLine adds a line at the end of a file — two machines appending different lines to
 // the same file conflict on the trailing hunk.
 func appendLine(t *testing.T, path, line string) {

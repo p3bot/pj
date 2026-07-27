@@ -33,14 +33,15 @@ rebase driver (P6a); and `pj sync`, the push boundary (P6b). Every
 verb, token, mode, and rule the skill contract references is real and behaves as the design
 specifies. The repo is otherwise as built by P1–P6b.
 
-Prerequisite — `08-delete-edit-resume-semantics.md` must land before this project starts. It
-changes what a resumed `pj sync` does with an unactioned delete/edit, and `design.md` already
-carries the amended rule at three sites: the `DECISION (unactioned re-run)` under the layer-3
-delete/edit DECISION, the `Sync resume` row in the mid-rebase command-classes table, and the
-locked Conflicts-and-paused-sync skill row this project renders. The design leads the code here,
-so rendering the contract before 08's implementation matches it would ship a skill documenting
-behaviour the binary does not yet have — the same drift requirement 4 exists to prevent, only
-in the opposite direction. Confirm 08 is complete and its tests are green before starting.
+Prerequisite — `docs/archive/08-delete-edit-resume-semantics.md` (complete) must have landed
+before this project starts. It changes what a resumed `pj sync` does with an unactioned
+delete/edit, and `design.md` already carries the amended rule at three sites: the
+`DECISION (unactioned re-run)` under the layer-3 delete/edit DECISION, the `Sync resume` row
+in the mid-rebase command-classes table, and the locked Conflicts-and-paused-sync skill row
+this project renders. The design leads the code here, so rendering the contract before 08's
+implementation matches it would ship a skill documenting behaviour the binary does not yet
+have — the same drift requirement 4 exists to prevent, only in the opposite direction.
+Confirm 08 is complete and its tests are green before starting.
 
 `design.md` is the source of truth. The Agent skill contract section is the authoritative
 body of the skill output; the skill extract is subordinate to the earlier `DECISION:` /
@@ -64,9 +65,9 @@ and the extract is fixed — never the reverse.
     hard-refuse placeholder bullet.
   - Borrowed from beads — the provenance of `pj skill` (a `prime`/`onboard` dump) and the
     user-initiated `skill install` intent.
-- `08-delete-edit-resume-semantics.md` (in `docs/archive/` once complete) — the delete/edit
-  resume rule the Conflicts-and-paused-sync section must render. Read it for the reasoning that
-  produced the rule; read `design.md` for the rule itself, which is authoritative.
+- `docs/archive/08-delete-edit-resume-semantics.md` — the delete/edit resume rule the
+  Conflicts-and-paused-sync section must render. Read it for the reasoning that produced the
+  rule; read `design.md` for the rule itself, which is authoritative.
 - `AGENTS.md` — repo state; pure Go no cgo.
 - Project writing guide — `start get project/writing`.
 - Go CLI design guide — `start get golang/design/cli`. Advisory; subordinate to `design.md`.
