@@ -2,8 +2,7 @@
 //
 // skill.md is the sole source of the contract text: it is embedded into the
 // binary and emitted to stdout. Edit skill.md when a locked agent rule changes.
-// design.md is human reference while it remains in the tree; this package must
-// not read, parse, or regenerate from it.
+// This package must not load any external design document.
 package skill
 
 import (

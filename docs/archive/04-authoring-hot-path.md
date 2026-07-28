@@ -53,12 +53,12 @@ integrity detection, the `edges` table and query surface, the read/locate verbs,
 the read path; this project introduces git only on the write and self-commit paths. The repo
 is otherwise as built by P1–P3.
 
-`design.md` is the source of truth. Durability and sync split along the commit/push seam:
+This project's requirements and the landed packages are the contract. Archived design notes record why rules landed; they do not override the tree. Durability and sync split along the commit/push seam:
 complete-state verbs self-commit their own change synchronously; nothing here pushes.
 
 ## References
 
-- `design.md` — read these sections:
+- Archived design notes (historical; not live authority) — sections that guided this project:
   - Sync model → Writes commit their own change — the complete-state self-commit rule, the
     `autoCommit: true` / git-not-ready behaviour, the `create`-never-self-commits exception,
     the scope flock span, the git-root commit lock, the git-root operational-state DECISION
@@ -88,7 +88,7 @@ complete-state verbs self-commit their own change synchronously; nothing here pu
     from the per-project `parse_error` quarantine.
 - `AGENTS.md` — pure Go no cgo; external git binary; no cgo SQLite driver.
 - Project writing guide — `start get project/writing`.
-- Go CLI design guide — `start get golang/design/cli`. Advisory; subordinate to `design.md`
+- Go CLI design guide — `start get golang/design/cli`. Advisory; subordinate to this document's requirements and the implemented contracts
   (see Constraints). Adopt `ExitError` + the minimal exit map, `syscall.Flock`, and
   table-driven tests. The guide's `create` extras (`--dry-run`/`--force`/`--fields`/three-way
   match) are explicitly rejected by the design.
@@ -228,9 +228,9 @@ complete-state verbs self-commit their own change synchronously; nothing here pu
 - Signal handling from P2 applies to every verb; name it here because `status`/`reorder`/
   `next --claim` block on the git subprocess during self-commit, so an interrupt during a
   commit must exit `128+signum` cleanly.
-- `design.md` overrides the Go CLI design guide. Carry these into this project:
+- This project's requirements and the implemented contracts override the Go CLI design guide. Carry these into this project:
 
-  | Go CLI guide default | design.md rule (authoritative) |
+  | Go CLI guide default | Implemented / project rule |
   |---|---|
   | `--json` + JSON envelope | No `--json`; stdout is a path; diagnostics + closed tokens on stderr |
   | `create` three-way match / `--dry-run` / `--force` / `--fields` | None. `create` scaffolds-and-reserves; default `draft`; optional status positional only |

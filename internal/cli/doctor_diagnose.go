@@ -343,11 +343,11 @@ func fieldTypeError(field scopeconfig.Field, value any) string {
 		if !ok {
 			return "should be a list of strings"
 		}
-		// A strings field is a sequence of strings, not a free-form mixed sequence
-		// (design.md:1267–1276) — it carries the same set merge as tags/depends, so a
-		// non-string element would reach that merge as an untyped scalar. Checked before
-		// the enum so a mixed list reports its type violation rather than an enum
-		// complaint about a value that was never a string.
+		// A strings field is a sequence of strings, not a free-form mixed sequence —
+		// it carries the same set merge as tags/depends, so a non-string element
+		// would reach that merge as an untyped scalar. Checked before the enum so a
+		// mixed list reports its type violation rather than an enum complaint about
+		// a value that was never a string.
 		for _, e := range list {
 			if _, ok := e.(string); !ok {
 				return fmt.Sprintf("has a non-string entry (%v)", e)
@@ -458,10 +458,10 @@ func (d *diagnoser) targetSchema(scope string) *scopeconfig.Schema {
 // cross-scope cycle is caught too.
 //
 // Self-edges are excluded from the graph: a pure self-depends is owned by depends_self,
-// the dedicated hard class (design.md:2438–2441), and reporting it as a cycle as well
-// gives one edge two hard lines pointing at different fixes. This is the same exclusion
-// edgeClasses already makes for the same reason. A project in a real cycle that also has
-// a self-edge still reports, because its other edges remain.
+// the dedicated hard class, and reporting it as a cycle as well gives one edge two hard
+// lines pointing at different fixes. This is the same exclusion edgeClasses already
+// makes for the same reason. A project in a real cycle that also has a self-edge still
+// reports, because its other edges remain.
 func (d *diagnoser) cycleNodes(scope string) []string {
 	adj := map[string][]string{}
 	for _, ed := range d.edges {
@@ -495,7 +495,7 @@ func (d *diagnoser) scopeIDs(scope string) []string {
 // the read-side twin of the write verbs' refuseUnusableScope: autoCommit lives only in
 // pj.cue, so an unparseable config makes the value unknown, not false. Doctor reports
 // where a write refuses, but neither may guess — a guessed false would tell an
-// auto-commit scope to commit by hand and suppress its sync classes (design.md:1323–1332).
+// auto-commit scope to commit by hand and suppress its sync classes.
 func (d *diagnoser) autoCommitFor(scope string, schema *scopeconfig.Schema) (value bool, known bool) {
 	if _, unusable := d.res.ConfigErrs[scope]; unusable {
 		return false, false

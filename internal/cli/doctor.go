@@ -67,9 +67,9 @@ func runDoctor(app *App, c *cobra.Command, f doctorFlags) error {
 
 	// The full rebuild runs after the scoped file work, so the final index is a clean
 	// post-repair derivation rather than a pre-repair one patched by each repair's
-	// write-through (design.md:1542–1544). Rebuild only drops and recreates the tables —
-	// the reconcile below is what repopulates them from files, so the two must move
-	// together, which is why a rebuild widens the reconcile to every scope.
+	// write-through. Rebuild only drops and recreates the tables — the reconcile
+	// below is what repopulates them from files, so the two must move together,
+	// which is why a rebuild widens the reconcile to every scope.
 	targets := e.targetsFor(reportScopes)
 	if f.reindex {
 		if err := e.db.Rebuild(); err != nil {

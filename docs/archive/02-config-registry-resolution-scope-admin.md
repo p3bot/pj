@@ -72,14 +72,14 @@ The Go module, standard layout, `.golangci.yml`, and the `AGENTS.md` baseline (b
 lint commands and the Go-CLI-guide advisory note) exist. The repo is otherwise greenfield —
 no CLI runs yet, no config engine, no registry, no index, no git integration.
 
-`design.md` is the source of truth. The two CUE config tiers are independent concerns, not
+This project's requirements and the landed packages are the contract. Archived design notes record why rules landed; they do not override the tree. The two CUE config tiers are independent concerns, not
 an override stack: the XDG tier records which scopes are registered on this machine and the
 per-scope lens; the scope `pj.cue` tier holds the scope's name, autoCommit, and schema.
 Ambient scope resolution is a separate precedence chain, not a third config tier.
 
 ## References
 
-- `design.md` — read these sections:
+- Archived design notes (historical; not live authority) — sections that guided this project:
   - Registry — XDG location, the `registry.cue` / `lens.cue` shape, machine-global flock,
     atomic CUE writes, the cached-name-vs-authoritative-`pj.cue`-name rule, and the
     name-drift fail-closed DECISION.
@@ -111,7 +111,7 @@ Ambient scope resolution is a separate precedence chain, not a third config tier
   minimal exit mapping; XDG via env-var helpers (not `os.UserConfigDir`); `syscall.Flock`;
   `golang.org/x/term` for TTY detection and `github.com/fatih/color` constrained to the
   design's colour rules; interfaces at the consumer; table-driven tests with `t.TempDir` /
-  `t.Setenv`. Advisory and subordinate to `design.md` — see Constraints for the overrides.
+  `t.Setenv`. Advisory and subordinate to this document's requirements and the implemented contracts — see Constraints for the overrides.
 
 ## Requirements
 
@@ -317,10 +317,10 @@ Ambient scope resolution is a separate precedence chain, not a third config tier
   synced/network filesystems). No Windows substitutes, no `gofrs/flock`.
 - XDG config via env-var helpers (`${XDG_CONFIG_HOME:-~/.config}/pj/`), not
   `os.UserConfigDir` (it returns the wrong path on macOS).
-- `design.md` overrides the Go CLI design guide. Carry these into this project — do not let
+- This project's requirements and the implemented contracts override the Go CLI design guide. Carry these into this project — do not let
   an implementer apply the guide's defaults:
 
-  | Go CLI guide default | design.md rule (authoritative) |
+  | Go CLI guide default | Implemented / project rule |
   |---|---|
   | `--json` + JSON envelope on every command | No `--json`, no envelope. stdout is a path or closed TSV; diagnostics + closed tokens on stderr |
   | `--color=auto\|always\|never`; honour `FORCE_COLOR`/`CLICOLOR_FORCE` | No `--color` flag in v1; honour `NO_COLOR` only; never `FORCE_COLOR`; stdout (TSV/path) never ANSI; token prefixes never coloured |

@@ -42,17 +42,18 @@ Out of scope (named siblings own these):
 
 ## Current State
 
-The repository is pre-implementation. It holds `design.md` (the authoritative landed
-design), `AGENTS.md` (repo context and intended stack), `LICENSE`, and the seven project
+The repository is pre-implementation. It holds design notes (later archived; not live
+authority), `AGENTS.md` (repo context and intended stack), `LICENSE`, and the seven project
 documents. There is no Go module, source, tests, or build yet. This is the first project in
 the wave; nothing else is built. The repo is otherwise greenfield.
 
-`design.md` is fully landed (`DECISION:` markers throughout, "Open questions: None
-outstanding"). Treat it as the source of truth for intent.
+Design notes are fully landed (`DECISION:` markers throughout, "Open questions: None
+outstanding"). They guided intent at the time; this document's requirements and the packages
+that land are the lasting contract.
 
 ## References
 
-- `design.md` — authoritative design. Read these sections for this project:
+- Archived design notes (historical; not live authority) — sections that guided this project:
   - Core model → Project ids (id predicates, short-id alphabet, mint length 4, the
     deterministic collision-repair extension procedure and `SHORT_ID_MAX`, `slugify`
     grammar and algorithm and its fixtures).
@@ -66,7 +67,7 @@ outstanding"). Treat it as the source of truth for intent.
 - Project writing guide — `start get project/writing`. Each output document follows it.
 - Go CLI design guide — `start get golang/design/cli`. Advisory. Adopt its standard Go
   layout (`cmd/pj/main.go` minimal, `internal/…`), table-driven tests with `testdata/`, and
-  `.golangci.yml`. It is subordinate to `design.md` on every conflict.
+  `.golangci.yml`. It is subordinate to this document's requirements and the implemented contracts on every conflict.
 
 ## Requirements
 
@@ -80,7 +81,7 @@ outstanding"). Treat it as the source of truth for intent.
    as the repository's verification commands.
 3. Update `AGENTS.md` to record: the real build, test, lint, and format commands; the
    module path and Go version; and a one-time note that the Go CLI design guide is
-   advisory and `design.md` overrides it on the points listed in that guide's override
+   advisory and the implemented contracts override it on the points listed in that guide's override
    table (so later project documents inherit this baseline rather than restating it).
 4. U1 — one shared pure helper implements `IsScopeName` (`^[a-z0-9]{1,12}$`), `IsShortID`
    (length 4 through 8; every character in `abcdefghjkmnpqrstuvwxyz23456789`; first

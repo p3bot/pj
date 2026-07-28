@@ -91,11 +91,11 @@ unexported and reachable only through a member constructor that reads files from
 (requirement 3 lifts it).
 
 The repo is otherwise as built by P1–P5. No merge package, no rebase driver, no command
-pushes. `design.md` is the source of truth.
+pushes. This project's requirements and the landed packages are the contract. Archived design notes record why rules landed; they do not override the tree.
 
 ## References
 
-- `design.md` — read these sections:
+- Archived design notes (historical; not live authority) — sections that guided this project:
   - Merge conflict handling — the four layers; the same-id add/add guard (rename repair,
     never field-merge); the list/immutable/scalar/status-dispute field rules; the
     `status_conflict`-in-the-stages and delete/edit DECISIONs; the layer-4 body-conflict and
@@ -114,7 +114,7 @@ pushes. `design.md` is the source of truth.
     rule the driver's compose step exists to stay clear of.
 - `AGENTS.md` — pure Go no cgo; external git binary; SQLite via `modernc.org/sqlite`.
 - Project writing guide — `start get project/writing`.
-- Go CLI design guide — `start get golang/design/cli`. Advisory; subordinate to `design.md`
+- Go CLI design guide — `start get golang/design/cli`. Advisory; subordinate to this document's requirements and the implemented contracts
   (see Constraints). Adopt table-driven tests on canned stage blobs for the merge package.
 
 ## Requirements
@@ -297,7 +297,7 @@ pushes. `design.md` is the source of truth.
    The merged file is built from the stages, never from the conflicted file git left in the
    working tree. Hand U21 the whole stage blob for each side — it splits each into frontmatter
    and body itself and field-merges the frontmatters, so its equal-author-date scalar residual
-   and its same-id add/add loser pick both hash the whole stage bytes (matching `design.md` and
+   and its same-id add/add loser pick both hash the whole stage bytes (matching the design-time rule and
    P5's whole-file hash), never a frontmatter-only slice. Passing U21 a pre-split frontmatter
    would fork the pick: the shared comparison of requirement 3 would then hash a different byte
    range than P5's disk-backed repair, and because the polarity fixtures pin the winner against
@@ -337,7 +337,7 @@ pushes. `design.md` is the source of truth.
    path unstaged, and returns a fail-closed outcome naming the file and the key or reason U21
    reported: a fourth handoff class beside body conflict, status dispute, and delete/edit,
    and the one every merge error U21 raises lands in. It is a human-resolvable pause exactly
-   like those three (`design.md`: quarantine / pause with a clear error naming the key), not
+   like those three (design-time rule: quarantine / pause with a clear error naming the key), not
    a driver abort. It must stay distinct from an operational fault — git absent from `PATH`, a
    corrupt object, a failed stage read — which the driver surfaces as an ordinary error return
    so P6b can abort the integrate rather than parking one file for a human. Keeping the two
@@ -390,9 +390,9 @@ pushes. `design.md` is the source of truth.
 - Frontmatter merge is arbitrated by git commit/author timestamps, not any frontmatter
   timestamp; there is no `updated:` field and the merge base is git's stage-1, never an
   in-frontmatter snapshot.
-- `design.md` overrides the Go CLI design guide. Carry these into this project:
+- This project's requirements and the implemented contracts override the Go CLI design guide. Carry these into this project:
 
-  | Go CLI guide default | design.md rule (authoritative) |
+  | Go CLI guide default | Implemented / project rule |
   |---|---|
   | `--json` + JSON envelope | No `--json`; closed tokens for machine signals |
   | Rich exit map + `ErrorPayload.Code` | Minimal: `0` ok; `2` usage; otherwise generic non-zero |

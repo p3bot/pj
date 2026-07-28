@@ -17,8 +17,8 @@ In scope:
 Out of scope (named siblings own the behaviour the skill describes):
 - Every behaviour the skill documents is already implemented by P1–P6 and by `08`'s delete/edit
   resume semantics. This project renders the contract; it must not change, re-decide, or
-  re-specify any rule. Where the skill would restate a rule that lives elsewhere in `design.md`,
-  prefer a reference over a divergent restatement.
+  re-specify any rule. Where the skill would restate a rule that lives in packages, tests,
+  or an earlier project document, prefer a reference over a divergent restatement.
 - The real `pj skill install` backend (agentdex integration, concrete skills-directory
   targets, list/uninstall semantics) is deferred by the design; v1 ships only the
   hard-refuse placeholders.
@@ -30,34 +30,33 @@ P1–P6b are complete: the full `pj` CLI runs — pure contract packages; config
 resolution, and scope admin; the read engine and board; the authoring hot path with local
 self-commit; integrity repair, doctor, and scope rename; the frontmatter merge package and
 rebase driver (P6a); and `pj sync`, the push boundary (P6b). Every
-verb, token, mode, and rule the skill contract references is real and behaves as the design
-specifies. The repo is otherwise as built by P1–P6b.
+verb, token, mode, and rule the skill contract references is real and behaves as the landed
+packages specify. The repo is otherwise as built by P1–P6b.
 
 Prerequisite — `docs/archive/08-delete-edit-resume-semantics.md` (complete) must have landed
 before this project starts. It changes what a resumed `pj sync` does with an unactioned
-delete/edit, and `design.md` already carries the amended rule at three sites: the
-`DECISION (unactioned re-run)` under the layer-3 delete/edit DECISION, the `Sync resume` row
-in the mid-rebase command-classes table, and the locked Conflicts-and-paused-sync skill row
-this project renders. The design leads the code here, so rendering the contract before 08's
-implementation matches it would ship a skill documenting behaviour the binary does not yet
-have — the same drift requirement 4 exists to prevent, only in the opposite direction.
-Confirm 08 is complete and its tests are green before starting.
+delete/edit, and project `08` already locks the amended rule (stage-set discriminator,
+unactioned re-run pause, and the Conflicts-and-paused-sync skill row this project renders).
+Rendering the contract before 08's implementation matches it would ship a skill documenting
+behaviour the binary does not yet have — the same drift requirement 4 exists to prevent, only
+in the opposite direction. Confirm 08 is complete and its tests are green before starting.
 
-`design.md` is the source of truth. The Agent skill contract section is the authoritative
-body of the skill output; the skill extract is subordinate to the earlier `DECISION:` /
-section prose. When a skill subsection and an earlier body rule disagree, the body rule wins
-and the extract is fixed — never the reverse.
+This project's requirements, the landed packages, and the embedded skill body are the
+contract. Archived design notes record why rules landed; they do not override the tree.
+When a skill subsection and the code disagree, correct the skill. Do not invent behaviour
+from archive prose.
 
 ## References
 
-- `design.md` — read these sections:
+- Archived design notes (historical; not live authority) — sections that guided this project:
   - Agent skill contract — the entire locked TOC (Required sections) and all 18 subsections
     with their locked bodies: Core work loop, Capture, Frontmatter mutation, Body
     conventions (including the title-extraction DECISION), Title/slug/filename, Ordering,
     List and filters, Search, Dependencies and impact, Archive, End of turn (by autoCommit
     mode), Conflicts and paused sync, Concurrent agents, Cold start and import, Cross-scope
     work, Waiting and external blockers, Unsupported operations, and Doctor and integrity
-    warnings (with the closed token table). This is the authoritative body to render.
+    warnings (with the closed token table). Historical wording P7 rendered from; not live
+    authority.
   - Discovery — the three bootstrap styles (use `pj skill` directly; the planned
     `skill install`; own handoff), registry-only resolution, no auto-slurp, no tree probe,
     and that `pj scope init` writes no AGENTS.md block.
@@ -66,11 +65,11 @@ and the extract is fixed — never the reverse.
   - Borrowed from beads — the provenance of `pj skill` (a `prime`/`onboard` dump) and the
     user-initiated `skill install` intent.
 - `docs/archive/08-delete-edit-resume-semantics.md` — the delete/edit resume rule the
-  Conflicts-and-paused-sync section must render. Read it for the reasoning that produced the
-  rule; read `design.md` for the rule itself, which is authoritative.
+  Conflicts-and-paused-sync section must render. Read it for the reasoning and the locked
+  rule; the skill body and the code that implements it are the live contract.
 - `AGENTS.md` — repo state; pure Go no cgo.
 - Project writing guide — `start get project/writing`.
-- Go CLI design guide — `start get golang/design/cli`. Advisory; subordinate to `design.md`.
+- Go CLI design guide — `start get golang/design/cli`. Advisory; subordinate to this document's requirements and the implemented contracts.
   The guide's `<cli> help agents` + embedded-markdown technique is fine under `pj skill`; the
   embed technique may be used, but `pj help` stays ordinary Cobra help.
 
@@ -86,28 +85,28 @@ and the extract is fixed — never the reverse.
    Waiting and external blockers, Unsupported operations, and Doctor and integrity warnings.
    No subsection is omitted, no interim folklore is invented, and no skeleton placeholder is
    reintroduced. The contract is complete for v1.
-3. Each rendered subsection is faithful to its locked design body — including the core work
-   loop, the create-durability-boundary-is-mandatory rule, the frontmatter-mutation table,
-   the title-extraction rule, the ordering rules, the list/search/deps contracts, the
-   archive rules, the per-mode End-of-turn table (pj-driven / repo-driven / plain-files), the
-   conflict/paused-sync handoff table, concurrent-agent rules, cold-start/import, cross-scope
-   work, the waiting/external-blockers table, the unsupported-operations table, and the
-   Doctor-and-integrity-warnings section with the closed token table and agent rules. Where
-   a rule lives elsewhere in the design, reference it rather than restating it in a form that
-   could drift; the closed token strings must match P5's authoritative catalogue exactly.
-4. The skill output is produced from a maintained rendering (embedded markdown or a
-   maintained extract of the section) such that it cannot silently drift from the body:
-   changing a locked rule requires updating every skill subsection that restates it (or
-   switching that subsection to a pure reference) in the same change. Build the rendering so
-   this coupling is enforceable in review — the skill is not a second, independently editable
-   source of truth.
+3. Each rendered subsection is faithful to the locked rules the packages implement —
+   including the core work loop, the create-durability-boundary-is-mandatory rule, the
+   frontmatter-mutation table, the title-extraction rule, the ordering rules, the
+   list/search/deps contracts, the archive rules, the per-mode End-of-turn table (pj-driven /
+   repo-driven / plain-files), the conflict/paused-sync handoff table, concurrent-agent
+   rules, cold-start/import, cross-scope work, the waiting/external-blockers table, the
+   unsupported-operations table, and the Doctor-and-integrity-warnings section with the
+   closed token table and agent rules. Where a rule lives in packages or an earlier project
+   document, reference it rather than restating it in a form that could drift; the closed
+   token strings must match P5's authoritative catalogue exactly.
+4. The skill output is produced from a maintained rendering (embedded markdown) such that it
+   cannot silently drift from the code: changing a locked rule requires updating every skill
+   subsection that restates it (or switching that subsection to a pure reference) in the same
+   change. Build the rendering so this coupling is enforceable in review — the skill is not a
+   second, independently editable source of truth.
 5. `pj skill install`, `pj skill list`, and `pj skill uninstall` are registered in the help
    and command tree so agents do not invent paths, and each hard-refuses: a non-zero exit
    with the same clear message (e.g. `not implemented in v1 — use 'pj skill' to print the
    workflow; persistent install is planned via agentdex skills directories`). No fake empty
    list, no success no-op, no write into AGENTS.md or any skills directory, and no agentdex
    dependency in this build.
-6. Discovery behaviour matches the design: resolution is registry-only (no tree probe, no
+6. Discovery behaviour is registry-only (no tree probe, no
    auto-register on clone, no auto-write of a discovery artifact); the three bootstrap styles
    are supported (print `pj skill` on demand; the hard-refuse install placeholders; a
    human-authored handoff pj neither writes nor auto-commits). `pj scope init` writes no
@@ -117,12 +116,12 @@ and the extract is fixed — never the reverse.
 
 - Pure Go, no cgo. The skill body may be an embedded markdown asset compiled into the binary;
   `goldmark` or any markdown renderer is not required — the output is emitted text.
-- The skill extract is subordinate to the design body: when a skill line and an earlier
-  `DECISION:` / section prose disagree, the body wins and the extract is corrected. Do not
-  let the skill introduce or soften any rule.
-- `design.md` overrides the Go CLI design guide. Carry these into this project:
+- The skill body is subordinate to the landed packages and closed contracts: when a skill
+  line and the code disagree, correct the skill. Do not let the skill introduce or soften
+  any rule.
+- This project's requirements and the implemented contracts override the Go CLI design guide. Carry these into this project:
 
-  | Go CLI guide default | design.md rule (authoritative) |
+  | Go CLI guide default | Implemented / project rule |
   |---|---|
   | Agent help via `<cli> help agents` + embedded markdown | `pj skill` is the agent contract with its own locked 18-section output; `pj help` stays ordinary Cobra help; the embed-markdown technique is fine under `pj skill` |
   | `--json` + JSON envelope | No `--json`; `pj skill` emits agent-facing markdown text; paths + short text + closed tokens elsewhere |
@@ -131,18 +130,17 @@ and the extract is fixed — never the reverse.
 ## Implementation Plan
 
 1. Author the skill rendering as an embedded, maintained markdown asset containing all 18
-   locked sections in order, faithful to the design body, with the closed token table and
-   agent rules from P5's catalogue. Prefer references to the design's own rules over
-   divergent restatements where the design already carries the authoritative wording.
+   locked sections in order, with the closed token table and agent rules from P5's catalogue.
+   Prefer references to locked package/project rules over divergent restatements.
 2. Wire `pj skill` to emit that rendering to stdout with no ambient-scope requirement and no
    tree writes.
 3. Implement the `pj skill install`/`list`/`uninstall` hard-refuse placeholders in the
    command tree with the single shared message and non-zero exit.
 4. Confirm discovery behaviour: registry-only resolution, no auto-write, no auto-slurp, and
    `pj scope init` writing no AGENTS.md block (already true from P2 — verify it holds).
-5. Verify the output against the design: every locked section present and in order, the token
-   strings matching P5's catalogue, and the End-of-turn and Conflicts tables matching the
-   real per-mode behaviour P4/P6 implement.
+5. Verify the output against the code and this document: every locked section present and in
+   order, the token strings matching P5's catalogue, and the End-of-turn and Conflicts tables
+   matching the real per-mode behaviour P4/P6 implement.
 
 ## Acceptance Criteria
 

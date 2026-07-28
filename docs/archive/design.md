@@ -1,11 +1,15 @@
 # Agent Project Management CLI (pj) — Design
 
+Archived. Historical design notes only. The running code and the embedded skill
+contract (`pj skill` / `internal/skill/skill.md`) are the source of truth; this
+file may lag the tree.
+
 This document states the landed design after a few iterations and
 rework: scopes are the unit, a machine-local registry resolves them, and one
 machine-wide index serves reads.
 
 Status legend:
-- DECISION: agreed, treat as settled unless revisited.
+- DECISION: agreed at design time; treat as historical context, not a live override of the code.
 
 ## Problem
 

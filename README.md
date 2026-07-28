@@ -3,7 +3,7 @@
 `pj` tracks feature work as plain markdown files, one project per file, edited in
 place. It indexes, queues, and locates projects; the filesystem is the editor.
 
-See `design.md` for the authoritative design and every locked decision.
+The implementation is the source of truth.
 
 ## Supported platforms
 

@@ -41,7 +41,7 @@ Out of scope:
 - The status-dispute resume. A `status_conflict` key already blocks `rebase --continue`
   correctly.
 - Any new git plumbing. Everything needed is already exported by `internal/git`.
-- Further `design.md` changes. The amendments that lock this resolution have already landed
+- Further design-note edits. The amendments that lock this resolution have already landed
   (see "Design silence and the resolution"); this project implements to them and re-decides
   nothing. The config-file case needs none either — the locked gate on `rebase --continue` is
   stated for any unactioned delete/edit path, not for project `.md` alone.
@@ -109,27 +109,26 @@ and the rebase continues over it untouched.
 
 ## Design silence and the resolution
 
-`design.md` covered the delete/edit pause and the human restoring or removing the file before
-re-running `pj sync`. It did not cover a re-run where they did neither.
+Earlier design notes covered the delete/edit pause and the human restoring or removing the
+file before re-running `pj sync`. They did not cover a re-run where they did neither.
 
 `AGENTS.md` requires that silence be flagged rather than guessed. P6b's own requirement 2 shows
 the established pattern for this situation: state the resolution with the reasoning that
 produced it, so the choice is deliberate and reviewable rather than an accident of
-implementation. That has now happened in both places, and the split matters — `design.md`
-carries the rule, this document carries the reasoning that produced it.
+implementation. This document carries both the reasoning and the locked rule; the skill body
+and the code that implement it are the live contract.
 
-The design now locks the resolution at three sites:
+The resolution is locked at three sites:
 
-- `DECISION (unactioned re-run)`, under the layer-3 delete/edit DECISION in Merge conflict
-  handling — the stage-set discriminator, the four outcomes, and why staging the survivor is
-  the defect.
-- The `Sync resume` row in the mid-rebase command-classes table — an unactioned delete/edit
-  joins `status_conflict` as a gate on `rebase --continue`.
-- The locked Conflicts-and-paused-sync skill row — the agent-facing rule that re-running
-  without acting re-pauses by design.
+- The unactioned re-run rule — the stage-set discriminator, the four outcomes, and why
+  staging the survivor is the defect.
+- The mid-rebase resume gate — an unactioned delete/edit joins `status_conflict` as a block
+  on `rebase --continue`.
+- The Conflicts-and-paused-sync skill row — the agent-facing rule that re-running without
+  acting re-pauses by design.
 
-`design.md` is authoritative: implement to it. If it and this document ever disagree, the design
-wins and this document is corrected.
+The skill body and the implementing code are the live contract. This document records the
+reasoning and the locked rule; if it and the tree disagree, correct this prose.
 
 The two allowlisted config files are covered by that rule, not an extension of it. The layer-3
 DECISION is written in merge vocabulary — stage sets, surviving frontmatter, a status to report —
@@ -166,23 +165,23 @@ read the file. A read that fails for another reason — a permission change, an 
 replaced by a directory — is an operational fault, not a decision, and it aborts the integrate
 with the path named rather than staging anything. Deletion is the one outcome here that loses
 data, so it must rest on a positive signal: reading a fault as a deletion would stage a removal
-and push it, destroying the surviving edit on a failure nobody ever saw. `design.md` already
+and push it, destroying the surviving edit on a failure nobody ever saw. The git layer already
 fixes this rule one layer down, where a failed `git show` must never be read as an absent stage
 because that reclassifies a genuine git fault as a deletion; the resumed stop reads the worktree
 for the same purpose and takes the same rule.
 
 ## References
 
-- `design.md` — Merge conflict handling, for the layer-4 handoffs and the delete/edit pause;
-  Sync model, for `pj sync`'s five steps and the resume contract. Authoritative on every
-  conflict.
+- Archived design notes (historical; not live authority) — Merge conflict handling for the
+  layer-4 handoffs and the delete/edit pause; Sync model for `pj sync`'s five steps and the
+  resume contract.
 - `docs/archive/06b-sync-and-push-boundary.md` — requirement 7 (the resume contract and the
   marker-freeness discriminator) and requirement 4 (the per-stop procedure). Explains why the
   current discriminator exists and what it was built to separate.
 - `docs/archive/06a-frontmatter-merge-and-rebase-driver.md` — the rebase driver's contract,
   including the delete/edit outcome class and the stage plumbing it uses.
-- `AGENTS.md` — pure Go, no cgo; external git binary; the rule that design silence is flagged
-  rather than guessed.
+- `AGENTS.md` — pure Go, no cgo; external git binary; prefer packages, tests, and the
+  embedded skill over archive prose; flag unclear behaviour rather than guessing.
 - Project writing guide — `start get project/writing`.
 
 ## Requirements
@@ -279,8 +278,8 @@ for the same purpose and takes the same rule.
 
 - Pure Go, no cgo. Every git invocation goes through `internal/git`. Do not add git plumbing —
   `ConflictStages` and `ShowStage` already cover this.
-- `design.md` overrides the Go CLI design guide, and overrides the resolution stated above if it
-  turns out to speak to this case.
+- This document's requirements and the implemented contracts override the Go CLI design
+  guide. Do not invent behaviour from archive design prose.
 - Non-interactive. The command never prompts; the human resolves in-file and re-runs.
 - Do not weaken the body-marker rule. A body conflict's markers are never scanned before
   staging.

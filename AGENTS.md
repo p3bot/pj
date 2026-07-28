@@ -2,7 +2,9 @@
 
 Guidance for AI agents working in this repository. `pj` is a single-purpose CLI
 that tracks feature work as plain markdown files, one project per file, edited in
-place. See `design.md` for the full, authoritative design.
+place. The running code and the embedded skill contract (`pj skill` /
+`internal/skill/skill.md`) are the source of truth. Archived design prose is not
+live authority and must not override the tree.
 
 ## Project status
 
@@ -20,17 +22,16 @@ integrity, push), the per-git-root preflight, the layer-4 resume contract, the `
 per-root failure isolation, and the reentrant lock span (self-commit and repair
 orchestration split into acquiring wrappers over locks-held cores); and P7's
 `pj skill` — the 18-section agent contract (embedded `skill.md` as the sole runtime
-source, with structure/token/handoff tests; design.md remains human authority while
-present, not a build or drift-test dependency) plus the hard-refuse
-`skill install`/`list`/`uninstall` placeholders.
+source, with structure/token/handoff tests; no design-doc dependency) plus the
+hard-refuse `skill install`/`list`/`uninstall` placeholders.
 
-- `design.md` is the source of truth for architecture and every locked decision.
-  Read it before proposing or writing code.
+- Prefer packages, tests, and the embedded skill over prose when they disagree.
 - Short-ids are letter-first by construction (the `IsShortID` predicate and the
   mint both forbid a leading digit); any `<scope>-<short-id>` example follows
   that rule.
-- Do not invent behaviour that contradicts `design.md`. If the design is silent
-  or ambiguous on a point, flag it rather than guessing.
+- Do not invent behaviour that contradicts closed contracts already in code
+  (token catalogue, id/order/slug grammars, exit codes, sole push boundary). If
+  behaviour is unclear, flag it rather than guessing from archive prose.
 
 ## Project documents and archiving
 
@@ -88,7 +89,7 @@ root; a completed project is archived.
     exports the shared `KeepBefore` loser pick the merge package reuses
   - `fmmerge` — the pure 3-way frontmatter merge over raw stage blobs (P6a)
   - `rebasedriver` — resolves one conflicted project `.md` at a paused rebase (P6a)
-  - `skill` — embedded agent skill contract (`skill.md`; sole source, no design.md dependency) (P7)
+  - `skill` — embedded agent skill contract (`skill.md`; sole source, no design-doc dependency) (P7)
   - `cli` — Cobra command tree, exit codes, signals, colour/TTY, path hand-off
 
 ## Build, test, lint, format
@@ -122,13 +123,13 @@ introduce a cgo-based SQLite driver (e.g. `mattn/go-sqlite3`) — it breaks the
 The Go CLI design guide (`start get golang/design/cli`) is advisory only.
 Adopt its repo-shape conventions — standard layout (`cmd/pj/main.go` minimal,
 `internal/…`), table-driven tests with `testdata/`, and a `.golangci.yml`.
-`design.md` overrides it on every conflict; a later project does not restate
-this. Known override points where `design.md` wins:
+The implemented contracts (code and embedded skill) override it on every conflict;
+a later project does not restate this. Known override points where the tree wins:
 
-- Exit codes and error classes — `design.md` fixes them (usage/bad-id `exit 2`,
-  unknown id generic non-zero, `duplicate_id:` refuse) over the guide's mapping.
-- Output contract — `design.md` is path-centric with TSV/stdout hand-off, not
-  the guide's JSON-envelope-first model.
+- Exit codes and error classes — usage/bad-id `exit 2`, unknown id generic
+  non-zero, `duplicate_id:` refuse — over the guide's mapping.
+- Output contract — path-centric with TSV/stdout hand-off, not the guide's
+  JSON-envelope-first model.
 - Configuration model — per-scope `pj.cue` plus a machine-wide registry, not the
   guide's XDG/profile precedence chain.
 - Command semantics — one-op-one-commit and path hand-off, not the guide's

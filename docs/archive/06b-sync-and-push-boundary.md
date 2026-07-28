@@ -86,12 +86,12 @@ Two consequences of P6a to build on rather than repeat. The driver already class
 own outcome, so this project's loop reads a result rather than re-deriving it from git. And
 the driver takes no locks and starts no rebases: the span and the rebase are this project's.
 
-`pj sync` does not exist yet; no command pushes. `design.md` is the source of truth. `pj sync`
+`pj sync` does not exist yet; no command pushes. This project's requirements and the landed packages are the contract. Archived design notes record why rules landed; they do not override the tree. `pj sync`
 is the sole push boundary and applies only to `autoCommit: true` scopes.
 
 ## References
 
-- `design.md` — read these sections:
+- Archived design notes (historical; not live authority) — sections that guided this project:
   - Sync model → pj sync: the sole push boundary — the five steps (snapshot with the closed
     allowlist and single commit; fetch and integrate unconditionally; sync-time integrity
     repair; push if ahead with the fetch→push race loop; report), the ambient-vs-`--all`
@@ -113,7 +113,7 @@ is the sole push boundary and applies only to `autoCommit: true` scopes.
   shape, and the git plumbing this project calls.
 - `AGENTS.md` — pure Go no cgo; external git binary; SQLite via `modernc.org/sqlite`.
 - Project writing guide — `start get project/writing`.
-- Go CLI design guide — `start get golang/design/cli`. Advisory; subordinate to `design.md`
+- Go CLI design guide — `start get golang/design/cli`. Advisory; subordinate to this document's requirements and the implemented contracts
   (see Constraints).
 
 ## Requirements
@@ -128,8 +128,8 @@ is the sole push boundary and applies only to `autoCommit: true` scopes.
    ambient scope — so neither narrows `--all`, and the combination is precedence, not a
    usage error. This matches `pj doctor`, the only other command that arbitrates
    ambient-versus-`--all` ("`--all` wins over ambient"), and keeps "`--all` means every
-   auto-commit git-root" a single rule with no flag-versus-env fork. `design.md` is silent
-   on the pair; if it later fixes the precedence otherwise, follow it. A non-auto-commit
+   auto-commit git-root" a single rule with no flag-versus-env fork. The design notes were silent
+   on the pair; the resolution stated here is deliberate. A non-auto-commit
    ambient scope refuses with a mode-named error;
    `--all` skips non-auto-commit scopes rather than erroring. When the eligible set is empty
    (no registered auto-commit scopes/git-roots), exit 0 with a terse "nothing to sync" note.
@@ -156,7 +156,7 @@ is the sole push boundary and applies only to `autoCommit: true` scopes.
    sibling is name-drifted (`name_drift:` — registry key ≠ `pj.cue` name), rather than
    pushing under a violated or unverifiable invariant.
    The name-drift arm is the whole-root refuse, not merely a refuse of operations scoped to
-   the drifted entry. `design.md` offers both ("refuses that root … or at minimum refuses
+   the drifted entry. The design notes offered both ("refuses that root … or at minimum refuses
    operations scoped to that entry"); take the stronger one, because sync is repo-granular
    in exactly the way the narrower reading assumes it is not — the snapshot sweeps every
    auto-commit dir sharing the root and pushes them under one commit, so a drifted sibling's
@@ -168,7 +168,7 @@ is the sole push boundary and applies only to `autoCommit: true` scopes.
    P2's refusal does.
    A registered scope whose dir is unreachable (unmounted, deleted, permission or I/O error)
    is skipped by the preflight, not refused on and not fail-closed: report
-   `unreachable_scope:` against the run and carry on. `design.md` does not cover sync against
+   `unreachable_scope:` against the run and carry on. The design notes did not cover sync against
    an unreachable dir — flagged rather than assumed — and its two governing rules pull
    opposite ways, so the resolution is stated here. Reconcile isolates an unreachable scope
    rather than escalating, but an unreadable autoCommit is elsewhere the same fail-closed
@@ -369,9 +369,9 @@ is the sole push boundary and applies only to `autoCommit: true` scopes.
 - Frontmatter merge is arbitrated by git commit/author timestamps, not any frontmatter
   timestamp; there is no `updated:` field and the merge base is git's stage-1, never an
   in-frontmatter snapshot.
-- `design.md` overrides the Go CLI design guide. Carry these into this project:
+- This project's requirements and the implemented contracts override the Go CLI design guide. Carry these into this project:
 
-  | Go CLI guide default | design.md rule (authoritative) |
+  | Go CLI guide default | Implemented / project rule |
   |---|---|
   | `--json` + JSON envelope | No `--json`; sync reports text on stderr/stdout; closed tokens for machine signals |
   | Rich exit map + `ErrorPayload.Code` | Minimal: `0` ok (including empty eligible set); `2` usage; otherwise generic non-zero |

@@ -59,12 +59,12 @@ touched paths + fixed message + git-root), the mid-rebase classification/refuse 
 verbs, the repo-driven `uncommitted:` signal, and the write verbs `create`/`status`/
 `reorder`/`next --claim`.
 
-The repo is otherwise as built by P1–P4. `design.md` is the source of truth. Detection warns
+The repo is otherwise as built by P1–P4. This project's requirements and the landed packages are the contract. Archived design notes record why rules landed; they do not override the tree. Detection warns
 on the read path (P3); this project owns the file-mutating repair and the diagnose verb.
 
 ## References
 
-- `design.md` — read these sections:
+- Archived design notes (historical; not live authority) — sections that guided this project:
   - Project ids — the id-collision repair procedure in full: the closed deterministic loser
     pick (`created` newer, then lexicographically greater basename, then greater SHA-256 of
     raw stage/file bytes; never machine-local bias), the deterministic short-id extension
@@ -108,7 +108,7 @@ on the read path (P3); this project owns the file-mutating repair and the diagno
   - CLI surface — the `pj doctor` bullet (full diagnose class list and flag behaviour).
 - `AGENTS.md` — pure Go no cgo; external git binary; SQLite via `modernc.org/sqlite`.
 - Project writing guide — `start get project/writing`.
-- Go CLI design guide — `start get golang/design/cli`. Advisory; subordinate to `design.md`
+- Go CLI design guide — `start get golang/design/cli`. Advisory; subordinate to this document's requirements and the implemented contracts
   (see Constraints).
 
 ## Requirements
@@ -258,9 +258,9 @@ on the read path (P3); this project owns the file-mutating repair and the diagno
   edges after a collision or rename, auto-picking a terminal status, auto-healing
   registry/`pj.cue` name drift, renumber-the-loser / max+1 id schemes, multi-file renumber on
   hot-path reorder, or any repair on pure reads.
-- `design.md` overrides the Go CLI design guide. Carry these into this project:
+- This project's requirements and the implemented contracts override the Go CLI design guide. Carry these into this project:
 
-  | Go CLI guide default | design.md rule (authoritative) |
+  | Go CLI guide default | Implemented / project rule |
   |---|---|
   | `--json` + JSON envelope | No `--json`; text on stderr/stdout; machine signal is the closed token set |
   | Rich exit map + `ErrorPayload.Code` | Minimal: `0` ok; `2` usage (including mutating doctor with no ambient/`--all`); otherwise generic non-zero |

@@ -64,12 +64,12 @@ only — this project adds the index and so realizes the index-row drop for forg
 via reconcile/rebuild. The repo is otherwise greenfield: no SQLite yet, no project read
 verbs, no git integration.
 
-`design.md` is the source of truth. Authority stays in the files; the index is a derived,
+This project's requirements and the landed packages are the contract. Archived design notes record why rules landed; they do not override the tree. Authority stays in the files; the index is a derived,
 rebuildable view. Detection versus repair is a hard line: reads warn, they never mutate.
 
 ## References
 
-- `design.md` — read these sections:
+- Archived design notes (historical; not live authority) — sections that guided this project:
   - Read interface (SQLite index) — `modernc.org/sqlite` pure Go with FTS5, the fixed
     machine-local `index.db` path in XDG state, one DB namespaced by a `scope` column,
     write-through, schema-change-is-rebuild, WAL + `BUSY_TIMEOUT_MS = 5000`, and the
@@ -95,7 +95,7 @@ rebuildable view. Detection versus repair is a hard line: reads warn, they never
 - `AGENTS.md` — pure Go no cgo; SQLite via `modernc.org/sqlite` (FTS5 compiled in); no
   `mattn/go-sqlite3`.
 - Project writing guide — `start get project/writing`.
-- Go CLI design guide — `start get golang/design/cli`. Advisory; subordinate to `design.md`
+- Go CLI design guide — `start get golang/design/cli`. Advisory; subordinate to this document's requirements and the implemented contracts
   (see Constraints for the override list). Adopt table-driven tests, `testdata/`, and
   interfaces at the consumer for the index and reconcile boundaries.
 
@@ -248,9 +248,9 @@ rebuildable view. Detection versus repair is a hard line: reads warn, they never
   moves a project file. Integrity conditions are detected and warned about; repair is P5/P6.
 - The `pj query` schema is not a stable API and must be documented as such; do not let it
   become an agent automation contract.
-- `design.md` overrides the Go CLI design guide. Carry these into this project:
+- This project's requirements and the implemented contracts override the Go CLI design guide. Carry these into this project:
 
-  | Go CLI guide default | design.md rule (authoritative) |
+  | Go CLI guide default | Implemented / project rule |
   |---|---|
   | `--json` + JSON envelope on every command | No `--json`, no envelope. stdout is a path or closed TSV; diagnostics + closed tokens on stderr |
   | `--color=auto\|always\|never`; honour `FORCE_COLOR`/`CLICOLOR_FORCE` | No `--color` flag; honour `NO_COLOR` only; stdout (TSV/path) never ANSI; token prefixes never coloured |
