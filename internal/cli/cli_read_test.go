@@ -60,12 +60,12 @@ func TestListBoardContract(t *testing.T) {
 	if len(rows) != 2 {
 		t.Fatalf("default board should show 2 active rows, got %d: %q", len(rows), out)
 	}
-	// Sorted by (order, id): ab2c then de34.
-	if !strings.HasPrefix(rows[0], "wc-ab2c\ttodo\tNetwork redesign\t\t") {
+	// Sorted by (order, id): ab2c then de34. Four fields: id, status, title, waiting-on.
+	if rows[0] != "wc-ab2c\ttodo\tNetwork redesign\t" {
 		t.Errorf("row0 = %q", rows[0])
 	}
 	// de34 waits on the still-todo ab2c.
-	if rows[1] != "wc-de34\ttodo\tAuth flow\t\twc-ab2c" {
+	if rows[1] != "wc-de34\ttodo\tAuth flow\twc-ab2c" {
 		t.Errorf("row1 waiting-on wrong: %q", rows[1])
 	}
 	for _, r := range rows {
@@ -87,7 +87,7 @@ func TestListBoardContract(t *testing.T) {
 		t.Fatalf("list done: %v", err)
 	}
 	doneRows := lines(out)
-	if len(doneRows) != 1 || !strings.HasPrefix(doneRows[0], "wc-gh56\tdone\tOld work\t") {
+	if len(doneRows) != 1 || doneRows[0] != "wc-gh56\tdone\tOld work\t" {
 		t.Errorf("list done should show archived done without --all, got %q", out)
 	}
 
@@ -101,10 +101,9 @@ func TestListBoardContract(t *testing.T) {
 func TestListTSVFlattensControlCharsInFields(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "tv")
-	// A YAML double-quoted summary carrying a literal tab and an escaped newline:
-	// left raw these would split the record into extra columns and lines.
-	addProject(t, dir, "tv-ab2c", "note", "todo", "a0", "# Title\n", false,
-		"summary: \"col1\tcol2\\nline2\"\n")
+	// An H1 title carrying a literal tab: left raw it would split the record into
+	// extra columns. Summary is not a list column.
+	addProject(t, dir, "tv-ab2c", "note", "todo", "a0", "# col1\tcol2\n", false, "")
 
 	out, _, err := run(t, app, "list", "--scope", "tv")
 	if err != nil {
@@ -114,14 +113,14 @@ func TestListTSVFlattensControlCharsInFields(t *testing.T) {
 	if len(rows) != 1 {
 		t.Fatalf("a single project must stay one TSV line, got %d: %q", len(rows), out)
 	}
-	if got := strings.Count(rows[0], "\t"); got != 4 {
-		t.Errorf("row must have exactly 5 fields (4 tabs), got %d: %q", got, rows[0])
+	if got := strings.Count(rows[0], "\t"); got != 3 {
+		t.Errorf("row must have exactly 4 fields (3 tabs), got %d: %q", got, rows[0])
 	}
 	if strings.Contains(rows[0], "col1\tcol2") {
-		t.Errorf("summary tab leaked into the TSV: %q", rows[0])
+		t.Errorf("title tab leaked into the TSV: %q", rows[0])
 	}
-	if !strings.Contains(rows[0], "col1 col2 line2") {
-		t.Errorf("control chars should flatten to spaces: %q", rows[0])
+	if !strings.Contains(rows[0], "col1 col2") {
+		t.Errorf("title tab should flatten to a space: %q", rows[0])
 	}
 }
 
@@ -557,7 +556,7 @@ func TestCrossScopeDependsGate(t *testing.T) {
 
 	// list shows the unmet cross-scope dep in waiting-on.
 	out, _, _ = run(t, app, "list", "--scope", "wc")
-	if !strings.Contains(out, "wc-bb22\ttodo\tFeature\t\tup-aa22") {
+	if !strings.Contains(out, "wc-bb22\ttodo\tFeature\tup-aa22") {
 		t.Errorf("waiting-on should carry the cross-scope dep: %q", out)
 	}
 

@@ -22,13 +22,14 @@ func newListCmd(app *App) *cobra.Command {
 		Use:   "list [status...] [--scope S] [--tag T]... [--all] [--no-lens]",
 		Short: "Board / inventory for one scope as parse-stable TSV",
 		Long: "Print one scope's projects, sorted (order, id), one TSV line each:\n" +
-			"  <full-id>\\t<status>\\t<title>\\t<summary>\\t<waiting-on>\n" +
-			"Bare list is the default active set. Status positionals union-filter (an\n" +
-			"unknown status exits 2) and include matching rows under archive/ — so\n" +
-			"`list done` shows done projects without --all. --tag repeats as OR; the\n" +
-			"lens applies unless --no-lens (lens AND --tag). --all expands the unfiltered\n" +
-			"board to every non-quarantined status, including archive/. Lens echo and\n" +
-			"integrity tokens ride stderr only, never the TSV. Pure read.",
+			"  <full-id>\\t<status>\\t<title>\\t<waiting-on>\n" +
+			"Headerless TSV (no header row). Summary is not a list column — use\n" +
+			"`pj meta <id>`. Bare list is the default active set. Status positionals\n" +
+			"union-filter (an unknown status exits 2) and include matching rows under\n" +
+			"archive/ — so `list done` shows done projects without --all. --tag repeats\n" +
+			"as OR; the lens applies unless --no-lens (lens AND --tag). --all expands\n" +
+			"the unfiltered board to every non-quarantined status, including archive/.\n" +
+			"Lens echo and integrity tokens ride stderr only, never the TSV. Pure read.",
 		Args: usageArgs(cobra.ArbitraryArgs),
 		RunE: func(c *cobra.Command, args []string) error {
 			return runList(app, c, listParams{statuses: args, scope: scope, tags: tags, all: all, noLens: noLens})
@@ -106,7 +107,7 @@ func runList(app *App, c *cobra.Command, p listParams) error {
 	for _, row := range kept {
 		ds := gate.evalDepends(row)
 		tokens.add(ds.Tokens)
-		stdoutln(c, tsvLine(row.ID, row.Status, row.Title, row.Summary, strings.Join(ds.WaitingOn, " ")))
+		stdoutln(c, tsvLine(row.ID, row.Status, row.Title, strings.Join(ds.WaitingOn, " ")))
 	}
 
 	if applyLens {
@@ -206,8 +207,8 @@ func (t *tokenSet) add(lines []string) {
 func (t *tokenSet) lines() []string { return t.order }
 
 // tsvLine joins fields into one tab-separated stdout record, neutralising any
-// tab, carriage return, or newline inside a field to a single space first. A
-// YAML summary or an H1 title can legitimately carry those control characters,
+// tab, carriage return, or newline inside a field to a single space first. An
+// H1 title (or search summary) can legitimately carry those control characters,
 // and left raw they would split one record into extra columns or extra lines —
 // silently breaking the parse-stable "one TSV line per project" contract every
 // board reader depends on. The index keeps the raw bytes; only this output
