@@ -24,9 +24,11 @@ func newListCmd(app *App) *cobra.Command {
 		Long: "Print one scope's projects, sorted (order, id), one TSV line each:\n" +
 			"  <full-id>\\t<status>\\t<title>\\t<summary>\\t<waiting-on>\n" +
 			"Bare list is the default active set. Status positionals union-filter (an\n" +
-			"unknown status exits 2). --tag repeats as OR; the lens applies unless\n" +
-			"--no-lens (lens AND --tag). --all includes done/backlog and archived. Lens\n" +
-			"echo and integrity tokens ride stderr only, never the TSV. Pure read.",
+			"unknown status exits 2) and include matching rows under archive/ — so\n" +
+			"`list done` shows done projects without --all. --tag repeats as OR; the\n" +
+			"lens applies unless --no-lens (lens AND --tag). --all expands the unfiltered\n" +
+			"board to every non-quarantined status, including archive/. Lens echo and\n" +
+			"integrity tokens ride stderr only, never the TSV. Pure read.",
 		Args: usageArgs(cobra.ArbitraryArgs),
 		RunE: func(c *cobra.Command, args []string) error {
 			return runList(app, c, listParams{statuses: args, scope: scope, tags: tags, all: all, noLens: noLens})
@@ -34,7 +36,7 @@ func newListCmd(app *App) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&scope, "scope", "", "scope to list (defaults to ambient; wins over ambient)")
 	cmd.Flags().StringArrayVar(&tags, "tag", nil, "keep projects with any of these tags (repeatable; OR)")
-	cmd.Flags().BoolVar(&all, "all", false, "include done/backlog and archived projects")
+	cmd.Flags().BoolVar(&all, "all", false, "with no status filter: include done/backlog and archive/")
 	cmd.Flags().BoolVar(&noLens, "no-lens", false, "ignore the active lens")
 	return cmd
 }
@@ -136,8 +138,10 @@ func parseStatusFilter(names []string, schema *scopeconfig.Schema) (map[string]b
 }
 
 // listVisible applies the status/archive axes: explicit positionals select exact
-// statuses; otherwise the default active set (or every status under --all). Archived
-// projects appear only under --all (there is no --archived flag). Quarantined
+// statuses (including rows under archive/ — "list done" means status done, not
+// "done and still at dir root"); otherwise the default active set, or every
+// non-quarantined status under --all. Without a status filter, archive/ rows
+// appear only under --all (there is no --archived flag). Quarantined
 // (parse_error) rows are never board rows — get/search locate them for repair.
 func listVisible(p *index.Project, statusFilter map[string]bool, all bool, schema *scopeconfig.Schema) bool {
 	// A quarantined row has no trustworthy status/title; it is located via get/search
@@ -145,11 +149,13 @@ func listVisible(p *index.Project, statusFilter map[string]bool, all bool, schem
 	if p.ParseError {
 		return false
 	}
-	if p.Archived && !all {
-		return false
-	}
+	// Status positionals are a pure status union: layout (archive/ vs root) does not
+	// hide a matching row. --all only matters for the unfiltered board.
 	if len(statusFilter) > 0 {
 		return statusFilter[p.Status]
+	}
+	if p.Archived && !all {
+		return false
 	}
 	if all {
 		return true

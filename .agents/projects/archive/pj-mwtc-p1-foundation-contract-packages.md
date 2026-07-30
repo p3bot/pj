@@ -1,3 +1,9 @@
+---
+id: pj-mwtc
+status: done
+order: "a2"
+created: "2026-07-29T21:00:02+10:00"
+---
 # P1 Foundation contract packages
 
 ## Goal

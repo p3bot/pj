@@ -1,3 +1,9 @@
+---
+id: pj-b625
+status: done
+order: "a6"
+created: "2026-07-29T21:00:02+10:00"
+---
 # P5 Integrity repair and doctor
 
 ## Goal

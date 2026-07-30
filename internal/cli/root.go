@@ -56,6 +56,17 @@ func Execute() error {
 	return root.ExecuteContext(ctx)
 }
 
+// Root help groups (AddGroup order = section order). IDs are internal; Titles
+// are the exact strings Cobra prints in root help.
+const (
+	groupWorkID     = "work"
+	groupWorkTitle  = "Work:"
+	groupBoardID    = "board"
+	groupBoardTitle = "Board:"
+	groupAdminID    = "admin"
+	groupAdminTitle = "Admin:"
+)
+
 // newRootCmd builds a fresh command tree. A constructor (rather than package-level
 // command vars) keeps parsed flag state from leaking across invocations, which
 // matters for tests that execute the tree repeatedly.
@@ -63,8 +74,7 @@ func newRootCmd(app *App) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "pj",
 		Short: "Agent project management CLI",
-		Long: "pj tracks feature work as plain markdown files, one project per file.\n\n" +
-			"Supported on macOS and Linux only.",
+		Long: "pj tracks feature work as plain markdown files, one project per file.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          usageArgs(cobra.NoArgs),
@@ -76,23 +86,61 @@ func newRootCmd(app *App) *cobra.Command {
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
 		return &ExitError{Code: exitUsage, Err: err}
 	})
+
+	// Preserve AddCommand order so within-group help reads as the locked mini
+	// workflow (create → … → next), not pure alpha. Global Cobra switch; only
+	// affects Commands() order (help + iteration), not dispatch.
+	cobra.EnableCommandSorting = false
+
+	root.AddGroup(
+		&cobra.Group{ID: groupWorkID, Title: groupWorkTitle},
+		&cobra.Group{ID: groupBoardID, Title: groupBoardTitle},
+		&cobra.Group{ID: groupAdminID, Title: groupAdminTitle},
+	)
+
+	// Build children first, then assign root GroupIDs here so group taxonomy stays
+	// in one place and shared constructors stay parent-agnostic.
+	create := newCreateCmd(app)
+	get := newGetCmd(app)
+	edit := newEditCmd(app)
+	status := newStatusCmd(app)
+	reorder := newReorderCmd(app)
+	next := newNextCmd(app)
+	list := newListCmd(app)
+	meta := newMetaCmd(app)
+	deps := newDepsCmd(app)
+	search := newSearchCmd(app)
+	query := newQueryCmd(app)
+	lens := newLensCmd(app)
+	scope := newScopeCmd(app)
+	sync := newSyncCmd(app)
+	doctor := newDoctorCmd(app)
+	skill := newSkillCmd(app)
+
+	create.GroupID = groupWorkID
+	get.GroupID = groupWorkID
+	edit.GroupID = groupWorkID
+	status.GroupID = groupWorkID
+	reorder.GroupID = groupWorkID
+	next.GroupID = groupWorkID
+
+	list.GroupID = groupBoardID
+	meta.GroupID = groupBoardID
+	deps.GroupID = groupBoardID
+	search.GroupID = groupBoardID
+	query.GroupID = groupBoardID
+	lens.GroupID = groupBoardID
+
+	scope.GroupID = groupAdminID
+	sync.GroupID = groupAdminID
+	doctor.GroupID = groupAdminID
+	skill.GroupID = groupAdminID
+
+	// Within-group order matches the membership lists (mini workflow, not pure alpha).
 	root.AddCommand(
-		newScopeCmd(app),
-		newListCmd(app),
-		newNextCmd(app),
-		newGetCmd(app),
-		newMetaCmd(app),
-		newDepsCmd(app),
-		newSearchCmd(app),
-		newQueryCmd(app),
-		newEditCmd(app),
-		newLensCmd(app),
-		newCreateCmd(app),
-		newStatusCmd(app),
-		newReorderCmd(app),
-		newDoctorCmd(app),
-		newSyncCmd(app),
-		newSkillCmd(app),
+		create, get, edit, status, reorder, next,
+		list, meta, deps, search, query, lens,
+		scope, sync, doctor, skill,
 	)
 	return root
 }

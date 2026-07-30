@@ -74,10 +74,21 @@ func TestListBoardContract(t *testing.T) {
 		}
 	}
 
-	// --all restores the archived done project.
+	// --all restores the archived done project on the unfiltered board.
 	out, _, _ = run(t, app, "list", "--scope", "wc", "--all")
 	if len(lines(out)) != 3 {
 		t.Errorf("--all should include archived done, got %q", out)
+	}
+
+	// Explicit status filter includes matching archive/ rows without --all.
+	// "list done" means status done, not "done and still at dir root".
+	out, _, err = run(t, app, "list", "--scope", "wc", "done")
+	if err != nil {
+		t.Fatalf("list done: %v", err)
+	}
+	doneRows := lines(out)
+	if len(doneRows) != 1 || !strings.HasPrefix(doneRows[0], "wc-gh56\tdone\tOld work\t") {
+		t.Errorf("list done should show archived done without --all, got %q", out)
 	}
 
 	// Unknown status positional → exit 2.

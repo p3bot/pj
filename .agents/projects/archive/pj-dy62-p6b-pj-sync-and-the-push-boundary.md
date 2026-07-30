@@ -1,3 +1,9 @@
+---
+id: pj-dy62
+status: done
+order: "a8"
+created: "2026-07-29T21:00:02+10:00"
+---
 # P6b pj sync and the push boundary
 
 ## Goal

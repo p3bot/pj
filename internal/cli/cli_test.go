@@ -146,6 +146,147 @@ func TestScopeListEmptyExitsZeroEmptyStdout(t *testing.T) {
 	}
 }
 
+// helpSection returns the lines under title until the next section header
+// (a line ending with ':' that is a standalone title line) or EOF.
+func helpSection(help, title string) string {
+	idx := strings.Index(help, title+"\n")
+	if idx < 0 {
+		return ""
+	}
+	rest := help[idx+len(title)+1:]
+	// Next section: a non-indented line ending with ':' (Cobra group titles and
+	// "Additional Commands:" / "Flags:" / "Aliases:" style headers).
+	lines := strings.Split(rest, "\n")
+	var b strings.Builder
+	for _, line := range lines {
+		if line != "" && !strings.HasPrefix(line, " ") && strings.HasSuffix(line, ":") {
+			break
+		}
+		b.WriteString(line)
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
+func TestRootHelpGroups(t *testing.T) {
+	app := newApp(t)
+
+	for _, args := range [][]string{{"--help"}, {"help"}, {}} {
+		name := strings.Join(args, " ")
+		if name == "" {
+			name = "bare"
+		}
+		t.Run(name, func(t *testing.T) {
+			out, _, err := run(t, app, args...)
+			if err != nil {
+				t.Fatalf("help %v: %v", args, err)
+			}
+
+			workIdx := strings.Index(out, groupWorkTitle)
+			boardIdx := strings.Index(out, groupBoardTitle)
+			adminIdx := strings.Index(out, groupAdminTitle)
+			if workIdx < 0 || boardIdx < 0 || adminIdx < 0 {
+				t.Fatalf("missing group title(s) in help:\n%s", out)
+			}
+			if !(workIdx < boardIdx && boardIdx < adminIdx) {
+				t.Fatalf("group titles out of order: work=%d board=%d admin=%d\n%s",
+					workIdx, boardIdx, adminIdx, out)
+			}
+
+			work := helpSection(out, groupWorkTitle)
+			board := helpSection(out, groupBoardTitle)
+			admin := helpSection(out, groupAdminTitle)
+
+			// Membership and within-group order (mini workflow, not pure alpha).
+			wantWork := []string{"create", "get", "edit", "status", "reorder", "next"}
+			wantBoard := []string{"list", "meta", "deps", "search", "query", "lens"}
+			wantAdmin := []string{"scope", "sync", "doctor", "skill"}
+			if got := commandsInSectionOrder(work); !slicesEqual(got, wantWork) {
+				t.Errorf("Work order = %v, want %v\n%s", got, wantWork, work)
+			}
+			if got := commandsInSectionOrder(board); !slicesEqual(got, wantBoard) {
+				t.Errorf("Board order = %v, want %v\n%s", got, wantBoard, board)
+			}
+			if got := commandsInSectionOrder(admin); !slicesEqual(got, wantAdmin) {
+				t.Errorf("Admin order = %v, want %v\n%s", got, wantAdmin, admin)
+			}
+
+			// Cross-group: a Board-only verb must not appear under Work, etc.
+			if commandListedInSection(work, "list") || commandListedInSection(work, "doctor") {
+				t.Errorf("Work section must not list Board/Admin verbs:\n%s", work)
+			}
+			if commandListedInSection(board, "create") || commandListedInSection(board, "scope") {
+				t.Errorf("Board section must not list Work/Admin verbs:\n%s", board)
+			}
+			if commandListedInSection(admin, "next") || commandListedInSection(admin, "search") {
+				t.Errorf("Admin section must not list Work/Board verbs:\n%s", admin)
+			}
+		})
+	}
+
+	// Nested parents stay a single flat Available Commands list.
+	for _, parent := range []string{"scope", "skill"} {
+		t.Run(parent+"-flat", func(t *testing.T) {
+			out, _, err := run(t, app, parent, "--help")
+			if err != nil {
+				t.Fatalf("%s --help: %v", parent, err)
+			}
+			if !strings.Contains(out, "Available Commands:") {
+				t.Errorf("%s help missing flat Available Commands:\n%s", parent, out)
+			}
+			for _, title := range []string{groupWorkTitle, groupBoardTitle, groupAdminTitle} {
+				if strings.Contains(out, title) {
+					t.Errorf("%s help must not show root group title %q:\n%s", parent, title, out)
+				}
+			}
+		})
+	}
+}
+
+// commandListedInSection reports whether name appears as a Cobra help command
+// row (two-space indent, name, then padding spaces before the Short).
+func commandListedInSection(section, name string) bool {
+	for _, line := range strings.Split(section, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == name || strings.HasPrefix(trimmed, name+" ") {
+			// Only match command rows (indented), not prose.
+			if strings.HasPrefix(line, "  "+name) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// commandsInSectionOrder returns help command names in the order they appear
+// (two-space indent rows). Used to lock within-group registration order.
+func commandsInSectionOrder(section string) []string {
+	var out []string
+	for _, line := range strings.Split(section, "\n") {
+		if !strings.HasPrefix(line, "  ") || strings.HasPrefix(line, "   ") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		out = append(out, fields[0])
+	}
+	return out
+}
+
+func slicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func TestWantColor(t *testing.T) {
 	t.Run("tty on, NO_COLOR unset", func(t *testing.T) {
 		withoutNoColor(t)

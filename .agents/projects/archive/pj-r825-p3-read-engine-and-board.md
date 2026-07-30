@@ -1,3 +1,9 @@
+---
+id: pj-r825
+status: done
+order: "a4"
+created: "2026-07-29T21:00:02+10:00"
+---
 # P3 Read engine and board
 
 ## Goal

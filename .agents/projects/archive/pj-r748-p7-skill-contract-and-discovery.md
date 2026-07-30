@@ -1,3 +1,9 @@
+---
+id: pj-r748
+status: done
+order: "a9"
+created: "2026-07-29T21:00:02+10:00"
+---
 # P7 Skill contract and discovery
 
 ## Goal

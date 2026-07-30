@@ -35,19 +35,20 @@ hard-refuse `skill install`/`list`/`uninstall` placeholders.
 
 ## Project documents and archiving
 
-Project documents are numbered `NN-*.md` files (a split project takes a letter
-suffix, `NNa-`/`NNb-`). An in-progress or not-yet-started project lives at the repo
-root; a completed project is archived.
+Project documents are ordinary `pj` project files under the `projects/` scope
+(`<id>-<slug>.md`). Active work lives at the scope dir root; terminal status
+moves a file into `projects/archive/` via `pj status` (do not hand-move).
 
-- When a project is complete (all its acceptance criteria pass and verification
-  is green), move its document to `docs/archive/` — preserve history with
-  `git mv`, do not copy-and-delete.
-- After moving, update any references to that document. Cross-project references
-  use logical labels (`P1`…`P7`), which stay valid after a move; only path or
-  filename references need rewriting.
-- See `docs/archive/` for the completed projects (P1–P5, P6a, P6b, P7, and P8).
-- The sync and merge boundary is split across two documents: `06a` (frontmatter
-  merge package, rebase driver, git plumbing) and `06b` (`pj sync`). Documents
+- When a project is complete, set a terminal status with `pj status <id> done`
+  (or another terminal status). That renames into `archive/` in the same write.
+- Cross-project references use logical labels (`P1`…`P8`) or full ids
+  (`pj-mwtc`, …); path or filename references need rewriting after id/slug
+  changes.
+- Completed historical projects (P1–P5, P6a, P6b, P7, P8, and later) live under
+  `projects/archive/` as first-class done projects. Pre-`pj` design prose is at
+  `docs/archive/design.md` (history only; not live authority).
+- The sync and merge boundary is split across two projects: P6a (frontmatter
+  merge package, rebase driver, git plumbing) and P6b (`pj sync`). Documents
   written before that split refer to the pair as `P6`; a `P6` reference to the
   merge package, the driver, or `internal/git` plumbing means P6a, and one to
   `pj sync`, its integrity step, or its push means P6b. The labels were kept as

@@ -1,3 +1,9 @@
+---
+id: pj-x839
+status: done
+order: "aA"
+created: "2026-07-29T21:00:02+10:00"
+---
 # Delete/edit resume semantics in pj sync
 
 Source: pre-commit review on 2026-07-25

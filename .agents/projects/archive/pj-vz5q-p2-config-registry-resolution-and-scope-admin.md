@@ -1,3 +1,9 @@
+---
+id: pj-vz5q
+status: done
+order: "a3"
+created: "2026-07-29T21:00:02+10:00"
+---
 # P2 Config, registry, resolution and scope admin
 
 ## Goal

@@ -25,8 +25,17 @@ func TestRequiredHeadingsInOrder(t *testing.T) {
 			t.Fatalf("heading %q appears before %q", skill.RequiredHeadings()[i], skill.RequiredHeadings()[i-1])
 		}
 	}
-	if !strings.HasPrefix(text, "# Agent skill contract\n") {
-		t.Fatal("skill must open with # Agent skill contract")
+	if !strings.HasPrefix(text, "---\nname: pj\n") {
+		t.Fatal("skill must open with Agent Skills frontmatter (name: pj)")
+	}
+	if !strings.Contains(text, "description:") {
+		t.Fatal("skill frontmatter must include description")
+	}
+	if !strings.Contains(text, "Project management") {
+		t.Fatal("skill description must lead with Project management")
+	}
+	if !strings.Contains(text, "\n# pj\n") {
+		t.Fatal("skill must have H1 # pj after frontmatter")
 	}
 	for _, bad := range []string{"(locked)", "TODO:", "TBD", "skeleton placeholder"} {
 		if strings.Contains(text, bad) {
