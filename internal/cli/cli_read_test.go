@@ -189,16 +189,21 @@ func TestGetMetaAndDuplicate(t *testing.T) {
 		t.Fatalf("get short = %q err=%v", out, err)
 	}
 
-	// meta prints preamble + raw FM including summary.
-	out, _, err = run(t, app, "meta", "wc-ab2c")
+	// meta get prints title-then-path preamble + raw FM including summary.
+	out, _, err = run(t, app, "meta", "get", "wc-ab2c")
 	if err != nil {
-		t.Fatalf("meta: %v", err)
+		t.Fatalf("meta get: %v", err)
 	}
-	if !strings.HasPrefix(out, "id: wc-ab2c\ntitle: Network redesign\npath: ") {
-		t.Errorf("meta preamble wrong: %q", out)
+	if !strings.HasPrefix(out, "title: Network redesign\npath: ") {
+		t.Errorf("meta get preamble wrong: %q", out)
+	}
+	if i := strings.Index(out, "\n\n"); i >= 0 {
+		if strings.Contains(out[:i], "id:") {
+			t.Errorf("meta get preamble must not include id:, got %q", out[:i])
+		}
 	}
 	if !strings.Contains(out, "summary: short one") {
-		t.Errorf("meta should carry raw summary: %q", out)
+		t.Errorf("meta get should carry raw summary: %q", out)
 	}
 
 	// Duplicate id → get refuses with the token, and the condition rides exactly once:
@@ -476,12 +481,12 @@ func TestMetaNoFrontmatterFenceIsNonZero(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, errOut, err := run(t, app, "meta", "wc-ff44")
+	out, errOut, err := run(t, app, "meta", "get", "wc-ff44")
 	if err == nil {
-		t.Fatal("meta on wholly-unparseable frontmatter must be non-zero")
+		t.Fatal("meta get on wholly-unparseable frontmatter must be non-zero")
 	}
 	if out != "" {
-		t.Errorf("meta with no readable frontmatter must print no stdout, got %q", out)
+		t.Errorf("meta get with no readable frontmatter must print no stdout, got %q", out)
 	}
 	if !strings.Contains(errOut, "parse_error:") || !strings.Contains(errOut, "no extractable frontmatter block") {
 		t.Errorf("expected the no-frontmatter parse_error diagnostic, got %q", errOut)

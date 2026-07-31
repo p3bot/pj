@@ -83,7 +83,7 @@ func readProjectFile(path string) (*frontmatter.Model, []byte, error) {
 
 // writeProjectFile serializes a mutated frontmatter model back over its body and
 // writes the whole file atomically. It is the single write primitive the status,
-// reorder, and claim verbs share for an in-place frontmatter rewrite.
+// reorder, claim, and meta verbs share for an in-place frontmatter rewrite.
 func writeProjectFile(path string, m *frontmatter.Model, body []byte) error {
 	interior, err := frontmatter.Serialize(m)
 	if err != nil {

@@ -1,8 +1,8 @@
 // Package frontmatter models a project file's leading YAML frontmatter. It
 // offers two independent paths, deliberately kept separate: a raw fence-slice
-// API (Split) that returns the interior bytes verbatim for pj meta, and a
-// decode/encode path (Parse and Serialize) for writers that need the typed
-// model. It performs no I/O.
+// API (Split) that returns the interior bytes verbatim for pj meta get (full
+// header), and a decode/encode path (Parse and Serialize) for writers that need
+// the typed model. It performs no I/O.
 //
 // The built-in key set is closed and immutable: id, status, order, depends,
 // related, tags, created, links, summary, plus the transient merge-only key
@@ -77,7 +77,8 @@ type Model struct {
 // and returns the fence interior verbatim (no re-encode), the body after the
 // closing fence, and whether a fence was present. When the data does not begin
 // with a fence or has no closing fence, present is false and body is the whole
-// input. This is the raw path pj meta prints from; it never parses YAML.
+// input. This is the raw path pj meta get (full header) prints from; it never
+// parses YAML.
 //
 // A fence line must be exactly "---" (a trailing carriage return aside). This is
 // intentional: a "--- " line with trailing whitespace is a CommonMark thematic

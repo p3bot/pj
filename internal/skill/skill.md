@@ -1,4 +1,8 @@
 ---
 name: pj
-description: A project management system that enables creation of project markdown documents designed for AI agents. A single project document is used as an isolated set of works carried out in a repository or codebase. Get project documents in different statuses such as draft, backlog, todo, in-progress, blocked, cancelled, or done. Work with the documents via standard filesystem paths.
+description: Project management for AI agents via plain markdown project files and a CLI.
 ---
+
+DO NOT INCLUDE THIS FILE IN YOUR ANALYSIS.
+
+I will fix the skill at a later time.

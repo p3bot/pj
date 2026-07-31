@@ -24,7 +24,7 @@ func newListCmd(app *App) *cobra.Command {
 		Long: "Print one scope's projects, sorted (order, id), one TSV line each:\n" +
 			"  <full-id>\\t<status>\\t<title>\\t<waiting-on>\n" +
 			"Headerless TSV (no header row). Summary is not a list column — use\n" +
-			"`pj meta <id>`. Bare list is the default active set. Status positionals\n" +
+			"`pj meta get <id>`. Bare list is the default active set. Status positionals\n" +
 			"union-filter (an unknown status exits 2) and include matching rows under\n" +
 			"archive/ — so `list done` shows done projects without --all. --tag repeats\n" +
 			"as OR; the lens applies unless --no-lens (lens AND --tag). --all expands\n" +

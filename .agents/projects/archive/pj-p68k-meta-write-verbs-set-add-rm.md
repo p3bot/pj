@@ -1,9 +1,9 @@
 ---
 id: pj-p68k
-status: todo
+status: done
 order: "aB"
 created: "2026-07-30T22:00:01+10:00"
-summary: "Add pj meta get/set/add/rm so agents can read and mutate frontmatter without $EDITOR"
+summary: Add pj meta get/set/add/rm so agents can read and mutate frontmatter without $EDITOR
 ---
 # Meta command family (get, set, add, rm)
 

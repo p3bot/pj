@@ -608,9 +608,15 @@ func TestMidRebaseRefusesWrites(t *testing.T) {
 	if _, _, err := run(t, app, "create", "New", "--scope", "wc"); ExitCodeFromError(err) != exitFailure {
 		t.Errorf("mid-rebase create should refuse non-zero, got %v", err)
 	}
+	if _, _, err := run(t, app, "meta", "set", id, "summary", "x"); ExitCodeFromError(err) != exitFailure {
+		t.Errorf("mid-rebase meta set should refuse non-zero, got %v", err)
+	}
 	// Reads stay allowed mid-rebase.
 	if _, _, err := run(t, app, "get", id); err != nil {
 		t.Errorf("reads must stay allowed mid-rebase, got %v", err)
+	}
+	if _, _, err := run(t, app, "meta", "get", id); err != nil {
+		t.Errorf("meta get must stay allowed mid-rebase, got %v", err)
 	}
 	_ = dir
 }

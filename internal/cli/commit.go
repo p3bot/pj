@@ -80,7 +80,8 @@ func checkMidRebase(ctx context.Context, scope string, autoCommit bool, root str
 }
 
 // completeStateDurability applies the post-write durability policy for a
-// complete-state verb (status / reorder / next --claim). On an auto-commit scope it
+// complete-state verb (status / reorder / next --claim / meta set|add|rm). On an
+// auto-commit scope it
 // self-commits the touched paths when a git-root exists, or rides sync_disabled and
 // skips the commit when none does (or git is absent); the file and index writes
 // stand either way. On a non-auto-commit scope it never commits and instead rides

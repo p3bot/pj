@@ -2,35 +2,191 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"os"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/start-cli/pj/internal/frontmatter"
+	"github.com/start-cli/pj/internal/scopeconfig"
 	"github.com/start-cli/pj/internal/title"
 	"github.com/start-cli/pj/internal/token"
 )
 
+// metaOp is the mutate operation for the shared write path.
+type metaOp int
+
+const (
+	metaOpSet metaOp = iota
+	metaOpAdd
+	metaOpRm
+)
+
+func (op metaOp) String() string {
+	switch op {
+	case metaOpSet:
+		return "set"
+	case metaOpAdd:
+		return "add"
+	case metaOpRm:
+		return "rm"
+	default:
+		return "meta"
+	}
+}
+
+// metaKeyClass partitions frontmatter keys for meta get/set/add/rm.
+type metaKeyClass int
+
+const (
+	metaKeyUnknown metaKeyClass = iota
+	metaKeyImmutable
+	metaKeyScalar
+	metaKeyMulti
+)
+
+// builtinMetaKeyOrder is the closed built-in catalogue order for unknown-key
+// usage errors (document order matching frontmatter key constants).
+var builtinMetaKeyOrder = []string{
+	frontmatter.KeyID,
+	frontmatter.KeyStatus,
+	frontmatter.KeyOrder,
+	frontmatter.KeyDepends,
+	frontmatter.KeyRelated,
+	frontmatter.KeyTags,
+	frontmatter.KeyCreated,
+	frontmatter.KeyLinks,
+	frontmatter.KeySummary,
+	frontmatter.KeyStatusConflict,
+}
+
 func newMetaCmd(app *App) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "meta",
+		Short: "Read and mutate project frontmatter fields",
+		Long: "Read and mutate project frontmatter without $EDITOR.\n\n" +
+			"  get  <id> [key]           full header or a single key value\n" +
+			"  set  <id> <key> <value>   scalar keys (summary, custom string/int/bool)\n" +
+			"  add  <id> <key> <value>   multi-value keys (depends, related, tags, links, custom strings)\n" +
+			"  rm   <id> <key> <value>   remove one multi-value entry (alias: remove)\n\n" +
+			"Full get prints title then path, a blank line, and the raw frontmatter interior\n" +
+			"(never the body). Single-key get prints only the value (multi-value: one entry\n" +
+			"per line). A trailing value of - reads the value from stdin (one optional final\n" +
+			"newline stripped).\n\n" +
+			"meta set refuses multi-value keys; meta add/rm refuse scalars. id, status, order,\n" +
+			"created, and status_conflict are immutable via meta (use status / reorder where\n" +
+			"they apply). depends add enforces write-time integrity: self → depends_self:;\n" +
+			"same-scope missing → depends_dangling:; cross-scope unregistered/absent →\n" +
+			"depends_unresolvable: (hard refuse, no write). related is soft (no existence\n" +
+			"check). Short ids on depends/related normalise to full ids in the subject scope.",
+		Args: cobra.ArbitraryArgs,
+		RunE: func(c *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return usageErrorf("unknown meta subcommand %q; run `pj meta --help` for get, set, add, rm", args[0])
+			}
+			return c.Help()
+		},
+	}
+	cmd.AddCommand(
+		newMetaGetCmd(app),
+		newMetaSetCmd(app),
+		newMetaAddCmd(app),
+		newMetaRmCmd(app),
+	)
+	return cmd
+}
+
+func newMetaGetCmd(app *App) *cobra.Command {
 	var scope string
 	cmd := &cobra.Command{
-		Use:   "meta <id> [--scope S]",
-		Short: "Print a project's header (frontmatter) without the body",
-		Long: "Print a fixed preamble (id, title, path), a blank line, then the frontmatter\n" +
-			"interior exactly as stored — key order, quoting, comments, customs, and\n" +
-			"status_conflict preserved, never re-encoded and never the body. Extractable\n" +
-			"frontmatter exits 0 (even under parse_error, riding the token); wholly\n" +
-			"unparseable frontmatter is non-zero with empty stdout. Pure read; never runs git.",
-		Args: usageArgs(cobra.ExactArgs(1)),
+		Use:   "get <id> [key] [--scope S]",
+		Short: "Print project frontmatter (full header or one key)",
+		Long: "Without a key: print title then path, a blank line, and the raw frontmatter\n" +
+			"interior exactly as stored (key order, quoting, comments, customs preserved).\n" +
+			"Extractable frontmatter exits 0 even under parse_error (token on stderr);\n" +
+			"wholly unparseable frontmatter is non-zero with empty stdout.\n\n" +
+			"With a key: print only the decoded value — scalars as one line, multi-value\n" +
+			"keys one entry per line. Absent key or empty list: empty stdout, exit 0.\n" +
+			"If the typed model cannot be parsed: non-zero, empty stdout, parse_error token.\n" +
+			"Immutable keys are readable. Unknown key is usage exit 2 listing known keys.\n" +
+			"Pure read; never runs git.",
+		Args: usageArgs(cobra.RangeArgs(1, 2)),
 		RunE: func(c *cobra.Command, args []string) error {
-			return runMeta(app, c, args[0], scope)
+			key := ""
+			if len(args) == 2 {
+				key = args[1]
+			}
+			return runMetaGet(app, c, args[0], key, scope)
 		},
 	}
 	cmd.Flags().StringVar(&scope, "scope", "", "ambient scope for a short id")
 	return cmd
 }
 
-func runMeta(app *App, c *cobra.Command, idArg, scope string) error {
+func newMetaSetCmd(app *App) *cobra.Command {
+	var scope string
+	cmd := &cobra.Command{
+		Use:   "set <id> <key> <value> [--scope S]",
+		Short: "Set a scalar frontmatter key (summary or custom string/int/bool)",
+		Long: "Rewrite one scalar frontmatter key. Legal keys: summary and custom fields of\n" +
+			"type string, int, or bool. Empty value omits the key (clear). Multi-value keys\n" +
+			"(depends, related, tags, links, custom strings) require meta add/rm. Value -\n" +
+			"reads stdin (optional final newline stripped). Embedded newlines are usage exit 2.\n" +
+			"Prints the absolute project path on success.",
+		Args: usageArgs(cobra.ExactArgs(3)),
+		RunE: func(c *cobra.Command, args []string) error {
+			return runMetaMutate(app, c, metaOpSet, args[0], args[1], args[2], scope)
+		},
+	}
+	cmd.Flags().StringVar(&scope, "scope", "", "ambient scope for a short id")
+	return cmd
+}
+
+func newMetaAddCmd(app *App) *cobra.Command {
+	var scope string
+	cmd := &cobra.Command{
+		Use:   "add <id> <key> <value> [--scope S]",
+		Short: "Append one entry to a multi-value frontmatter key",
+		Long: "Append value to a multi-value key if not already present (idempotent).\n" +
+			"Legal keys: depends, related, tags, links, and custom fields of type strings.\n" +
+			"Scalar keys require meta set. depends/related short ids normalise to full ids\n" +
+			"in the subject scope. depends add refuses self (depends_self:), same-scope\n" +
+			"missing (depends_dangling:), and cross-scope unresolvable targets\n" +
+			"(depends_unresolvable:). related has no existence check. Value - reads stdin.\n" +
+			"Prints the absolute project path on success.",
+		Args: usageArgs(cobra.ExactArgs(3)),
+		RunE: func(c *cobra.Command, args []string) error {
+			return runMetaMutate(app, c, metaOpAdd, args[0], args[1], args[2], scope)
+		},
+	}
+	cmd.Flags().StringVar(&scope, "scope", "", "ambient scope for a short id")
+	return cmd
+}
+
+func newMetaRmCmd(app *App) *cobra.Command {
+	var scope string
+	cmd := &cobra.Command{
+		Use:     "rm <id> <key> <value> [--scope S]",
+		Aliases: []string{"remove"},
+		Short:   "Remove one entry from a multi-value frontmatter key",
+		Long: "Remove one matching entry from a multi-value key if present (idempotent when\n" +
+			"absent). Legal keys: depends, related, tags, links, and custom fields of type\n" +
+			"strings. Value is required — this removes one list entry, not the whole key.\n" +
+			"depends/related short ids normalise to full ids before compare. Value - reads\n" +
+			"stdin. Prints the absolute project path on success.",
+		Args: usageArgs(cobra.ExactArgs(3)),
+		RunE: func(c *cobra.Command, args []string) error {
+			return runMetaMutate(app, c, metaOpRm, args[0], args[1], args[2], scope)
+		},
+	}
+	cmd.Flags().StringVar(&scope, "scope", "", "ambient scope for a short id")
+	return cmd
+}
+
+func runMetaGet(app *App, c *cobra.Command, idArg, key, scope string) error {
 	e, err := app.openEngine(c)
 	if err != nil {
 		return err
@@ -55,26 +211,572 @@ func runMeta(app *App, c *cobra.Command, idArg, scope string) error {
 	}
 	interior, body, present := frontmatter.Split(data)
 	if !present {
-		// No extractable frontmatter block: non-zero, empty stdout, token on stderr.
 		stderrln(c, token.Line(token.ParseError, fmt.Sprintf("%s: no extractable frontmatter block", p.ID)))
 		return fmt.Errorf("project %s has no readable frontmatter", p.ID)
 	}
 
-	// Extractable: preamble + raw interior, exit 0. The title comes from the body via
-	// the shared helper — the same H1 list and search show.
-	stdoutln(c, "id: "+p.ID)
-	stdoutln(c, "title: "+title.Extract(body))
-	stdoutln(c, "path: "+p.Path)
-	stdoutln(c, "")
-	if _, err := c.OutOrStdout().Write(interior); err != nil {
+	if key == "" {
+		stdoutln(c, "title: "+title.Extract(body))
+		stdoutln(c, "path: "+p.Path)
+		stdoutln(c, "")
+		if _, err := c.OutOrStdout().Write(interior); err != nil {
+			return err
+		}
+		if p.ParseError {
+			stderrln(c, token.Line(token.ParseError, fmt.Sprintf("%s: %s", p.ID, p.ParseMsg)))
+		}
+		if len(p.StatusConflict) > 0 {
+			stderrln(c, fmt.Sprintf("status_conflict: %s disputes %s", p.ID, joinComma(p.StatusConflict)))
+		}
+		return nil
+	}
+
+	schema := r.res.Schema(r.scope)
+	class, field, err := classifyMetaKey(key, schema)
+	if err != nil {
+		return err
+	}
+	if class == metaKeyUnknown {
+		return unknownMetaKeyError(key, schema)
+	}
+
+	// Single-key get needs the typed model; parse failure is not "key absent".
+	m, err := frontmatter.Parse(interior)
+	if err != nil {
+		msg := err.Error()
+		if p.ParseError && p.ParseMsg != "" {
+			msg = p.ParseMsg
+		}
+		return fmt.Errorf("%s", token.Line(token.ParseError,
+			fmt.Sprintf("%s: %s — cannot decode frontmatter for key get", p.ID, msg)))
+	}
+	if p.ParseError {
+		// Row quarantined but Parse succeeded (race or index lag): still ride the token.
+		stderrln(c, token.Line(token.ParseError, fmt.Sprintf("%s: %s", p.ID, p.ParseMsg)))
+	}
+
+	out, err := metaGetValue(m, key, class, field)
+	if err != nil {
+		return err
+	}
+	if out != "" {
+		if _, err := c.OutOrStdout().Write([]byte(out)); err != nil {
+			return err
+		}
+		if !strings.HasSuffix(out, "\n") {
+			stdoutln(c, "")
+		}
+	}
+	return nil
+}
+
+func runMetaMutate(app *App, c *cobra.Command, op metaOp, idArg, key, valueArg, scopeFlag string) error {
+	form, ok := parseIDArg(idArg)
+	if !ok {
+		return usageErrorf("%q is not a valid project id", idArg)
+	}
+
+	value, err := loadMetaValue(c, valueArg)
+	if err != nil {
+		return err
+	}
+	if strings.Contains(value, "\n") {
+		return usageErrorf("meta %s value must not contain embedded newlines", op)
+	}
+
+	e, err := app.openEngine(c)
+	if err != nil {
+		return err
+	}
+	defer e.close()
+
+	scope, err := e.scopeForID(idArg, form, scopeFlag)
+	if err != nil {
+		return err
+	}
+	entry, registered := e.reg.Scopes[scope]
+	if !registered {
+		return fmt.Errorf("unknown project id %q: scope %q is not registered here", idArg, scope)
+	}
+	dir := entry.Dir
+
+	lock, err := acquireScopeLock(dir)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = lock.Release() }()
+
+	ctx := c.Context()
+	res, err := e.reconcileResult(single(scope, dir))
+	if err != nil {
+		return err
+	}
+	if err := refuseUnusableScope(res, scope, dir); err != nil {
+		return err
+	}
+	schema := res.Schema(scope)
+	autoCommit := schemaAutoCommit(schema)
+	root, hasRoot := gitRootFor(dir)
+	if err := checkMidRebase(ctx, scope, autoCommit, root, hasRoot); err != nil {
+		return err
+	}
+	e.printWarnings(c, res.Warnings)
+
+	class, field, err := classifyMetaKey(key, schema)
+	if err != nil {
+		return err
+	}
+	if class == metaKeyUnknown {
+		return unknownMetaKeyError(key, schema)
+	}
+	if class == metaKeyImmutable {
+		return immutableMetaKeyError(key)
+	}
+	switch op {
+	case metaOpSet:
+		if class != metaKeyScalar {
+			return usageErrorf("key %q is multi-value; use meta add/rm, not set", key)
+		}
+	case metaOpAdd, metaOpRm:
+		if class != metaKeyMulti {
+			return usageErrorf("key %q is scalar; use meta set, not %s", key, op)
+		}
+	}
+
+	p, err := e.resolveWriteRow(scope, idArg, form)
+	if err != nil {
 		return err
 	}
 
-	if p.ParseError {
-		stderrln(c, token.Line(token.ParseError, fmt.Sprintf("%s: %s", p.ID, p.ParseMsg)))
+	// depends/related: normalise short → full in subject scope before checks/store.
+	if key == frontmatter.KeyDepends || key == frontmatter.KeyRelated {
+		value, err = normaliseEdgeValue(scope, value)
+		if err != nil {
+			return err
+		}
 	}
-	if len(p.StatusConflict) > 0 {
-		stderrln(c, fmt.Sprintf("status_conflict: %s disputes %s", p.ID, joinComma(p.StatusConflict)))
+	if op == metaOpAdd && key == frontmatter.KeyDepends {
+		if err := e.checkDependsAdd(p.ID, scope, value); err != nil {
+			return err
+		}
+	}
+
+	m, body, err := readProjectFile(p.Path)
+	if err != nil {
+		return err
+	}
+	if err := applyMetaMutation(m, op, key, value, class, field); err != nil {
+		return err
+	}
+	if err := writeProjectFile(p.Path, m, body); err != nil {
+		return err
+	}
+	if err := e.rec.SyncPaths(scope, writtenPaths(p.Path, "")); err != nil {
+		return err
+	}
+
+	message := fmt.Sprintf("pj: %s meta %s %s", p.ID, op, key)
+	if err := e.completeStateDurability(ctx, c, scope, dir, autoCommit, message, p.Path, "", root, hasRoot); err != nil {
+		return err
+	}
+
+	out, err := absPath(p.Path)
+	if err != nil {
+		return err
+	}
+	stdoutln(c, out)
+	return nil
+}
+
+// loadMetaValue resolves a CLI value argument: "-" means read stdin (strip one
+// optional final line ending — CRLF, LF, or CR); otherwise the argv value is
+// used as-is.
+func loadMetaValue(c *cobra.Command, valueArg string) (string, error) {
+	if valueArg != "-" {
+		return valueArg, nil
+	}
+	data, err := io.ReadAll(c.InOrStdin())
+	if err != nil {
+		return "", fmt.Errorf("read stdin: %w", err)
+	}
+	s := string(data)
+	switch {
+	case strings.HasSuffix(s, "\r\n"):
+		s = s[:len(s)-2]
+	case strings.HasSuffix(s, "\n"), strings.HasSuffix(s, "\r"):
+		s = s[:len(s)-1]
+	}
+	return s, nil
+}
+
+// normaliseEdgeValue turns a short or full project id into the on-disk full-id
+// form for depends/related. Short ids expand in the subject scope; full ids are
+// left unchanged. Malformed form is usage exit 2.
+func normaliseEdgeValue(subjectScope, value string) (string, error) {
+	form, ok := parseIDArg(value)
+	if !ok {
+		return "", usageErrorf("%q is not a valid project id", value)
+	}
+	if form == idShort {
+		return subjectScope + "-" + value, nil
+	}
+	return value, nil
+}
+
+// checkDependsAdd enforces write-time depends integrity for meta add. Self and
+// same-scope dangling refuse with hard tokens; cross-scope needs a registered
+// target scope with a non-quarantined row after reconciling that scope alone.
+func (e *engine) checkDependsAdd(subjectID, subjectScope, targetFull string) error {
+	if targetFull == subjectID {
+		return fmt.Errorf("%s", token.Line(token.DependsSelf,
+			fmt.Sprintf("%s depends on itself — remove the self-edge", subjectID)))
+	}
+	targetScope := scopeOfFullID(targetFull)
+	if targetScope == subjectScope {
+		ok, err := e.nonQuarantinedExists(subjectScope, targetFull)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("%s", token.Line(token.DependsDangling,
+				fmt.Sprintf("%s depends on %s which has no project in this scope", subjectID, targetFull)))
+		}
+		return nil
+	}
+
+	entry, registered := e.reg.Scopes[targetScope]
+	if !registered {
+		return fmt.Errorf("%s", token.Line(token.DependsUnresolvable,
+			fmt.Sprintf("%s depends on %s which cannot be resolved here", subjectID, targetFull)))
+	}
+	res, err := e.reconcileResult(single(targetScope, entry.Dir))
+	if err != nil {
+		return err
+	}
+	if res.Unreachable[targetScope] {
+		return fmt.Errorf("%s", token.Line(token.DependsUnresolvable,
+			fmt.Sprintf("%s depends on %s which cannot be resolved here", subjectID, targetFull)))
+	}
+	ok, err := e.nonQuarantinedExists(targetScope, targetFull)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("%s", token.Line(token.DependsUnresolvable,
+			fmt.Sprintf("%s depends on %s which cannot be resolved here", subjectID, targetFull)))
 	}
 	return nil
+}
+
+// nonQuarantinedExists reports whether scope has at least one non-parse_error row
+// for fullID (quarantined-only counts as absent for depends write checks).
+func (e *engine) nonQuarantinedExists(scope, fullID string) (bool, error) {
+	rows, err := e.db.ProjectsByID(scope, fullID)
+	if err != nil {
+		return false, err
+	}
+	for _, r := range rows {
+		if !r.ParseError {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// classifyMetaKey maps a key name to its meta class against builtins and the
+// scope schema's custom fields. A declared custom that shadows a builtin is
+// impossible (scopeconfig rejects it); undeclared free-form keys are unknown.
+func classifyMetaKey(key string, schema *scopeconfig.Schema) (metaKeyClass, scopeconfig.Field, error) {
+	switch key {
+	case frontmatter.KeyID, frontmatter.KeyStatus, frontmatter.KeyOrder,
+		frontmatter.KeyCreated, frontmatter.KeyStatusConflict:
+		return metaKeyImmutable, scopeconfig.Field{}, nil
+	case frontmatter.KeySummary:
+		return metaKeyScalar, scopeconfig.Field{Type: scopeconfig.FieldString}, nil
+	case frontmatter.KeyDepends, frontmatter.KeyRelated, frontmatter.KeyTags, frontmatter.KeyLinks:
+		return metaKeyMulti, scopeconfig.Field{Type: scopeconfig.FieldStrings}, nil
+	}
+	if schema != nil {
+		if f, ok := schema.Fields[key]; ok {
+			switch f.Type {
+			case scopeconfig.FieldString, scopeconfig.FieldInt, scopeconfig.FieldBool:
+				return metaKeyScalar, f, nil
+			case scopeconfig.FieldStrings:
+				return metaKeyMulti, f, nil
+			default:
+				return metaKeyUnknown, scopeconfig.Field{}, fmt.Errorf("custom field %q has unsupported type %q", key, f.Type)
+			}
+		}
+	}
+	return metaKeyUnknown, scopeconfig.Field{}, nil
+}
+
+func unknownMetaKeyError(key string, schema *scopeconfig.Schema) error {
+	return usageErrorf("unknown frontmatter key %q; known keys: %s", key, strings.Join(metaKnownKeys(schema), ", "))
+}
+
+func immutableMetaKeyError(key string) error {
+	switch key {
+	case frontmatter.KeyStatus:
+		return usageErrorf("key %q is immutable via meta; use pj status", key)
+	case frontmatter.KeyOrder:
+		return usageErrorf("key %q is immutable via meta; use pj reorder", key)
+	default:
+		return usageErrorf("key %q is immutable via meta", key)
+	}
+}
+
+// metaKnownKeys is the catalogue for unknown-key usage errors: all closed
+// builtins in document order, then declared custom field names sorted ascending.
+func metaKnownKeys(schema *scopeconfig.Schema) []string {
+	out := append([]string(nil), builtinMetaKeyOrder...)
+	if schema == nil || len(schema.Fields) == 0 {
+		return out
+	}
+	customs := make([]string, 0, len(schema.Fields))
+	for name := range schema.Fields {
+		customs = append(customs, name)
+	}
+	sort.Strings(customs)
+	return append(out, customs...)
+}
+
+func metaGetValue(m *frontmatter.Model, key string, class metaKeyClass, field scopeconfig.Field) (string, error) {
+	switch key {
+	case frontmatter.KeyID:
+		return m.ID, nil
+	case frontmatter.KeyStatus:
+		return m.Status, nil
+	case frontmatter.KeyOrder:
+		return m.Order, nil
+	case frontmatter.KeyCreated:
+		return m.Created, nil
+	case frontmatter.KeySummary:
+		return m.Summary, nil
+	case frontmatter.KeyDepends:
+		return joinLines(m.Depends), nil
+	case frontmatter.KeyRelated:
+		return joinLines(m.Related), nil
+	case frontmatter.KeyTags:
+		return joinLines(m.Tags), nil
+	case frontmatter.KeyLinks:
+		return joinLines(m.Links), nil
+	case frontmatter.KeyStatusConflict:
+		return joinLines(m.StatusConflict), nil
+	}
+	// Custom field.
+	v, ok := customValue(m, key)
+	if !ok {
+		return "", nil
+	}
+	if class == metaKeyMulti || field.Type == scopeconfig.FieldStrings {
+		list, err := anyStringList(v)
+		if err != nil {
+			return "", fmt.Errorf("custom field %q: %w", key, err)
+		}
+		return joinLines(list), nil
+	}
+	return formatScalar(v), nil
+}
+
+func applyMetaMutation(m *frontmatter.Model, op metaOp, key, value string, class metaKeyClass, field scopeconfig.Field) error {
+	if op == metaOpSet {
+		return applyMetaSet(m, key, value, field)
+	}
+	return applyMetaListOp(m, op, key, value, field)
+}
+
+func applyMetaSet(m *frontmatter.Model, key, value string, field scopeconfig.Field) error {
+	if key == frontmatter.KeySummary {
+		m.Summary = value
+		return nil
+	}
+	// Custom scalar.
+	if value == "" {
+		removeCustom(m, key)
+		return nil
+	}
+	parsed, err := parseScalarValue(field, value)
+	if err != nil {
+		return err
+	}
+	setCustom(m, key, parsed)
+	return nil
+}
+
+func applyMetaListOp(m *frontmatter.Model, op metaOp, key, value string, field scopeconfig.Field) error {
+	var list *[]string
+	switch key {
+	case frontmatter.KeyDepends:
+		list = &m.Depends
+	case frontmatter.KeyRelated:
+		list = &m.Related
+	case frontmatter.KeyTags:
+		list = &m.Tags
+	case frontmatter.KeyLinks:
+		list = &m.Links
+	default:
+		// Custom strings.
+		cur, _ := customValue(m, key)
+		existing, err := anyStringList(cur)
+		if err != nil {
+			return usageErrorf("custom field %q is not a string list", key)
+		}
+		next, err := mutateStringList(existing, op, value, field)
+		if err != nil {
+			return err
+		}
+		if len(next) == 0 {
+			removeCustom(m, key)
+		} else {
+			setCustom(m, key, next)
+		}
+		return nil
+	}
+	next, err := mutateStringList(*list, op, value, field)
+	if err != nil {
+		return err
+	}
+	*list = next
+	return nil
+}
+
+func mutateStringList(list []string, op metaOp, value string, field scopeconfig.Field) ([]string, error) {
+	switch op {
+	case metaOpAdd:
+		if len(field.Values) > 0 && !stringIn(field.Values, value) {
+			return nil, usageErrorf("value %q is outside the declared values for this field", value)
+		}
+		for _, e := range list {
+			if e == value {
+				return list, nil // idempotent
+			}
+		}
+		return append(list, value), nil
+	case metaOpRm:
+		out := make([]string, 0, len(list))
+		removed := false
+		for _, e := range list {
+			if !removed && e == value {
+				removed = true
+				continue
+			}
+			out = append(out, e)
+		}
+		return out, nil
+	default:
+		return list, fmt.Errorf("internal: list op %v", op)
+	}
+}
+
+func parseScalarValue(field scopeconfig.Field, value string) (any, error) {
+	switch field.Type {
+	case scopeconfig.FieldString:
+		if len(field.Values) > 0 && !stringIn(field.Values, value) {
+			return nil, usageErrorf("value %q is outside the declared values for this field", value)
+		}
+		return value, nil
+	case scopeconfig.FieldInt:
+		n, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			return nil, usageErrorf("%q is not a valid integer", value)
+		}
+		return n, nil
+	case scopeconfig.FieldBool:
+		switch value {
+		case "true":
+			return true, nil
+		case "false":
+			return false, nil
+		default:
+			return nil, usageErrorf("%q is not a valid bool (want true or false)", value)
+		}
+	default:
+		return nil, usageErrorf("cannot set field of type %q", field.Type)
+	}
+}
+
+func customValue(m *frontmatter.Model, key string) (any, bool) {
+	for _, f := range m.Custom {
+		if f.Key == key {
+			return f.Value, true
+		}
+	}
+	return nil, false
+}
+
+func setCustom(m *frontmatter.Model, key string, value any) {
+	for i := range m.Custom {
+		if m.Custom[i].Key == key {
+			m.Custom[i].Value = value
+			return
+		}
+	}
+	m.Custom = append(m.Custom, frontmatter.Field{Key: key, Value: value})
+}
+
+func removeCustom(m *frontmatter.Model, key string) {
+	out := make([]frontmatter.Field, 0, len(m.Custom))
+	for _, f := range m.Custom {
+		if f.Key == key {
+			continue
+		}
+		out = append(out, f)
+	}
+	if len(out) == 0 {
+		m.Custom = nil
+		return
+	}
+	m.Custom = out
+}
+
+func anyStringList(v any) ([]string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	switch x := v.(type) {
+	case []string:
+		return append([]string(nil), x...), nil
+	case []any:
+		out := make([]string, len(x))
+		for i, e := range x {
+			out[i] = fmt.Sprint(e)
+		}
+		return out, nil
+	default:
+		return nil, fmt.Errorf("expected a list, got %T", v)
+	}
+}
+
+func formatScalar(v any) string {
+	switch x := v.(type) {
+	case bool:
+		if x {
+			return "true"
+		}
+		return "false"
+	case string:
+		return x
+	case nil:
+		return ""
+	default:
+		// ints and other YAML scalars
+		return fmt.Sprint(x)
+	}
+}
+
+func joinLines(items []string) string {
+	if len(items) == 0 {
+		return ""
+	}
+	return strings.Join(items, "\n") + "\n"
+}
+
+func stringIn(list []string, s string) bool {
+	for _, e := range list {
+		if e == s {
+			return true
+		}
+	}
+	return false
 }
