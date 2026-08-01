@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -13,7 +14,11 @@ import (
 )
 
 // statusKeys is the locked stdout key order for `pj status`. Emit exactly these
-// keys, one key\tvalue line each, every time ambient resolve succeeds.
+// keys, one key\tvalue line each, every time ambient resolve succeeds. Keys are
+// left-justified in a column of width statusKeyWidth (longest key) so values
+// share a visual column under fixed-width terminal tab stops; the separator
+// remains a single tab. Parse by splitting on the first tab and trimming
+// trailing spaces from the key field.
 var statusKeys = []string{
 	"scope",
 	"dir",
@@ -37,15 +42,32 @@ var statusKeys = []string{
 	"uncommitted",
 }
 
+// statusKeyWidth is the display width of the key column: the longest locked key.
+// Computed once so emission and tests share the same pad.
+var statusKeyWidth = maxStatusKeyWidth()
+
+func maxStatusKeyWidth() int {
+	w := 0
+	for _, k := range statusKeys {
+		if n := len(k); n > w {
+			w = n
+		}
+	}
+	return w
+}
+
 func newStatusCmd(app *App) *cobra.Command {
 	var scope string
 	cmd := &cobra.Command{
 		Use:   "status [--scope S]",
 		Short: "Scope pulse: key/value counts, next, claimed, integrity",
 		Long: "Print a pure-read orientation block for one scope as parse-stable key\\tvalue\n" +
-			"lines (no header). Empty values still emit the key (`key\\t`) so agents can rely\n" +
-			"on key presence. Exit 0 whenever ambient resolve succeeds — including when next\n" +
-			"is empty (an empty queue is a pulse value, not a failure).\n" +
+			"lines (no header). Keys are left-justified to a fixed column (longest key width)\n" +
+			"before the tab so values align for humans; parse by splitting on the first tab\n" +
+			"and trimming trailing spaces from the key. Empty values still emit the key line\n" +
+			"(`key\\t` with padding) so agents can rely on key presence. Exit 0 whenever\n" +
+			"ambient resolve succeeds — including when next is empty (an empty queue is a\n" +
+			"pulse value, not a failure).\n" +
 			"\n" +
 			"Locked keys (order fixed): scope, dir, resolved, mode, lens, total, todo,\n" +
 			"review, in-progress, blocked, draft, backlog, done, cancelled, next, claimed,\n" +
@@ -214,7 +236,7 @@ func runStatus(app *App, c *cobra.Command, scopeFlag string) error {
 
 	sel.writeDiagnostics(c)
 	for _, key := range statusKeys {
-		stdoutln(c, key+"\t"+pulse[key])
+		stdoutln(c, fmt.Sprintf("%-*s\t%s", statusKeyWidth, key, pulse[key]))
 	}
 	return nil
 }

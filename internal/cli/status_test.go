@@ -14,7 +14,8 @@ func parsePulse(out string) map[string]string {
 		if !ok {
 			continue
 		}
-		m[key] = val
+		// Keys are left-justified to statusKeyWidth before the tab.
+		m[strings.TrimRight(key, " ")] = val
 	}
 	return m
 }
@@ -24,7 +25,7 @@ func pulseKeys(out string) []string {
 	for _, line := range lines(out) {
 		key, _, ok := strings.Cut(line, "\t")
 		if ok {
-			keys = append(keys, key)
+			keys = append(keys, strings.TrimRight(key, " "))
 		}
 	}
 	return keys
@@ -49,6 +50,13 @@ func TestStatusDashboardKeyOrderAndCounts(t *testing.T) {
 	}
 	if keys := pulseKeys(out); !slicesEqual(keys, statusKeys) {
 		t.Fatalf("key order = %v, want %v\nout=%q", keys, statusKeys, out)
+	}
+	// Key column is fixed-width: tab sits at the same index on every line.
+	for _, line := range lines(out) {
+		tab := strings.IndexByte(line, '\t')
+		if tab != statusKeyWidth {
+			t.Errorf("tab at col %d want %d on line %q", tab, statusKeyWidth, line)
+		}
 	}
 	// No closed tokens on stdout.
 	for _, tok := range []string{"duplicate_id:", "parse_error:", "uncommitted:", "lens:"} {
