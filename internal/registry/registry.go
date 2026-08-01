@@ -1,15 +1,8 @@
-// Package registry is the machine-local XDG config tier: the durable record of
-// which scopes are registered on this machine, at which paths, plus the
-// per-scope lens. It reads and regenerates registry.cue and lens.cue only
-// through the CUE Go modules — load/compile to read, encode + cue/format to
-// write — with each owned file regenerated wholesale (the files are
-// machine-owned, so there is no hand-authored formatting to preserve) and
-// installed by an atomic same-directory rename.
-//
-// The registry is the bootstrap that locates every scope, so an XDG file that
-// will not parse is a hard error naming the file — there is nothing to degrade
-// to. Callers hold the machine-global flock (see package xdg) across the whole
-// load/validate/write cycle; this package does not lock.
+// Package registry is the machine-local XDG config tier: which scopes are
+// registered, at which paths, plus the per-scope lens. Reads/writes use the CUE
+// Go modules only; owned files are regenerated wholesale and installed by atomic
+// same-directory rename. An unparseable XDG file is a hard error (nothing to
+// degrade to). Callers hold the machine-global flock; this package does not lock.
 package registry
 
 import (
@@ -29,18 +22,15 @@ const (
 	lensFile     = "lens.cue"
 )
 
-// Entry is a single scope's registration: the two independent absolute paths the
-// registry stores. The git repo is not stored — it is derived on demand from
-// Dir. The scope name is the map key (a cached copy; pj.cue is authoritative).
+// Entry is one scope's registration: two independent absolute paths (git repo is derived from Dir).
 type Entry struct {
-	// Dir is where the scope's .md files and pj.cue physically live.
+	// Dir is where the scope's .md files and pj.cue live.
 	Dir string `json:"dir"`
-	// Root is the code-root: the single tree under which the scope is ambient.
+	// Root is the code-root under which the scope is ambient.
 	Root string `json:"root"`
 }
 
-// Registry is the loaded XDG config tier: the scope records and the machine-local
-// lens, keyed by scope name.
+// Registry is the loaded XDG config tier, keyed by scope name.
 type Registry struct {
 	Scopes map[string]Entry
 	Lens   map[string][]string
@@ -57,9 +47,7 @@ func NewStore(ctx *cue.Context, configDir string) *Store {
 	return &Store{ctx: ctx, dir: configDir}
 }
 
-// Load reads registry.cue and lens.cue. A missing file yields an empty section
-// (pj runs on built-in defaults when the XDG tier is absent). A file that will
-// not compile is a hard error naming it.
+// Load reads registry.cue and lens.cue. Missing files yield empty sections; uncompilable files hard-error.
 func (s *Store) Load() (*Registry, error) {
 	reg := &Registry{Scopes: map[string]Entry{}, Lens: map[string][]string{}}
 
@@ -94,8 +82,7 @@ func (s *Store) Load() (*Registry, error) {
 	return reg, nil
 }
 
-// compileFile reads and compiles one owned file. ok is false when the file is
-// absent; a compile failure is a hard error naming the file.
+// compileFile returns ok false when the file is absent; compile failure is a hard error.
 func (s *Store) compileFile(name string) (cue.Value, bool, error) {
 	p := filepath.Join(s.dir, name)
 	data, err := os.ReadFile(p)
@@ -128,10 +115,8 @@ func (s *Store) WriteLens(lens map[string][]string) error {
 	return s.writeOwned(lensFile, map[string]any{"lens": lens})
 }
 
-// writeOwned encodes model to CUE, formats it as a top-level file (no wrapping
-// braces), and installs it by writing a temp file in the same directory and
-// renaming over the target. Map keys serialize in sorted order, so the output
-// is deterministic across runs.
+// writeOwned encodes model to CUE, formats as a top-level file, and installs via atomic rename.
+// Map keys serialize sorted for deterministic output.
 func (s *Store) writeOwned(name string, model any) error {
 	v := s.ctx.Encode(model)
 	if err := v.Err(); err != nil {

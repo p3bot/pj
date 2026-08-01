@@ -53,9 +53,7 @@ func tree(t *testing.T, repo string) string {
 	return gitCmd(t, repo, "ls-tree", "-r", "--name-only", "HEAD")
 }
 
-// A never-committed old path (a create'd file moved across the terminal boundary
-// before its first commit) must be omitted from the pathspec, not passed and left to
-// error. The commit should record only the new path.
+// A never-committed old path must be omitted from pathspec, not passed and left to error.
 func TestCommitOmitsUntrackedOldPath(t *testing.T) {
 	requireGit(t)
 	ctx := context.Background()
@@ -64,7 +62,7 @@ func TestCommitOmitsUntrackedOldPath(t *testing.T) {
 
 	oldPath := filepath.Join(repo, "wc", "wc-ab2c-x.md")
 	newPath := filepath.Join(repo, "wc", "archive", "wc-ab2c-x.md")
-	write(t, newPath, "# x\n") // the move already happened; old path is absent and never tracked
+	write(t, newPath, "# x\n") // move already happened; old path absent and never tracked
 
 	err := Commit(ctx, Request{
 		StateDir: state, GitRoot: repo,
@@ -81,8 +79,7 @@ func TestCommitOmitsUntrackedOldPath(t *testing.T) {
 	_ = oldPath
 }
 
-// A tracked old path that the mutation removed must be staged so its deletion is
-// recorded — a committed file moved into archive/ leaves no stale copy behind.
+// A tracked old path that the mutation removed must be staged so its deletion is recorded.
 func TestCommitStagesTrackedRemoval(t *testing.T) {
 	requireGit(t)
 	ctx := context.Background()
@@ -94,7 +91,6 @@ func TestCommitStagesTrackedRemoval(t *testing.T) {
 	gitCmd(t, repo, "add", "wc/wc-ab2c-x.md")
 	gitCmd(t, repo, "commit", "-m", "seed")
 
-	// Perform the move on disk, then self-commit both sides.
 	newPath := filepath.Join(repo, "wc", "archive", "wc-ab2c-x.md")
 	write(t, newPath, "# x done\n")
 	if err := os.Remove(oldPath); err != nil {
@@ -117,11 +113,7 @@ func TestCommitStagesTrackedRemoval(t *testing.T) {
 	}
 }
 
-// The cores' contract is that the caller already holds the git-root commit lock. pj
-// sync holds it across its whole span and calls the cores directly, so a core must
-// commit without acquiring anything — re-acquiring the same flock in-process would hang.
-// This exercises the precondition: the test holds the lock itself, then commits through
-// both cores under it, proving neither re-acquires.
+// Cores require the caller already holds the git-root commit lock; re-acquiring hangs.
 func TestCoresCommitUnderCallerHeldLock(t *testing.T) {
 	requireGit(t)
 	ctx := context.Background()
@@ -156,8 +148,7 @@ func TestCoresCommitUnderCallerHeldLock(t *testing.T) {
 	}
 }
 
-// A byte-identical rewrite stages nothing; Commit must be a clean no-op rather than
-// erroring on "nothing to commit".
+// Byte-identical rewrite stages nothing; Commit must be a clean no-op.
 func TestCommitNoOpOnIdenticalRewrite(t *testing.T) {
 	requireGit(t)
 	ctx := context.Background()

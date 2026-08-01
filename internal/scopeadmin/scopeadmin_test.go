@@ -132,12 +132,10 @@ func TestInitCodeRootOutsideRepo(t *testing.T) {
 func TestInitFailedLeavesNoStrayDir(t *testing.T) {
 	h := newHarness(t)
 	base := t.TempDir()
-	// First scope claims the name "dup".
 	if _, err := h.admin.Init(InitParams{Dir: filepath.Join(base, "one"), Name: "dup"}); err != nil {
 		t.Fatal(err)
 	}
-	// A colliding init must fail and leave its target dir uncreated — the checks
-	// run before any mkdir, so a rejected init litters nothing.
+	// Checks run before mkdir: a rejected init must leave no dir.
 	target := filepath.Join(base, "two")
 	if _, err := h.admin.Init(InitParams{Dir: target, Name: "dup"}); err == nil {
 		t.Fatal("expected name collision")
@@ -151,8 +149,7 @@ func TestInitFreshDirInRepoDefaultsToRepoRoot(t *testing.T) {
 	h := newHarness(t)
 	repo := filepath.Join(t.TempDir(), "repo")
 	gitInit(t, repo)
-	// A dir that does not yet exist inside the repo still derives the repo root as
-	// its code-root default — the derivation must not depend on creating the dir.
+	// Dir that does not yet exist still derives repo root — derivation must not create it.
 	dir := filepath.Join(repo, ".agents", "pj")
 	if _, err := h.admin.Init(InitParams{Dir: dir, Name: "rr"}); err != nil {
 		t.Fatalf("Init: %v", err)
@@ -167,8 +164,6 @@ func TestInitFreshDirInRepoDefaultsToRepoRoot(t *testing.T) {
 func TestInitOutsideRepoExplicitCodeRoot(t *testing.T) {
 	h := newHarness(t)
 	base := t.TempDir()
-	// Dir outside any git repo plus an explicit --code-root resolves the code-root
-	// to the given path (the outside-git branch of the default matrix).
 	dir := filepath.Join(base, "scope")
 	codeRoot := filepath.Join(base, "project")
 	if _, err := h.admin.Init(InitParams{Dir: dir, Name: "cr", CodeRoot: codeRoot, CodeRootGiven: true}); err != nil {
@@ -214,15 +209,12 @@ func TestInitCollisions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Name collision.
 	if _, err := h.admin.Init(InitParams{Dir: filepath.Join(base, "two"), Name: "dup"}); err == nil {
 		t.Error("expected name collision")
 	}
-	// Code-root collision (same root as first, which is its dir).
 	if _, err := h.admin.Init(InitParams{Dir: filepath.Join(base, "three"), Name: "cr", CodeRoot: first, CodeRootGiven: true}); err == nil {
 		t.Error("expected code-root collision")
 	}
-	// Dir disjointness: nested under first's dir.
 	nested := filepath.Join(first, "nested")
 	if _, err := h.admin.Init(InitParams{Dir: nested, Name: "nd", CodeRoot: filepath.Join(base, "x"), CodeRootGiven: true}); err == nil {
 		t.Error("expected dir disjointness rejection")
@@ -242,7 +234,6 @@ func TestImportReadsConfigAndGuards(t *testing.T) {
 		t.Error("import did not register under pj.cue name")
 	}
 
-	// Unparseable pj.cue → refuse with config_unparseable.
 	bad := t.TempDir()
 	if err := os.WriteFile(filepath.Join(bad, "pj.cue"), []byte("name: \"b\" broken:::"), 0o644); err != nil {
 		t.Fatal(err)
@@ -282,7 +273,7 @@ func TestSiblingConfigUnparseableRefusesRegistration(t *testing.T) {
 	repo := filepath.Join(t.TempDir(), "repo")
 	gitInit(t, repo)
 
-	// A registered sibling with a broken pj.cue supplies no trustworthy autoCommit.
+	// Registered sibling with broken pj.cue supplies no trustworthy autoCommit.
 	a := filepath.Join(repo, "a", ".agents", "pj")
 	if _, err := h.admin.Init(InitParams{Dir: a, Name: "aa", CodeRoot: filepath.Join(repo, "a"), CodeRootGiven: true, AutoCommit: true, AutoCommitGiven: true}); err != nil {
 		t.Fatal(err)
@@ -305,7 +296,6 @@ func TestRebind(t *testing.T) {
 	if _, err := h.admin.Init(InitParams{Dir: orig, Name: "rb"}); err != nil {
 		t.Fatal(err)
 	}
-	// Seed a lens to prove it survives rebind.
 	store := registry.NewStore(h.ctx, h.configDir)
 	if err := store.WriteLens(map[string][]string{"rb": {"tagx"}}); err != nil {
 		t.Fatal(err)
@@ -331,17 +321,14 @@ func TestRebind(t *testing.T) {
 		t.Errorf("lens not preserved: %v", got)
 	}
 
-	// Idempotent.
 	if _, changed, err := h.admin.Rebind(RebindParams{Dir: moved, Name: "rb"}); err != nil || changed {
 		t.Errorf("expected idempotent no-op, changed=%v err=%v", changed, err)
 	}
 
-	// Unknown name.
 	if _, _, err := h.admin.Rebind(RebindParams{Dir: moved, Name: "ghost"}); err == nil {
 		t.Error("expected unknown-name error")
 	}
 
-	// Wrong tree: pj.cue name != --name.
 	wrong := t.TempDir()
 	if err := os.WriteFile(filepath.Join(wrong, "pj.cue"), []byte("name: \"other\"\nautoCommit: false\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -372,11 +359,9 @@ func TestForget(t *testing.T) {
 	if _, ok := reg.Lens["fg"]; ok {
 		t.Error("lens still present after forget")
 	}
-	// Files untouched.
 	if _, err := os.Stat(filepath.Join(dir, "pj.cue")); err != nil {
 		t.Error("forget must not touch scope files")
 	}
-	// Unknown scope.
 	if err := h.admin.Forget("ghost"); err == nil {
 		t.Error("expected unknown-scope error")
 	}
@@ -386,19 +371,16 @@ func TestListModesAndDiagnostics(t *testing.T) {
 	h := newHarness(t)
 	base := t.TempDir()
 
-	// plain-files
 	plain := filepath.Join(base, "plain")
 	if _, err := h.admin.Init(InitParams{Dir: plain, Name: "pl"}); err != nil {
 		t.Fatal(err)
 	}
-	// pj-driven inside a repo
 	repo := filepath.Join(base, "repo")
 	gitInit(t, repo)
 	pjd := filepath.Join(repo, ".agents", "pj")
 	if _, err := h.admin.Init(InitParams{Dir: pjd, Name: "pd", AutoCommit: true, AutoCommitGiven: true}); err != nil {
 		t.Fatal(err)
 	}
-	// repo-driven inside a repo
 	repo2 := filepath.Join(base, "repo2")
 	gitInit(t, repo2)
 	rpd := filepath.Join(repo2, ".agents", "pj")
@@ -417,7 +399,6 @@ func TestListModesAndDiagnostics(t *testing.T) {
 	if modes["pl"] != ModePlainFiles || modes["pd"] != ModePjDriven || modes["rd"] != ModeRepoDriven {
 		t.Errorf("modes = %v", modes)
 	}
-	// Rows sorted by name ascending.
 	var names []string
 	for _, r := range listing.Rows {
 		names = append(names, r.Name)
@@ -426,15 +407,12 @@ func TestListModesAndDiagnostics(t *testing.T) {
 		t.Errorf("rows not sorted ascending: %v", names)
 	}
 
-	// Drift: rewrite pj.cue name; still lists, rides name_drift.
 	if err := os.WriteFile(filepath.Join(plain, "pj.cue"), []byte("name: \"plnew\"\nautoCommit: false\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// Unparseable: break pd's config → unknown + config_unparseable.
 	if err := os.WriteFile(filepath.Join(pjd, "pj.cue"), []byte("name: \"pd\" broken:::"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// Unreachable: remove rd's dir.
 	if err := os.RemoveAll(rpd); err != nil {
 		t.Fatal(err)
 	}
@@ -471,10 +449,8 @@ func TestListDriftAndUnparseableCoEmit(t *testing.T) {
 	if _, err := h.admin.Init(InitParams{Dir: dir, Name: "co"}); err != nil {
 		t.Fatal(err)
 	}
-	// A config that compiles under a legal name but fails schema validation
-	// (autoCommit missing) and whose name drifts from the registry key must list
-	// as unknown and co-emit name_drift and config_unparseable — the drift name is
-	// recovered from ReadName because Load fails.
+	// Compiles under a legal name but fails schema validation (autoCommit missing)
+	// and drifts: co-emit name_drift + config_unparseable via ReadName fallback.
 	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte("name: \"conew\"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -501,7 +477,6 @@ func TestListDriftAndUnparseableCoEmit(t *testing.T) {
 	if !strings.Contains(diag, token.ConfigUnparseable) {
 		t.Errorf("expected config_unparseable diagnostic, got:\n%s", diag)
 	}
-	// The recovered name proves the ReadName fallback ran when Load failed.
 	if !strings.Contains(diag, "conew") {
 		t.Errorf("drift line should name the recovered pj.cue name %q, got:\n%s", "conew", diag)
 	}

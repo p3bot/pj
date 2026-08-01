@@ -44,7 +44,6 @@ func TestIsTerminal(t *testing.T) {
 			t.Errorf("IsTerminal(%q) = true, want false", s)
 		}
 	}
-	// A custom done-category status is terminal only with its mapping supplied.
 	if IsTerminal("shipped", nil) {
 		t.Error("IsTerminal(shipped, nil) = true, want false without the mapping")
 	}

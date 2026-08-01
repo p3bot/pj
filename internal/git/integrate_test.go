@@ -31,9 +31,7 @@ func gitCmdEnv(t *testing.T, dir string, env []string, args ...string) {
 	}
 }
 
-// conflictRepo builds a repo paused on a rebase with one 3-way-conflicted file. It
-// returns the repo, the conflicted path, the main-tip and feature-tip SHAs, and the
-// content each branch committed, so tests can assert the stage-to-side mapping.
+// conflictRepo builds a repo paused on a rebase with one 3-way-conflicted file.
 func conflictRepo(t *testing.T) (repo, path, mainTip, featureTip, mainBody, featureBody string) {
 	t.Helper()
 	repo = newRepo(t)
@@ -82,8 +80,7 @@ func TestConflictStagesAndShowMapping(t *testing.T) {
 		t.Fatalf("3-way conflict must list all stages: %+v", stages)
 	}
 
-	// Stage :2 is the rebase target (main); stage :3 is the commit being replayed
-	// (feature). This pins the inverted stage-to-side mapping.
+	// Stage :2 is the rebase target (main); stage :3 is the commit being replayed.
 	ours, err := ShowStage(ctx, repo, 2, path)
 	if err != nil {
 		t.Fatal(err)
@@ -185,8 +182,8 @@ func TestMergeBlobsCleanAndConflict(t *testing.T) {
 	ctx := context.Background()
 
 	base := []byte("a\nb\nc\nd\ne\nf\ng\n")
-	ours := []byte("X\nb\nc\nd\ne\nf\ng\n")   // first line
-	theirs := []byte("a\nb\nc\nd\ne\nf\nY\n") // last line
+	ours := []byte("X\nb\nc\nd\ne\nf\ng\n")
+	theirs := []byte("a\nb\nc\nd\ne\nf\nY\n")
 	merged, conflicted, err := MergeBlobs(ctx, base, ours, theirs)
 	if err != nil {
 		t.Fatal(err)
@@ -210,9 +207,8 @@ func TestMergeBlobsCleanAndConflict(t *testing.T) {
 	}
 }
 
-// A trouble-exit (git could not run the merge) exits non-zero with empty stdout,
-// which must surface as an error — never be mistaken for a conflict. Binary blobs
-// (NUL bytes) make git merge-file refuse deterministically, exercising that branch.
+// Trouble-exit (non-zero, empty stdout) must surface as an error, never a conflict.
+// Binary blobs make git merge-file refuse deterministically.
 func TestMergeBlobsTroubleExitIsError(t *testing.T) {
 	requireGit(t)
 	ctx := context.Background()
@@ -387,8 +383,8 @@ func TestDirtyEntriesCarryCode(t *testing.T) {
 	gitCmd(t, repo, "add", "-A")
 	gitCmd(t, repo, "commit", "-m", "base")
 
-	write(t, filepath.Join(repo, tracked), "v2\n")               // modified
-	write(t, filepath.Join(repo, "wc", "wc-cd3e-new.md"), "n\n") // untracked add
+	write(t, filepath.Join(repo, tracked), "v2\n")
+	write(t, filepath.Join(repo, "wc", "wc-cd3e-new.md"), "n\n")
 
 	entries, err := DirtyEntries(ctx, repo, "wc")
 	if err != nil {

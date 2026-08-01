@@ -39,7 +39,6 @@ func TestOpenStampsVersionAndRebuildsOnMismatch(t *testing.T) {
 	}
 	_ = db.Close()
 
-	// Reopen: same version, row survives (no rebuild).
 	db2, err := Open(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -50,7 +49,6 @@ func TestOpenStampsVersionAndRebuildsOnMismatch(t *testing.T) {
 		t.Fatalf("after reopen rows = %d err=%v, want 1", len(rows), err)
 	}
 
-	// Force a version mismatch → next open rebuilds, dropping rows.
 	if _, err := db2.sql.Exec(`UPDATE meta SET value = 999 WHERE key='schema_version'`); err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +77,6 @@ func TestUpsertReplacesRowAndEdges(t *testing.T) {
 		t.Fatalf("edges = %+v", all)
 	}
 
-	// Re-upsert with a different status and no edges: row updated, edge gone.
 	p.Status = "in-progress"
 	if err := db.UpsertProjectWithEdges(p, nil); err != nil {
 		t.Fatal(err)
@@ -116,7 +113,6 @@ func TestSearchBM25AndScopeBound(t *testing.T) {
 	if len(hits) != 3 {
 		t.Fatalf("machine-wide hits = %d, want 3", len(hits))
 	}
-	// Scope bound.
 	hits, _ = db.Search("ui", "network")
 	if len(hits) != 1 || hits[0].Project.Scope != "ui" {
 		t.Fatalf("scope-bound search = %+v", hits)
@@ -125,7 +121,7 @@ func TestSearchBM25AndScopeBound(t *testing.T) {
 
 func TestSearchMalformedQueryIsTyped(t *testing.T) {
 	db := openTemp(t)
-	// An unbalanced quote is a malformed FTS5 query, not an infrastructure fault.
+	// Unbalanced quote is a malformed FTS5 query, not infrastructure.
 	_, err := db.Search("", `foo"`)
 	if err == nil {
 		t.Fatal("malformed query should error")
@@ -133,7 +129,6 @@ func TestSearchMalformedQueryIsTyped(t *testing.T) {
 	if !errors.Is(err, ErrSearchQuery) {
 		t.Fatalf("malformed query should be ErrSearchQuery, got %v", err)
 	}
-	// A well-formed query over an empty index is not an error.
 	if _, err := db.Search("", "network"); err != nil {
 		t.Fatalf("valid query should not error: %v", err)
 	}
@@ -204,8 +199,7 @@ func TestReadOnlyQueryGuard(t *testing.T) {
 		`SELECT 1; DELETE FROM projects`,
 		`PRAGMA journal_mode = DELETE`,
 		`replace into projects(path,scope,id) values('x','wc','wc-zz22')`,
-		// A write smuggled behind a CTE: the static classifier sees a leading WITH,
-		// so only the runtime PRAGMA query_only guard catches it.
+		// Static classifier sees leading WITH; only PRAGMA query_only catches this.
 		`WITH t AS (SELECT 1) DELETE FROM projects`,
 		`WITH t AS (SELECT 1) UPDATE projects SET status='done'`,
 	} {
@@ -213,19 +207,16 @@ func TestReadOnlyQueryGuard(t *testing.T) {
 			t.Errorf("read-only guard admitted a write: %q", bad)
 		}
 	}
-	// A legitimate CTE-prefixed SELECT is still allowed.
 	if _, err := db.RunReadOnlyQuery(`WITH t AS (SELECT id FROM projects) SELECT * FROM t`); err != nil {
 		t.Errorf("read-only CTE select rejected: %v", err)
 	}
-	// A read-only PRAGMA and EXPLAIN are allowed.
 	if _, err := db.RunReadOnlyQuery(`PRAGMA table_info(projects)`); err != nil {
 		t.Errorf("read-only pragma rejected: %v", err)
 	}
 	if _, err := db.RunReadOnlyQuery(`EXPLAIN QUERY PLAN SELECT * FROM projects`); err != nil {
 		t.Errorf("explain rejected: %v", err)
 	}
-	// A ';' inside a string literal or quoted identifier is not a batch separator, so
-	// a legitimate read-only query that merely contains one is not spuriously refused.
+	// Quoted ';' is not a batch separator.
 	for _, ok := range []string{
 		`SELECT id FROM projects WHERE id LIKE '%;%'`,
 		`SELECT ';' AS sep FROM projects`,
@@ -235,12 +226,9 @@ func TestReadOnlyQueryGuard(t *testing.T) {
 			t.Errorf("read-only query with a quoted ';' rejected: %q: %v", ok, err)
 		}
 	}
-	// A real write after a genuine separator is still caught even when an earlier
-	// statement carries a quoted ';'.
 	if _, err := db.RunReadOnlyQuery(`SELECT ';' FROM projects; DELETE FROM projects`); err == nil {
 		t.Error("read-only guard admitted a write following a quoted-';' select")
 	}
-	// The write must not have landed.
 	if rows, _ := db.ScopeProjects("wc"); len(rows) != 1 {
 		t.Fatalf("a rejected write still mutated the store: %d rows", len(rows))
 	}

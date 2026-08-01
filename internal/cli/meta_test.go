@@ -8,7 +8,6 @@ import (
 	"testing"
 )
 
-// runIn executes the command tree with the given stdin contents.
 func runIn(t *testing.T, app *App, stdin string, args ...string) (string, string, error) {
 	t.Helper()
 	root := newRootCmd(app)
@@ -90,7 +89,6 @@ func TestMetaGetFullAndSingleKey(t *testing.T) {
 		t.Errorf("tags get = %q", out)
 	}
 
-	// Immutable keys are readable on get.
 	for _, tc := range []struct {
 		key, want string
 	}{
@@ -145,13 +143,11 @@ func TestMetaGetUnknownKeyListsCatalogue(t *testing.T) {
 func TestMetaGetParseErrorSingleKey(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	// Extractable fence but broken YAML interior.
 	bad := "---\nid: wc-ab2c\nstatus: [unterminated\n---\n# Broken\n"
 	if err := os.WriteFile(filepath.Join(dir, "wc-ab2c-broken.md"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	// Full get still works (raw interior).
 	out, errOut, err := run(t, app, "meta", "get", "wc-ab2c")
 	if err != nil {
 		t.Fatalf("full get on extractable broken FM should exit 0: %v", err)
@@ -201,7 +197,6 @@ func TestMetaSetSummaryArgvAndStdin(t *testing.T) {
 		t.Errorf("stdin summary = %q", got)
 	}
 
-	// One optional final CRLF is stripped the same as LF (no trailing CR left).
 	out, _, err = runIn(t, app, "crlf value\r\n", "meta", "set", "wc-ab2c", "summary", "-")
 	if err != nil {
 		t.Fatalf("set summary stdin CRLF: %v", err)
@@ -210,7 +205,6 @@ func TestMetaSetSummaryArgvAndStdin(t *testing.T) {
 		t.Errorf("CRLF stdin summary = %q", got)
 	}
 
-	// Clear summary.
 	out, _, err = run(t, app, "meta", "set", "wc-ab2c", "summary", "")
 	if err != nil {
 		t.Fatalf("clear summary: %v", err)
@@ -259,7 +253,6 @@ owners: {type: "strings", values: ["platform", "design"]}
 	if _, _, err := run(t, app, "meta", "set", "wc-ab2c", "area", "frontend"); err != nil {
 		t.Fatalf("set area: %v", err)
 	}
-	// Empty set clears int/bool/string customs.
 	if _, _, err := run(t, app, "meta", "set", "wc-ab2c", "estimate", ""); err != nil {
 		t.Fatalf("clear estimate: %v", err)
 	}
@@ -277,7 +270,6 @@ owners: {type: "strings", values: ["platform", "design"]}
 	if _, _, err := run(t, app, "meta", "set", "wc-ab2c", "estimate", "nope"); ExitCodeFromError(err) != exitUsage {
 		t.Errorf("bad int should exit 2, got %v", err)
 	}
-	// strings add with enum.
 	if _, _, err := run(t, app, "meta", "add", "wc-ab2c", "owners", "platform"); err != nil {
 		t.Fatalf("add owners: %v", err)
 	}
@@ -317,7 +309,6 @@ func TestMetaAddRmDepends(t *testing.T) {
 		t.Errorf("depends after double add = %q", depOut)
 	}
 
-	// Index write-through: deps neighbourhood and list waiting-on see the edge.
 	depsOut, _, err := run(t, app, "deps", "wc-ab2c")
 	if err != nil {
 		t.Fatalf("deps after add: %v", err)
@@ -347,7 +338,6 @@ func TestMetaAddRmDepends(t *testing.T) {
 		t.Error("self refuse must not rewrite the file")
 	}
 
-	// Same-scope missing → depends_dangling; no write.
 	_, errOut, err = run(t, app, "meta", "add", "wc-ab2c", "depends", "wc-zz99")
 	if ExitCodeFromError(err) == exitOK {
 		t.Fatal("missing depends must refuse")
@@ -391,7 +381,6 @@ func TestMetaAddRmDepends(t *testing.T) {
 		t.Error("malformed refuse must not rewrite the file")
 	}
 
-	// rm by short id removes stored full id.
 	if _, _, err := run(t, app, "meta", "rm", "wc-ab2c", "depends", "de34"); err != nil {
 		t.Fatalf("rm by short: %v", err)
 	}
@@ -403,7 +392,6 @@ func TestMetaAddRmDepends(t *testing.T) {
 	if _, _, err := run(t, app, "meta", "rm", "wc-ab2c", "depends", "wc-de34"); err != nil {
 		t.Fatalf("rm absent: %v", err)
 	}
-	// remove alias.
 	if _, _, err := run(t, app, "meta", "add", "wc-ab2c", "depends", "wc-de34"); err != nil {
 		t.Fatal(err)
 	}
@@ -428,7 +416,6 @@ func TestMetaCrossScopeDepends(t *testing.T) {
 		t.Errorf("cross-scope depends = %q", out)
 	}
 
-	// Unregistered scope → depends_unresolvable.
 	_, errOut, err := run(t, app, "meta", "add", "wc-bb22", "depends", "zzz-zz99")
 	if ExitCodeFromError(err) == exitOK {
 		t.Fatal("unregistered scope depends must refuse")
@@ -437,7 +424,6 @@ func TestMetaCrossScopeDepends(t *testing.T) {
 		t.Errorf("expected depends_unresolvable:, got err=%v stderr=%q", err, errOut)
 	}
 
-	// Registered scope but missing id → depends_unresolvable.
 	_, errOut, err = run(t, app, "meta", "add", "wc-bb22", "depends", "up-zz99")
 	if ExitCodeFromError(err) == exitOK {
 		t.Fatal("missing cross-scope id must refuse")
@@ -446,7 +432,6 @@ func TestMetaCrossScopeDepends(t *testing.T) {
 		t.Errorf("expected depends_unresolvable:, got err=%v stderr=%q", err, errOut)
 	}
 
-	// Registered but unreachable target scope → depends_unresolvable; no write.
 	wcPath := filepath.Join(wc, "wc-bb22-feat.md")
 	// Drop the successful cross-scope edge so the file is clean for the snapshot.
 	if _, _, err := run(t, app, "meta", "rm", "wc-bb22", "depends", "up-aa22"); err != nil {
@@ -474,7 +459,6 @@ func TestMetaRelatedAndTags(t *testing.T) {
 	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
 	addProject(t, dir, "wc-de34", "auth", "todo", "a1", "# Auth\n", false, "")
 
-	// related short → full, no existence check, self allowed.
 	if _, _, err := run(t, app, "meta", "add", "wc-ab2c", "related", "de34"); err != nil {
 		t.Fatalf("related short: %v", err)
 	}
@@ -485,11 +469,9 @@ func TestMetaRelatedAndTags(t *testing.T) {
 	if _, _, err := run(t, app, "meta", "add", "wc-ab2c", "related", "ab2c"); err != nil {
 		t.Fatalf("self-related should not hard-refuse: %v", err)
 	}
-	// missing related target is fine.
 	if _, _, err := run(t, app, "meta", "add", "wc-ab2c", "related", "wc-zz99"); err != nil {
 		t.Fatalf("missing related should not refuse: %v", err)
 	}
-	// rm related by short.
 	if _, _, err := run(t, app, "meta", "rm", "wc-ab2c", "related", "de34"); err != nil {
 		t.Fatalf("rm related short: %v", err)
 	}
@@ -509,7 +491,6 @@ func TestMetaRelatedAndTags(t *testing.T) {
 		t.Fatalf("rm absent tag: %v", err)
 	}
 
-	// links + stdin value form for add/rm.
 	if _, _, err := runIn(t, app, "https://example.com/doc\n", "meta", "add", "wc-ab2c", "links", "-"); err != nil {
 		t.Fatalf("add links stdin: %v", err)
 	}
@@ -560,7 +541,6 @@ func TestMetaSelfCommitAndUncommitted(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
 
-	// Auto-commit: meta mutation self-commits.
 	dir, repo := initGitScope(t, app, "ac", true)
 	addProject(t, dir, "ac-ab2c", "work", "todo", "a0", "# Work\n", false, "")
 	runGit(t, repo, "add", ".")
@@ -573,7 +553,6 @@ func TestMetaSelfCommitAndUncommitted(t *testing.T) {
 		t.Errorf("expected meta self-commit, log=%v", log)
 	}
 
-	// Repo-driven: uncommitted: on stderr, no commit.
 	dir2, repo2 := initGitScope(t, app, "rd", false)
 	addProject(t, dir2, "rd-ab2c", "work", "todo", "a0", "# Work\n", false, "")
 	runGit(t, repo2, "add", ".")
@@ -603,7 +582,6 @@ func TestMetaBareShowsFamilyHelp(t *testing.T) {
 			t.Errorf("meta help missing %q:\n%s", needle, out)
 		}
 	}
-	// Bare meta with no args shows help (not usage error).
 	out, _, err = run(t, app, "meta")
 	if err != nil {
 		t.Fatalf("bare meta: %v", err)

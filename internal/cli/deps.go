@@ -76,7 +76,6 @@ func runDeps(app *App, c *cobra.Command, idArg, scope string, transitive, tree b
 	return nil
 }
 
-// depsGraph is the edge adjacency read once from the index for a deps run.
 type depsGraph struct {
 	outDep map[string][]string
 	inDep  map[string][]string
@@ -116,8 +115,7 @@ func (e *engine) buildDepsGraph() (*depsGraph, error) {
 	return g, nil
 }
 
-// printSection prints one titled section, one neighbour line each (id, status,
-// label), or a quiet (none) so section structure stays stable for agents.
+// printSection always emits a title and (none) for empty sides so section structure is stable.
 func (g *depsGraph) printSection(c *cobra.Command, title string, ids []string) {
 	stdoutln(c, title+":")
 	if len(ids) == 0 {
@@ -131,9 +129,7 @@ func (g *depsGraph) printSection(c *cobra.Command, title string, ids []string) {
 	}
 }
 
-// neighbourLine renders one neighbour: id, status, and a short label (title or
-// summary). An unresolvable target — no project row here — is annotated rather than
-// dropped, matching list's held-not-surfaced spirit.
+// neighbourLine annotates unresolved targets rather than dropping them.
 func (g *depsGraph) neighbourLine(id string) string {
 	p, ok := g.byID[id]
 	if !ok {
@@ -150,7 +146,6 @@ func (g *depsGraph) neighbourLine(id string) string {
 	return id + "\t" + status + "\t" + label
 }
 
-// relatedBoth returns the union of a subject's outbound and inbound related ids.
 func (g *depsGraph) relatedBoth(subject string) []string {
 	var out []string
 	for _, id := range g.outRel[subject] {
@@ -162,14 +157,10 @@ func (g *depsGraph) relatedBoth(subject string) []string {
 	return out
 }
 
-// transitiveDepends returns every prerequisite reachable by following depends
-// outbound from the subject, excluding the subject, cycle-safe.
 func (g *depsGraph) transitiveDepends(subject string) []string {
 	return g.reachable(subject, g.outDep)
 }
 
-// transitiveDependedOnBy returns every dependent reachable by following depends
-// inbound from the subject, excluding the subject, cycle-safe.
 func (g *depsGraph) transitiveDependedOnBy(subject string) []string {
 	return g.reachable(subject, g.inDep)
 }
@@ -192,8 +183,6 @@ func (g *depsGraph) reachable(start string, adj map[string][]string) []string {
 	return out
 }
 
-// subjectInCycle reports whether the subject can reach itself by following depends
-// outbound — i.e. it participates in a depends cycle.
 func (g *depsGraph) subjectInCycle(subject string) bool {
 	visited := map[string]bool{}
 	var walk func(string) bool
@@ -215,9 +204,7 @@ func (g *depsGraph) subjectInCycle(subject string) bool {
 	return walk(subject)
 }
 
-// printTree pretty-prints the depends graph rooted at the subject, indenting each
-// level, and stopping a branch on revisit so a cycle cannot expand forever. Related
-// stays a flat section after the tree.
+// printTree stops a branch on revisit so a cycle cannot expand forever.
 func (g *depsGraph) printTree(c *cobra.Command, subject string) {
 	stdoutln(c, "depends tree:")
 	stdoutln(c, "  "+g.neighbourLine(subject))

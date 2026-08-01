@@ -23,7 +23,7 @@ func TestRepoRootInsideRepo(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a git-root")
 	}
-	// macOS /tmp is a symlink; compare the resolved forms.
+	// macOS /tmp is a symlink; compare resolved forms.
 	wantResolved, _ := filepath.EvalSymlinks(dir)
 	gotResolved, _ := filepath.EvalSymlinks(root)
 	if gotResolved != wantResolved {
@@ -52,8 +52,6 @@ func TestRepoRootForNewMissingDescendant(t *testing.T) {
 	if out, err := exec.Command("git", "-C", repo, "init").CombinedOutput(); err != nil {
 		t.Fatalf("git init: %v: %s", err, out)
 	}
-	// A not-yet-created dir several levels below the repo derives the repo root
-	// from its nearest existing ancestor.
 	missing := filepath.Join(repo, "a", "b", "c")
 	root, ok := RepoRootForNew(missing)
 	if !ok {
@@ -67,7 +65,6 @@ func TestRepoRootForNewMissingDescendant(t *testing.T) {
 }
 
 func TestRepoRootForNewOutsideRepo(t *testing.T) {
-	// A missing dir whose existing ancestors are not a repo yields no git-root.
 	if root, ok := RepoRootForNew(filepath.Join(t.TempDir(), "x", "y")); ok {
 		t.Errorf("expected no git-root, got %q", root)
 	}

@@ -21,10 +21,6 @@ func TestSyncEmptyEligibleSetExitsZero(t *testing.T) {
 	}
 }
 
-// When every registered auto-commit scope is unreachable, --all still surfaces the
-// unreachable_scope: note (an unmounted drive is not silently swallowed) rather than a
-// bare, misleading "no auto-commit git-roots registered". Unreachable is a non-fatal
-// skip, so the run still exits 0.
 func TestSyncAllUnreachableStillReportsAndExitsZero(t *testing.T) {
 	app := newApp(t)
 	dir := filepath.Join(t.TempDir(), "wc")
@@ -51,14 +47,6 @@ func TestSyncAllUnreachableStillReportsAndExitsZero(t *testing.T) {
 	}
 }
 
-// A push that does not land records last-push-error under the git-root ops state, and the
-// next successful push clears it — the marker pj doctor and every complete-state write verb
-// read to warn that work is stranded on this machine (requirement 6). A pre-push hook that
-// rejects is the stand-in for a remote that refuses; removing it is the operator's fix.
-//
-// This covers the second-push exit only. The two race-retry exits (the re-integrate pausing
-// or erroring after a rejected first push) share recordPushFailure but need a genuine
-// fetch→push race to reach, which a hook cannot stage on its own.
 func TestSyncPushFailureRecordsAndClearsLastPushError(t *testing.T) {
 	requireGit(t)
 	remote := newBareRemote(t)
@@ -82,7 +70,6 @@ func TestSyncPushFailureRecordsAndClearsLastPushError(t *testing.T) {
 		t.Fatal("the failed push must be recorded, so doctor and the write verbs can warn about stranded work")
 	}
 
-	// The operator fixes the remote; the next successful push clears the record.
 	if err := os.Remove(hook); err != nil {
 		t.Fatal(err)
 	}
@@ -94,10 +81,6 @@ func TestSyncPushFailureRecordsAndClearsLastPushError(t *testing.T) {
 	}
 }
 
-// A lone auto-commit scope whose pj.cue will not parse is surfaced under --all with
-// config_unparseable and exits non-zero, not silently dropped. With no healthy sibling in
-// its repo, no per-root preflight ever reaches it, so allSelection must surface it
-// directly rather than skip it and misreport the fleet as "nothing to sync".
 func TestSyncAllLoneUnparseableConfigSurfaces(t *testing.T) {
 	app := newApp(t)
 	dir := filepath.Join(t.TempDir(), "wc")
@@ -124,11 +107,6 @@ func TestSyncAllLoneUnparseableConfigSurfaces(t *testing.T) {
 	}
 }
 
-// An ambient scope whose pj.cue will not parse is refused with config_unparseable even when
-// it has no git-root, not misreported as a missing repository. With a git-root the per-root
-// preflight covers this; with none there is no preflight to run, so the ambient path must
-// refuse on its own — otherwise the same scope is diagnosed as config_unparseable under
-// --all and as sync_disabled under --scope.
 func TestSyncAmbientUnparseableConfigNoRepoRefusesOnConfig(t *testing.T) {
 	app := newApp(t)
 	dir := filepath.Join(t.TempDir(), "wc")
@@ -170,7 +148,6 @@ func TestSyncNonAutoCommitAmbientRefuses(t *testing.T) {
 	}
 }
 
-// A plain-files ambient scope names the other mode.
 func TestSyncPlainFilesAmbientRefuses(t *testing.T) {
 	app := newApp(t)
 	dir := filepath.Join(t.TempDir(), "pf")
@@ -189,8 +166,6 @@ func TestSyncPlainFilesAmbientRefuses(t *testing.T) {
 	}
 }
 
-// --all wins over an ambient selector: a non-auto-commit PJ_SCOPE under --all does not
-// trigger the mode refuse; with no auto-commit scopes it exits 0.
 func TestSyncAllWinsOverAmbientSelector(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
@@ -205,7 +180,6 @@ func TestSyncAllWinsOverAmbientSelector(t *testing.T) {
 	}
 }
 
-// An auto-commit scope with a git-root but no upstream reports sync_disabled, non-zero.
 func TestSyncAutoCommitNoUpstreamRidesSyncDisabled(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
@@ -219,7 +193,6 @@ func TestSyncAutoCommitNoUpstreamRidesSyncDisabled(t *testing.T) {
 	}
 }
 
-// A planned auto-commit scope with no git-root at all rides sync_disabled, non-zero.
 func TestSyncPlannedNoGitRootRidesSyncDisabled(t *testing.T) {
 	app := newApp(t)
 	dir := filepath.Join(t.TempDir(), "wc")
@@ -315,8 +288,6 @@ func TestSyncPreflightRefusesNameDriftedSibling(t *testing.T) {
 	}
 }
 
-// The happy path: snapshot only allowlisted dirt in one commit, warn non_allowlist on
-// residue (AGENTS.md) without committing it, and push.
 func TestSyncSnapshotsAllowlistWarnsResidueAndPushes(t *testing.T) {
 	requireGit(t)
 	remote := newBareRemote(t)
@@ -360,34 +331,22 @@ func TestSyncReadOnlyMachinePullsAndSkipsPush(t *testing.T) {
 	}
 }
 
-// The lock span releases on the success path: a pj mark on the same scope after sync
-// acquires the very locks sync held and completes, rather than deadlocking on a leaked
-// scope or git-root lock. The multi-sync tests already prove release on the paused path.
 func TestSyncReleasesLocksForSubsequentWrite(t *testing.T) {
 	requireGit(t)
 	_, b, _ := twoMachines(t)
 	if _, _, err := b.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("B sync: %v", err)
 	}
-	// A write verb takes the scope lock then the git-root lock — the same span sync held.
-	// If sync leaked either, this blocks forever; it returning is the release proof.
 	if _, _, err := run(t, b.app, "mark", "wc-ab2c", "in-progress"); err != nil {
 		t.Fatalf("mark after sync must acquire the released locks and complete: %v", err)
 	}
 }
 
-// Two auto-commit scopes sharing one git-root both participate in a single ambient sync:
-// the preflight passes (they agree on autoCommit), sync acquires both scope locks plus the
-// git-root lock, sweeps both dirs into one snapshot commit, and pushes both. Every other
-// multi-scope test diverges the sibling to force a preflight refuse, so this is the only
-// case that exercises the participant loop, the multi-lock span, and the cross-dir snapshot
-// on the success path.
 func TestSyncTwoScopesShareGitRootSnapshotOneCommit(t *testing.T) {
 	requireGit(t)
 	remote := newBareRemote(t)
 	m := cloneMachine(t, remote)
 
-	// wc and xy are two auto-commit scopes in sibling dirs of the same clone (one git-root).
 	wcDir := filepath.Join(m.clone, "wc")
 	xyDir := filepath.Join(m.clone, "xy")
 	for name, dir := range map[string]string{"wc": wcDir, "xy": xyDir} {
@@ -401,12 +360,10 @@ func TestSyncTwoScopesShareGitRootSnapshotOneCommit(t *testing.T) {
 	addProject(t, wcDir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
 	addProject(t, xyDir, "xy-cd3e", "beta", "todo", "a0", "# Beta\n", false, "")
 
-	// Ambient sync on wc targets the shared git-root, so xy participates too.
 	if _, errOut, err := m.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("two-scope sync should complete: %v (stderr %q)", err, errOut)
 	}
 
-	// One snapshot commit carries both dirs, and both projects reach the remote.
 	if got := topCommit(t, m.clone); !strings.HasPrefix(got, "pj: sync ") {
 		t.Errorf("both dirs should ride one snapshot commit, got %q", got)
 	}

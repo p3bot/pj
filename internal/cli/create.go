@@ -143,11 +143,7 @@ func runCreate(app *App, c *cobra.Command, titleArg, statusArg, scopeFlag string
 	return nil
 }
 
-// mintUnusedID draws a fresh short-id and redraws until it is unused among the ids
-// present in the scope, so two concurrent creates under the scope flock cannot
-// settle on the same id. It compares against every indexed row's short-id, including
-// parse_error rows (whose id is taken from the filename), so a quarantined file's id
-// is never re-minted.
+// mintUnusedID redraws until unused, including parse_error rows (id from filename).
 func mintUnusedID(rows []*index.Project) (string, error) {
 	taken := make(map[string]struct{}, len(rows))
 	for _, p := range rows {

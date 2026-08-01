@@ -19,12 +19,7 @@ import (
 	"github.com/start-cli/pj/internal/xdg"
 )
 
-// newScopeRenameCmd registers `pj scope rename <old> <new>`: the in-place rename that
-// rewrites the pj.cue name, every project id, every filename, and every in-scope edge
-// in one operation under the U22 durability contract, reports each cross-scope inbound
-// edge as edge_verify, and re-keys this machine's registry and lens after the in-dir
-// rewrite succeeds. An interrupted rename re-runs idempotently — the one verb exempt
-// from the name_drift fail-close for exactly its <old> -> <new> transition.
+// newScopeRenameCmd: the only name_drift-exempt verb (idempotent re-run of interrupted rename).
 func newScopeRenameCmd(app *App) *cobra.Command {
 	return &cobra.Command{
 		Use:   "rename <old> <new>",
@@ -63,10 +58,7 @@ func runScopeRename(app *App, c *cobra.Command, oldName, newName string) error {
 	}
 	dir := entry.Dir
 
-	// Resolve directly from the registry key <old>, the name_drift exemption: a
-	// pj.cue already reading <new> is this machine finishing its own interrupted
-	// rename, not genuine drift. Any other name is real drift — recover via
-	// forget+import, not rename.
+	// Resolve by registry key <old> (name_drift exemption for interrupted rename).
 	pjName, err := scopeconfig.ReadName(app.Ctx, dir)
 	if err != nil {
 		return fmt.Errorf("cannot rename %q: its pj.cue is unreadable: %w", oldName, err)
@@ -75,7 +67,6 @@ func runScopeRename(app *App, c *cobra.Command, oldName, newName string) error {
 		return fmt.Errorf("cannot rename %q to %q: its pj.cue name is %q — this is name drift, recover with pj scope forget %s && pj scope import %s", oldName, newName, pjName, oldName, dir)
 	}
 
-	// autoCommit governs self-commit; an unusable config is a write refusal.
 	schema, err := scopeconfig.Load(app.Ctx, dir)
 	if err != nil {
 		if ce, isCfg := scopeconfig.AsConfigError(err); isCfg {
@@ -96,9 +87,7 @@ func runScopeRename(app *App, c *cobra.Command, oldName, newName string) error {
 	}
 	defer func() { _ = lock.Release() }()
 
-	// Refresh the machine-wide index so the edges table reflects current on-disk
-	// state, then read the cross-scope inbound edges (from other scopes' repos) to
-	// report as edge_verify — they are surfaced, never rewritten here.
+	// edge_verify for cross-scope inbound edges only (surfaced, never rewritten).
 	if _, err := e.reconcileResult(e.allTargets()); err != nil {
 		return err
 	}
@@ -116,9 +105,7 @@ func runScopeRename(app *App, c *cobra.Command, oldName, newName string) error {
 	if err != nil {
 		return err
 	}
-	// The pj.cue name is written last (detectable-ordering rule): a crash before it
-	// leaves old-prefixed leftovers a re-run finishes; a crash after it, before the
-	// registry re-key, is the name_drift window this same command resolves on re-run.
+	// pj.cue name last: crash before → re-run finishes leftovers; after → name_drift window.
 	if pjName != newName {
 		if err := scopeconfig.RewriteName(dir, newName); err != nil {
 			return err
@@ -126,7 +113,6 @@ func runScopeRename(app *App, c *cobra.Command, oldName, newName string) error {
 	}
 	touched = append(touched, filepath.Join(dir, "pj.cue"))
 
-	// Auto-commit: one commit after every file write for the plan has succeeded.
 	if autoCommit && hasRoot {
 		if err := selfcommit.CommitPaths(c.Context(), selfcommit.BatchRequest{
 			StateDir: app.StateDir, GitRoot: root,
@@ -155,11 +141,7 @@ func runScopeRename(app *App, c *cobra.Command, oldName, newName string) error {
 	return nil
 }
 
-// renamePlan builds the rewrite ops for a scope rename: one op per project file whose
-// prefix is still <old>, rewriting its frontmatter id, its in-scope depends/related
-// edges, and its filename to <new>. A file already at the <new> prefix is a completed
-// tail from an interrupted rename and is skipped. An unparseable project file refuses
-// the whole rename (its frontmatter id cannot be safely rewritten).
+// renamePlan skips already-<new> files (interrupted-rename tail); unparseable refuses all.
 func renamePlan(dir, oldName, newName string) ([]rewrite.Op, error) {
 	files, err := listScopeProjectFiles(dir, oldName, newName)
 	if err != nil {
@@ -183,11 +165,7 @@ func renamePlan(dir, oldName, newName string) ([]rewrite.Op, error) {
 		if err != nil {
 			return nil, fmt.Errorf("cannot rename: %s has unparseable frontmatter — fix it first: %w", f, err)
 		}
-		// The frontmatter id is the authority on identity, not the filename: the two can
-		// disagree (doctor reports it as a structural class), and re-prefixing the
-		// filename's id instead would move the project onto a different id and dangle
-		// every edge pointing at the real one. An id outside the old scope cannot be
-		// re-prefixed without guessing, so it refuses rather than inventing one.
+		// Frontmatter id is authority (filename can disagree); out-of-scope id refuses.
 		if !id.IsFullProjectID(m.ID) || scopeOfFullID(m.ID) != oldName {
 			return nil, fmt.Errorf("cannot rename: %s declares id %q, which is not a project id in scope %q — fix its frontmatter id (pj doctor reports this) then re-run", f, m.ID, oldName)
 		}
@@ -206,16 +184,7 @@ func renamePlan(dir, oldName, newName string) ([]rewrite.Op, error) {
 	return ops, nil
 }
 
-// rekeyRegistry moves the scope's registry and lens entries from oldName to newName
-// under the machine-global config lock — the last step, after the in-dir rewrite
-// completes. A crash in the gap between the pj.cue-name write and this re-key leaves
-// name_drift the same command resolves on re-run.
-//
-// Machine-uniqueness of newName is decided here, not by the caller's pre-lock read: that
-// read is a snapshot taken before any lock, so a concurrent registration between it and
-// this write would otherwise be silently overwritten, taking its dir binding and lens
-// with it. The registry loaded under the lock is the only state a write may be judged
-// against.
+// rekeyRegistry judges newName uniqueness under the config lock (pre-lock snapshot races).
 func (e *engine) rekeyRegistry(oldName, newName string) error {
 	lock, err := xdg.AcquireConfigLock(e.app.ConfigDir)
 	if err != nil {
@@ -230,16 +199,11 @@ func (e *engine) rekeyRegistry(oldName, newName string) error {
 	}
 	entry, ok := reg.Scopes[oldName]
 	if !ok {
-		// Already re-keyed by a prior run (idempotent tail); nothing to do. Checked
-		// before the uniqueness refusal below, so a re-run of a completed rename — where
-		// newName is legitimately taken, by this very scope — stays idempotent.
+		// Already re-keyed (idempotent); check before uniqueness refuse.
 		return nil
 	}
 	if taken, exists := reg.Scopes[newName]; exists {
-		// The in-dir rewrite is already committed, so this cannot roll back — only the
-		// re-key aborts. The resulting split state (pj.cue reads newName, registry still
-		// reads oldName) is the name_drift window the design already defines, so say so
-		// rather than leave the operator hunting for a rollback that did not happen.
+		// In-dir rewrite already committed; re-key abort leaves the known name_drift window.
 		return fmt.Errorf("scope name %q was registered to %s while this rename was running — names are machine-unique, so the registry was left unchanged; %s is already renamed on disk and now reads %q, recover with pj scope forget %s && pj scope import %s",
 			newName, taken.Dir, entry.Dir, newName, oldName, entry.Dir)
 	}
@@ -258,9 +222,6 @@ func (e *engine) rekeyRegistry(oldName, newName string) error {
 	return nil
 }
 
-// reindexRenamed drops the old scope's index rows and reconciles the new scope so the
-// index reflects the rename before the next command. It reloads the registry (now
-// re-keyed) so the prune keeps every other scope.
 func (e *engine) reindexRenamed(oldName, newName, dir string) error {
 	if err := e.db.DeleteScope(oldName); err != nil {
 		return err
@@ -277,10 +238,7 @@ func (e *engine) reindexRenamed(oldName, newName, dir string) error {
 	return err
 }
 
-// listScopeProjectFiles lists the project files of a scope during a rename — the dir
-// root and immediate archive/ children whose basename carries the old or new scope
-// prefix (the new prefix appears only for files a prior interrupted run already
-// migrated).
+// listScopeProjectFiles includes both old and new prefixes (interrupted-rename survivors).
 func listScopeProjectFiles(dir, oldName, newName string) ([]string, error) {
 	var out []string
 	collect := func(root string) error {
@@ -311,8 +269,6 @@ func listScopeProjectFiles(dir, oldName, newName string) ([]string, error) {
 	return out, nil
 }
 
-// hasScopePrefix reports whether a filename is a project file of scope: <scope>-<short
-// id>[-<slug>].md with a legal short-id.
 func hasScopePrefix(base, scope string) bool {
 	stem, ok := strings.CutSuffix(base, ".md")
 	if !ok {
@@ -326,8 +282,6 @@ func hasScopePrefix(base, scope string) bool {
 	return id.IsShortID(short)
 }
 
-// shortAfter returns the short-id segment of "<scope>-<short>[-<slug>]" — the run
-// after the scope prefix up to the next hyphen.
 func shortAfter(stem, scope string) string {
 	rest := strings.TrimPrefix(stem, scope+"-")
 	if i := strings.IndexByte(rest, '-'); i >= 0 {
@@ -336,8 +290,6 @@ func shortAfter(stem, scope string) string {
 	return rest
 }
 
-// rekeyEdges rewrites the scope prefix of every in-scope full-id entry from oldName to
-// newName, leaving cross-scope and non-id entries untouched.
 func rekeyEdges(list []string, oldName, newName string) []string {
 	if len(list) == 0 {
 		return list

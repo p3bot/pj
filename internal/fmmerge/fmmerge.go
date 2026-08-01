@@ -1,22 +1,7 @@
-// Package fmmerge is pj's pure 3-way frontmatter merge (design: Merge conflict
-// handling, layer 3). It merges the frontmatter of a single conflicted project file
-// from its three raw git stage blobs and a scope schema, and returns either clean
-// merged frontmatter, a status-dispute payload, a same-id add/add rename directive, a
-// delete/edit handoff signal, or a fail-closed *MergeError.
-//
-// It performs no I/O: no git subprocess, no filesystem, no index, no flock. Every
-// input the merge needs — both sides' git author dates, the scope name, and the set of
-// short-ids already occupied in the scope — is passed in by the driver, so the package
-// is deterministic for fixed inputs and testable on canned stage blobs. The rebase
-// driver (internal/rebasedriver) owns all git I/O and body handling; this package
-// splits each stage blob into frontmatter and body internally, merges only the
-// frontmatter, and never touches the body.
-//
-// Stage presence is explicit and load-bearing. A stage that is absent (no :1 on an
-// add/add; no entry for the deleting side of a delete/modify) and a stage that is
-// present but empty are different inputs the merge branches on — git records a deletion
-// by omitting the stage entry, not by writing a zero-byte blob — so callers must set
-// Stage.Present rather than conflating the two with a nil-vs-empty []byte.
+// Package fmmerge is a pure 3-way frontmatter merge over three raw git stage blobs.
+// No I/O: dates, scope name, and occupied short-ids are passed in by the driver.
+// Stage presence is explicit: absent (no entry) and present-but-empty are different —
+// git records a deletion by omitting the stage, not a zero-byte blob.
 package fmmerge
 
 import (
@@ -32,19 +17,15 @@ import (
 	"github.com/start-cli/pj/internal/scopeconfig"
 )
 
-// Stage is one git merge stage's blob plus whether that stage exists at all. Present
-// false is an absent stage; Present true with empty Data is a present-but-empty
-// (malformed) stage. Data is the whole stage blob (frontmatter fence plus body); the
-// merge splits the frontmatter out itself.
+// Stage is one git merge stage's blob plus whether that stage exists at all.
+// Present false is absent; Present true with empty Data is present-but-empty (malformed).
 type Stage struct {
 	Present bool
 	Data    []byte
 }
 
-// Side names one of the two non-base stages. The pure package attaches no rebase
-// meaning to the labels — the driver decides which stage blob is Ours (git stage :2)
-// and which is Theirs (stage :3) and passes the matching author date — so "ours" here
-// is simply the first non-base side, never git's during-rebase "ours".
+// Side names one of the two non-base stages. Labels carry no rebase meaning —
+// the driver decides which stage is Ours (:2) and Theirs (:3).
 type Side int
 
 const (
@@ -61,19 +42,14 @@ func (s Side) String() string {
 	return "ours"
 }
 
-// MergeMeta carries the non-blob inputs the pure merge needs, all supplied by the
-// driver so the core stays I/O-free. It holds no paths: a stage blob is content and
-// cannot name a file, so path composition is entirely driver work.
+// MergeMeta carries the non-blob inputs the pure merge needs.
 type MergeMeta struct {
-	// OursDate and TheirsDate are the git author dates of the two sides, used for
-	// both-sides scalar last-writer-wins. They are matched positionally to Ours/Theirs.
+	// OursDate and TheirsDate are git author dates for both-sides scalar LWW.
 	OursDate   time.Time
 	TheirsDate time.Time
-	// Scope is the scope name, used only to mint the loser's new full id in an add/add.
+	// Scope is used only to mint the loser's new full id in an add/add.
 	Scope string
-	// Occupied is the set of short-ids already taken in the scope, used only to extend
-	// the loser's short-id in an add/add (id.Extend). It is the driver's per-conflict
-	// derivation, not an index projection.
+	// Occupied is short-ids already taken, used only for add/add id.Extend.
 	Occupied map[string]struct{}
 }
 
@@ -81,16 +57,13 @@ type MergeMeta struct {
 type Outcome int
 
 const (
-	// OutcomeMerged is a clean field-merged frontmatter (Result.Model).
+	// OutcomeMerged is clean field-merged frontmatter (Result.Model).
 	OutcomeMerged Outcome = iota
-	// OutcomeStatusConflict is a terminal-involved status dispute: Result.Model carries
-	// the merge-base status plus status_conflict, and Result.StatusConflict is the pair.
+	// OutcomeStatusConflict is a terminal-involved status dispute.
 	OutcomeStatusConflict
-	// OutcomeRename is a same-id add/add: Result.Rename says which side loses and the
-	// loser's new short-id. The driver composes both file paths and rewrites the id.
+	// OutcomeRename is a same-id add/add rename directive.
 	OutcomeRename
-	// OutcomeDeleteEdit is a delete/edit handoff: Result.DeleteEdit says which side
-	// deleted and the surviving side's post-edit status.
+	// OutcomeDeleteEdit is a delete/edit handoff.
 	OutcomeDeleteEdit
 )
 
@@ -99,42 +72,32 @@ type Result struct {
 	Outcome Outcome
 	// Model is the clean merged frontmatter for OutcomeMerged and OutcomeStatusConflict.
 	Model *frontmatter.Model
-	// StatusConflict is the disputed pair for OutcomeStatusConflict (also written into
-	// Model.StatusConflict), for the driver to report.
+	// StatusConflict is the disputed pair for OutcomeStatusConflict.
 	StatusConflict []string
 	// Rename is the add/add rename directive for OutcomeRename.
 	Rename *RenameDirective
 	// DeleteEdit is the delete/edit handoff for OutcomeDeleteEdit.
 	DeleteEdit *DeleteEditSignal
-	// Warnings carries doctor-class notes the merge kept quiet about (an immutable both
-	// sides rewrote identically), for the driver to surface.
+	// Warnings carries doctor-class notes (e.g. immutable both-sides rewrote identically).
 	Warnings []string
 }
 
-// RenameDirective is the same-id add/add repair answer: which side loses and the
-// loser's deterministically minted new short-id. It carries no path — the driver holds
-// the one path both sides collided on and composes the keep path and the new path from
-// it plus the loser's frozen slug.
+// RenameDirective is the same-id add/add answer: which side loses and the loser's new short-id.
+// No path — the driver holds the collided path and composes keep/new paths.
 type RenameDirective struct {
 	Loser      Side
 	CollidedID string
 	NewShortID string
 }
 
-// DeleteEditSignal is the delete/edit handoff: the side that deleted the file and the
-// surviving side's post-edit status. The driver attaches the path when it reports.
+// DeleteEditSignal is the delete/edit handoff: deleting side and surviving post-edit status.
 type DeleteEditSignal struct {
 	Deleted         Side
 	SurvivingStatus string
 }
 
-// MergeError is a fail-closed data condition the human resolves in-file: an unparseable
-// or present-but-empty stage, a both-sides immutable disagreement, a both-sides status
-// change with an unknown post-edit name, two differing inherited status_conflict pairs,
-// or a call without a readable schema. It is the only error the pure package returns,
-// so the driver treats every *MergeError as a fail-closed handoff and reserves its own
-// error channel for operational faults. Key names the offending frontmatter key when
-// one applies.
+// MergeError is a fail-closed data condition the human resolves in-file.
+// It is the only error type the pure package returns; operational faults stay with the driver.
 type MergeError struct {
 	Key    string
 	Reason string
@@ -147,10 +110,8 @@ func (e *MergeError) Error() string {
 	return "frontmatter merge failed: " + e.Reason
 }
 
-// MergeFrontmatter 3-way merges the frontmatter of one conflicted project file from its
-// base/ours/theirs stage blobs, the scope's post-integration schema, and the merge
-// metadata. A nil schema is refused (schema-before-data). See the package doc for the
-// stage-presence contract; the outcome classes are documented on Outcome.
+// MergeFrontmatter 3-way merges frontmatter from base/ours/theirs stage blobs and schema.
+// A nil schema is refused (schema-before-data).
 func MergeFrontmatter(base, ours, theirs Stage, schema *scopeconfig.Schema, meta MergeMeta) (Result, error) {
 	if schema == nil {
 		return Result{}, &MergeError{Reason: "no readable schema; refusing to field-merge (schema-before-data)"}
@@ -182,10 +143,8 @@ func MergeFrontmatter(base, ours, theirs Stage, schema *scopeconfig.Schema, meta
 	}
 }
 
-// loadStage splits and parses a stage's frontmatter, distinguishing absent (nil model,
-// no error) from present-but-empty and unparseable (both malformed-input errors). A
-// present zero-byte blob is malformed, not a deletion: git omits the stage entry for a
-// deletion, so zero bytes at a live stage is a truncated or hand-mangled file.
+// loadStage splits and parses stage frontmatter.
+// Present zero-byte blob is malformed, not a deletion (git omits the stage for deletions).
 func loadStage(s Stage) (*frontmatter.Model, error) {
 	if !s.Present {
 		return nil, nil
@@ -204,16 +163,12 @@ func loadStage(s Stage) (*frontmatter.Model, error) {
 	return m, nil
 }
 
-// addAdd handles a base-absent both-present conflict: the same-id add/add guard,
-// checked before any field merge. Both sides carrying the same id are two distinct
-// projects that collided on id and slug, not two edits of one project, so they are kept
-// as two files via a rename rather than field-merged into one.
+// addAdd handles base-absent both-present: same-id is two projects, kept as two files via rename.
 func addAdd(oursM, theirsM *frontmatter.Model, oursRaw, theirsRaw []byte, meta MergeMeta) (Result, error) {
 	if oursM.ID == "" || theirsM.ID == "" || oursM.ID != theirsM.ID {
 		return Result{}, &MergeError{Key: frontmatter.KeyID, Reason: "add/add conflict without a shared id — cannot field-merge two distinct projects"}
 	}
-	// Both stages are one path with one basename, so Basename and Path are the same
-	// placeholder on both sides and only Created and the byte hash decide the loser.
+	// Both stages share one path/basename; only Created and byte hash decide the loser.
 	loser := SideTheirs
 	if !repair.KeepBefore(
 		repair.LoserMember{Created: oursM.Created, Raw: oursRaw},
@@ -238,7 +193,7 @@ func deleteEdit(deleted Side, survivor *frontmatter.Model) Result {
 	return Result{Outcome: OutcomeDeleteEdit, DeleteEdit: &DeleteEditSignal{Deleted: deleted, SurvivingStatus: survivor.Status}}
 }
 
-// threeWay field-merges a shared-base conflict per the design's typed rules.
+// threeWay field-merges a shared-base conflict per typed rules.
 func threeWay(base, ours, theirs *frontmatter.Model, oursRaw, theirsRaw []byte, schema *scopeconfig.Schema, meta MergeMeta) (Result, error) {
 	res := &frontmatter.Model{}
 	var warnings []string
@@ -286,11 +241,8 @@ func threeWay(base, ours, theirs *frontmatter.Model, oursRaw, theirsRaw []byte, 
 	return out, nil
 }
 
-// mergeImmutable merges an identity/provenance key (id, created), which is never scalar
-// LWW. Base is the source of identity: it is kept whenever either side still matches
-// base or only one side differs. Both sides differing and disagreeing fails closed;
-// both differing but agreeing keeps base with a doctor-class warning. When base lacks
-// the key, an agreed value is taken and a disagreement fails closed.
+// mergeImmutable merges id/created: never scalar LWW. Base is identity source.
+// Both sides differing and disagreeing fails closed; both agreeing off base keeps base with a warning.
 func mergeImmutable(base, ours, theirs, key string) (val string, warn bool, err error) {
 	if base != "" {
 		oursDiff := ours != base
@@ -309,11 +261,8 @@ func mergeImmutable(base, ours, theirs, key string) (val string, warn bool, err 
 	return "", false, &MergeError{Key: key, Reason: fmt.Sprintf("base lacks the key and the two sides disagree (%q vs %q)", ours, theirs)}
 }
 
-// mergeList 3-way set-merges a list field against base: an in-base element is kept only
-// when both sides still carry it (either side's removal prunes it, honouring a
-// concurrent removal), and a not-in-base element is kept when either side added it (an
-// add with no matching base element to remove keeps). Output order is deterministic:
-// retained base elements in base order, then additions in ours-then-theirs order.
+// mergeList 3-way set-merges: in-base kept only if both sides still carry it;
+// not-in-base kept if either side added it. Output: base order, then ours-then-theirs additions.
 func mergeList(base, ours, theirs []string) []string {
 	baseSet := toSet(base)
 	oursSet := toSet(ours)
@@ -344,10 +293,8 @@ func mergeList(base, ours, theirs []string) []string {
 	return out
 }
 
-// mergeScalar merges a plain scalar string ("" is absent): one side changed takes that
-// side uncontested; both sides changed to the same value takes it; both changed to
-// different values is last-writer-wins by author date, tie-broken by the greater
-// SHA-256 of the whole stage bytes.
+// mergeScalar merges a plain scalar: one-side-changed, both-equal, or LWW by author date
+// (tie-break: greater SHA-256 of whole stage bytes).
 func mergeScalar(base, ours, theirs string, oursRaw, theirsRaw []byte, meta MergeMeta) string {
 	if ours == theirs {
 		return ours
@@ -370,15 +317,11 @@ type statusMerge struct {
 	dispute        bool
 }
 
-// mergeStatus merges status together with the merge-owned status_conflict key. A fresh
-// terminal-involved both-sides dispute writes the merge-base status plus the disputed
-// pair and discards any inherited status_conflict. Otherwise status follows the scalar
-// one-side/both-equal/LWW rule and the inherited status_conflict is carried by its own
-// one-side-changed rule (two differing inherited pairs fail closed).
+// mergeStatus merges status with merge-owned status_conflict.
+// Fresh terminal-involved both-sides dispute writes merge-base status plus the pair.
 func mergeStatus(base, ours, theirs *frontmatter.Model, oursRaw, theirsRaw []byte, schema *scopeconfig.Schema, meta MergeMeta) (statusMerge, error) {
 	bs, os, ts := base.Status, ours.Status, theirs.Status
 	if os != bs && ts != bs && os != ts {
-		// Both sides changed status to two different values.
 		if !schema.StatusKnown(os) || !schema.StatusKnown(ts) {
 			return statusMerge{}, &MergeError{Key: frontmatter.KeyStatus, Reason: fmt.Sprintf("both sides changed status to different values and %q or %q is not a known status", os, ts)}
 		}
@@ -400,10 +343,8 @@ func mergeStatus(base, ours, theirs *frontmatter.Model, oursRaw, theirsRaw []byt
 	return statusMerge{status: mergeScalar(bs, os, ts, oursRaw, theirsRaw, meta), statusConflict: sc}, nil
 }
 
-// mergeInherited merges an inherited status_conflict sequence as one merge-owned value
-// on the one-side-changed shape: keep it when the sides agree or only one side changed
-// it; fail closed when the two sides carry different pairs (a set-merge would yield a
-// three-name key no verb can repair and the shape forbids).
+// mergeInherited merges inherited status_conflict as one value on the one-side-changed shape.
+// Two differing pairs fail closed (set-merge would yield a three-name key no verb can repair).
 func mergeInherited(base, ours, theirs []string) ([]string, error) {
 	oursChanged := !equalSeq(ours, base)
 	theirsChanged := !equalSeq(theirs, base)
@@ -428,11 +369,8 @@ type optAny struct {
 	value   any
 }
 
-// mergeCustom merges every custom and undeclared key across the three sides. A schema
-// strings field is set-merged like a built-in list; every other declared type and every
-// undeclared key is scalar-ish last-writer-wins over an optional value (an undeclared
-// key present on one side is retained, never dropped). Output order is deterministic:
-// base-order keys first, then ours-only, then theirs-only.
+// mergeCustom merges custom and undeclared keys. Schema strings fields set-merge;
+// everything else is scalar-ish LWW. Output: base-order keys, then ours-only, then theirs-only.
 func mergeCustom(res, base, ours, theirs *frontmatter.Model, oursRaw, theirsRaw []byte, schema *scopeconfig.Schema, meta MergeMeta) {
 	baseC, oursC, theirsC := customMap(base), customMap(ours), customMap(theirs)
 	for _, k := range orderedCustomKeys(base, ours, theirs) {
@@ -450,9 +388,7 @@ func mergeCustom(res, base, ours, theirs *frontmatter.Model, oursRaw, theirsRaw 
 	}
 }
 
-// mergeScalarOpt is mergeScalar over optional values: a side is characterised by its
-// (present, value) state, and an absent key on one side is a legitimate state that can
-// win LWW (dropping the key).
+// mergeScalarOpt is mergeScalar over optional values; an absent key can win LWW (drop).
 func mergeScalarOpt(base, ours, theirs optAny, oursRaw, theirsRaw []byte, meta MergeMeta) (any, bool) {
 	sb, so, st := stateKey(base), stateKey(ours), stateKey(theirs)
 	switch {
@@ -470,9 +406,8 @@ func mergeScalarOpt(base, ours, theirs optAny, oursRaw, theirsRaw []byte, meta M
 	}
 }
 
-// pickOurs reports whether ours wins a both-sides scalar tie: later author date wins,
-// and equal author dates fall to the greater SHA-256 of the whole stage bytes — never a
-// machine-local bias, and independent of which physical side the driver labelled ours.
+// pickOurs reports whether ours wins a both-sides scalar tie: later author date,
+// then greater SHA-256 of whole stage bytes — independent of which physical side is labelled ours.
 func pickOurs(meta MergeMeta, oursRaw, theirsRaw []byte) bool {
 	if meta.OursDate.After(meta.TheirsDate) {
 		return true

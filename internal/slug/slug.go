@@ -1,10 +1,5 @@
-// Package slug implements slugify, the create-time filename slug wire contract.
-// It is a pure, deterministic function: no locale, no filesystem probe, no
-// uniqueness pass — identical titles always yield identical slugs. The slug is
-// frozen at pj create and mirrors the id in the filename <id>-<slug>.md.
-//
-// The closed grammar for a legal slug is ^[a-z0-9]+(-[a-z0-9]+)*$ with a byte
-// length of 1 through SlugMax inclusive.
+// Package slug implements create-time filename slugify: pure, deterministic,
+// no uniqueness pass. Legal grammar: ^[a-z0-9]+(-[a-z0-9]+)*$ length 1–SlugMax.
 package slug
 
 import (
@@ -16,16 +11,11 @@ import (
 // SlugMax is the maximum byte length of a legal slug.
 const SlugMax = 48
 
-// fallback is the slug used when a title reduces to no legal tokens.
 const fallback = "x"
 
-// Slugify converts a title into a legal slug by the closed deterministic
-// algorithm: NFKC normalise, lowercase ASCII A-Z, keep ASCII alphanumerics,
-// treat every other character as a separator, join non-empty tokens with a
-// single '-', fall back to "x" when empty, and truncate to SlugMax bytes
-// preferring a cut at the last '-' within the cap. The result always satisfies
-// Valid; an empty input still yields "x" (callers reject an empty create title
-// before calling, but the function stays total).
+// Slugify converts a title into a legal slug: NFKC, lowercase, keep alphanumerics,
+// other chars as separators, join with '-', fall back to "x", truncate preferring
+// a cut at the last '-' within the cap. Always total (empty input yields "x").
 func Slugify(title string) string {
 	normalised := norm.NFKC.String(title)
 
@@ -62,10 +52,7 @@ func Slugify(title string) string {
 	return s
 }
 
-// truncate reduces s to at most SlugMax bytes. It prefers cutting at the last
-// '-' whose index is within the cap so the result stays valid; failing that
-// (one long token) it hard-cuts to SlugMax bytes. s is ASCII at this stage, so
-// a byte cut is a rune cut.
+// truncate reduces s to at most SlugMax bytes, preferring a cut at the last '-' within the cap.
 func truncate(s string) string {
 	if cut := strings.LastIndexByte(s[:SlugMax+1], '-'); cut >= 0 {
 		return s[:cut]
@@ -73,8 +60,7 @@ func truncate(s string) string {
 	return strings.TrimRight(s[:SlugMax], "-")
 }
 
-// Valid reports whether s satisfies the closed slug grammar
-// ^[a-z0-9]+(-[a-z0-9]+)*$ with byte length 1 through SlugMax.
+// Valid reports whether s satisfies the closed slug grammar.
 func Valid(s string) bool {
 	if len(s) < 1 || len(s) > SlugMax {
 		return false

@@ -92,9 +92,7 @@ func TestDirtyPathsRenameReportsDestination(t *testing.T) {
 	requireGit(t)
 	ctx := context.Background()
 	repo := newRepo(t)
-	// Commit a file, then stage a rename inside the scope dir. The -z porcelain emits
-	// "R  <new>\0<old>\0": DirtyPaths must report the destination and consume (not
-	// report) the source field.
+	// -z porcelain emits "R  <new>\0<old>\0": report destination, consume source.
 	oldPath := filepath.Join(repo, "wc", "wc-ab2c-x.md")
 	write(t, oldPath, "# x\n")
 	gitCmd(t, repo, "add", "wc/wc-ab2c-x.md")
@@ -137,8 +135,7 @@ func TestDirtyPathsScopedAndExpanded(t *testing.T) {
 	requireGit(t)
 	ctx := context.Background()
 	repo := newRepo(t)
-	// An entirely-untracked scope dir must expand to individual files, and files
-	// outside the scoped dir must not appear.
+	// Untracked scope dir must expand to individual files; paths outside dir must not.
 	write(t, filepath.Join(repo, "wc", "pj.cue"), "name: \"wc\"\n")
 	write(t, filepath.Join(repo, "wc", "wc-ab2c-x.md"), "# x\n")
 	write(t, filepath.Join(repo, "other", "unrelated.md"), "# y\n")

@@ -93,8 +93,7 @@ func TestSplitNoClosingFence(t *testing.T) {
 }
 
 func TestSplitFenceMustBeExact(t *testing.T) {
-	// A leading "--- " (trailing space) is a thematic break, not a fence, so the
-	// whole file is body — strict by design, not an oversight.
+	// "--- " is a thematic break, not a fence — whole file is body.
 	data := []byte("--- \nid: wc-ab2c\n---\nbody\n")
 	interior, body, present := Split(data)
 	if present {
@@ -107,7 +106,6 @@ func TestSplitFenceMustBeExact(t *testing.T) {
 		t.Fatalf("body = %q, want the whole input", body)
 	}
 
-	// A trailing carriage return on an otherwise exact fence is still a fence.
 	crlf := []byte("---\r\nid: wc-ab2c\r\n---\r\nbody\r\n")
 	if _, _, ok := Split(crlf); !ok {
 		t.Fatal("Split(CRLF fences) present = false, want true")
@@ -141,7 +139,6 @@ func TestParseBuiltinsAndCustoms(t *testing.T) {
 	if !reflect.DeepEqual(m.Links, []string{"PR#142", "issue#88"}) {
 		t.Errorf("links = %#v", m.Links)
 	}
-	// Undeclared keys retained in declaration order.
 	if len(m.Custom) != 2 || m.Custom[0].Key != "estimate" || m.Custom[1].Key != "area" {
 		t.Fatalf("custom = %#v, want estimate then area", m.Custom)
 	}
@@ -156,7 +153,6 @@ func TestParseStatusConflictTolerated(t *testing.T) {
 	if !reflect.DeepEqual(m.StatusConflict, []string{"cancelled", "done"}) {
 		t.Fatalf("StatusConflict = %#v", m.StatusConflict)
 	}
-	// status_conflict is a built-in transient, not an undeclared custom key.
 	for _, f := range m.Custom {
 		if f.Key == KeyStatusConflict {
 			t.Fatal("status_conflict leaked into Custom")
@@ -179,7 +175,6 @@ func TestSerializeQuotesOrder(t *testing.T) {
 	if !bytes.Contains(out, []byte(`order: "a0"`)) {
 		t.Fatalf("Serialize did not quote order:\n%s", out)
 	}
-	// A round-tripped order must decode back as a string, never a number.
 	back, err := Parse(out)
 	if err != nil {
 		t.Fatalf("re-parse: %v", err)
@@ -220,7 +215,6 @@ func TestRoundTripModel(t *testing.T) {
 
 func TestComposeReconstructsFile(t *testing.T) {
 	interior, body, _ := Split([]byte(sampleFile))
-	// Compose with the verbatim interior reproduces the original file exactly.
 	got := Compose(interior, body)
 	if !bytes.Equal(got, []byte(sampleFile)) {
 		t.Fatalf("Compose did not reconstruct the file:\n%s", got)

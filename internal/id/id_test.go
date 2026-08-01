@@ -31,20 +31,20 @@ func TestIsShortID(t *testing.T) {
 			t.Errorf("IsShortID(%q) = false, want true", s)
 		}
 	}
-	// The illegal cases a loose ^[a-z0-9]{4,8}$ would wrongly accept.
+	// Cases a loose ^[a-z0-9]{4,8}$ would wrongly accept.
 	invalid := []string{
-		"",          // empty
-		"ab2",       // too short
-		"abcdefghi", // too long
-		"10il",      // digit-leading and dropped chars i, l
-		"0000",      // all dropped digits, digit-leading
-		"2abc",      // digit-leading
-		"abio",      // contains dropped letters i and o
-		"ab1c",      // contains dropped digit 1
-		"ab0c",      // contains dropped digit 0
-		"able",      // contains dropped letter l
-		"AB2C",      // uppercase
-		"ab-c",      // hyphen
+		"",
+		"ab2",
+		"abcdefghi",
+		"10il",
+		"0000",
+		"2abc",
+		"abio",
+		"ab1c",
+		"ab0c",
+		"able",
+		"AB2C",
+		"ab-c",
 	}
 	for _, s := range invalid {
 		if IsShortID(s) {
@@ -61,19 +61,19 @@ func TestIsFullProjectID(t *testing.T) {
 		}
 	}
 	invalid := []string{
-		"",           // empty
-		"wc",         // no separator
-		"api-10il",   // short-id digit-leading + dropped chars
-		"wc-0000",    // short-id all dropped digits
-		"wc-9k3m",    // short-id digit-leading (illegal despite design examples)
-		"api-3m9k",   // short-id digit-leading
-		"wc-ab2",     // short-id too short
-		"WC-ab2c",    // uppercase scope
-		"wc--ab2c",   // remainder contains '-'
-		"wc-ab-2c",   // two separators
-		"web_c-ab2c", // scope has underscore
-		"-ab2c",      // empty scope
-		"wc-",        // empty short-id
+		"",
+		"wc",
+		"api-10il",
+		"wc-0000",
+		"wc-9k3m",
+		"api-3m9k",
+		"wc-ab2",
+		"WC-ab2c",
+		"wc--ab2c",
+		"wc-ab-2c",
+		"web_c-ab2c",
+		"-ab2c",
+		"wc-",
 	}
 	for _, s := range invalid {
 		if IsFullProjectID(s) {
@@ -83,8 +83,6 @@ func TestIsFullProjectID(t *testing.T) {
 }
 
 func TestMintShape(t *testing.T) {
-	// A high-entropy source so rejection sampling rarely re-draws; every mint
-	// must be a legal length-4 short-id.
 	for i := 0; i < 2000; i++ {
 		got, err := Mint(rand.Reader)
 		if err != nil {
@@ -115,8 +113,6 @@ func TestMintDeterministicWithFixedSource(t *testing.T) {
 	if a != b {
 		t.Fatalf("Mint not deterministic for identical source: %q vs %q", a, b)
 	}
-	// All-zero bytes: first char = letter[0], each coin=0 (letter class),
-	// each value = letter[0], so "aaaa".
 	if a != "aaaa" {
 		t.Fatalf("Mint(all-zero) = %q, want aaaa", a)
 	}
@@ -133,7 +129,6 @@ func TestMintExhaustedSource(t *testing.T) {
 }
 
 func TestExtendGrowth(t *testing.T) {
-	// Normal case: first free single-char extension over the ordered alphabet.
 	got, err := Extend("ab2c", occupiedSet())
 	if err != nil {
 		t.Fatalf("Extend: %v", err)
@@ -167,7 +162,6 @@ func TestExtendDeterministic(t *testing.T) {
 }
 
 func TestExtendGrowsLengthWhenBlocked(t *testing.T) {
-	// Block every single-char extension so repair must grow to length 6.
 	occ := occupiedSet()
 	for i := 0; i < len(ShortIDAlphabet); i++ {
 		occ["ab2c"+string(ShortIDAlphabet[i])] = struct{}{}
@@ -182,7 +176,6 @@ func TestExtendGrowsLengthWhenBlocked(t *testing.T) {
 }
 
 func TestExtendCapExhaustion(t *testing.T) {
-	// A length-8 prefix has no room to grow (cap is ShortIDMax = 8).
 	if _, err := Extend("abcdefgh", occupiedSet()); err == nil {
 		t.Fatal("Extend on a max-length prefix should hard-fail")
 	}

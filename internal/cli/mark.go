@@ -101,10 +101,7 @@ func runMark(app *App, c *cobra.Command, idArg, newStatus, scopeFlag string) err
 		oldPath = p.Path
 	}
 
-	// Write the new content in place, then move it with an atomic rename. Doing it in
-	// this order means a crash never leaves two files sharing the id: before the rename
-	// only the old path exists (with the new content — repairable layout drift, not a
-	// duplicate); after it, only the new path does.
+	// Write then rename: crash never leaves two same-id files (layout drift, not a collision).
 	if err := writeProjectFile(p.Path, m, body); err != nil {
 		return err
 	}
@@ -117,8 +114,7 @@ func runMark(app *App, c *cobra.Command, idArg, newStatus, scopeFlag string) err
 		return err
 	}
 
-	// Self-commit subject keeps the historical "-> status" shape; the verb rename does
-	// not rewrite git subjects agents and humans already match.
+	// Keep historical "-> status" commit subject shape.
 	message := fmt.Sprintf("pj: %s -> %s", p.ID, newStatus)
 	if err := e.completeStateDurability(ctx, c, scope, dir, autoCommit, message, newPath, oldPath, root, hasRoot); err != nil {
 		return err

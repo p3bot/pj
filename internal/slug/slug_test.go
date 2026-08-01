@@ -39,7 +39,6 @@ func TestSlugifyFixtures(t *testing.T) {
 }
 
 func TestSlugifyTruncation(t *testing.T) {
-	// A long multi-word title cuts at a '-' within the cap, staying valid.
 	long := strings.Repeat("alpha bravo ", 20)
 	got := Slugify(long)
 	if len(got) > SlugMax {
@@ -54,7 +53,6 @@ func TestSlugifyTruncation(t *testing.T) {
 }
 
 func TestSlugifyHardCutSingleToken(t *testing.T) {
-	// One long token has no '-' to cut at; it hard-cuts to exactly SlugMax.
 	title := strings.Repeat("a", 100)
 	got := Slugify(title)
 	if len(got) != SlugMax {
@@ -82,14 +80,14 @@ func TestValid(t *testing.T) {
 		}
 	}
 	invalid := []string{
-		"",                             // empty
-		"-lead",                        // leading hyphen
-		"trail-",                       // trailing hyphen
-		"double--hyphen",               // repeated hyphen
-		"Upper",                        // uppercase
-		"has space",                    // space
-		"emoji🚀",                       // non-ascii
-		strings.Repeat("a", SlugMax+1), // over the cap
+		"",
+		"-lead",
+		"trail-",
+		"double--hyphen",
+		"Upper",
+		"has space",
+		"emoji🚀",
+		strings.Repeat("a", SlugMax+1),
 	}
 	for _, s := range invalid {
 		if Valid(s) {

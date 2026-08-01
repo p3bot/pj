@@ -12,7 +12,6 @@ import (
 	"github.com/start-cli/pj/internal/token"
 )
 
-// scopeDir writes a pj.cue with the given name and returns the dir.
 func scopeDir(t *testing.T, name string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -102,8 +101,7 @@ func TestResolveUnknownOverrideNoFallthrough(t *testing.T) {
 	reg := &registry.Registry{Scopes: map[string]registry.Entry{
 		"wc": {Dir: scopeDir(t, "wc"), Root: "/code/wc"},
 	}}
-	// An explicit override naming an unregistered scope must fail closed — never
-	// fall through to the code-root tier even though cwd is under wc.
+	// Explicit unregistered override must fail closed — never fall through to code-root.
 	_, err := Resolve(ctx, reg, Options{ScopeFlag: "ghost", Cwd: "/code/wc/sub"})
 	var unknown *UnknownScopeError
 	if !errors.As(err, &unknown) {
@@ -116,7 +114,6 @@ func TestResolveUnknownOverrideNoFallthrough(t *testing.T) {
 
 func TestResolveDriftHardError(t *testing.T) {
 	ctx := cuecontext.New()
-	// registry key "wc" but pj.cue name is "renamed".
 	dir := scopeDir(t, "renamed")
 	reg := &registry.Registry{Scopes: map[string]registry.Entry{
 		"wc": {Dir: dir, Root: "/code/wc"},

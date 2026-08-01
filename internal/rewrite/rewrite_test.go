@@ -46,9 +46,7 @@ func TestApplyMoveWritesNewRemovesOld(t *testing.T) {
 	}
 }
 
-// Two projects can compute the same destination basename (a duplicate id carrying the
-// same frozen slug), and a move onto one of them would erase it with no copy left, since
-// the source is removed straight after. The move refuses; both files survive.
+// Two projects can compute the same destination basename; a move onto one would erase it.
 func TestApplyRefusesMoveOntoDifferentFile(t *testing.T) {
 	dir := t.TempDir()
 	old := filepath.Join(dir, "old.md")
@@ -71,8 +69,7 @@ func TestApplyRefusesMoveOntoDifferentFile(t *testing.T) {
 	}
 }
 
-// The both-present window of an interrupted move — destination already holding exactly
-// the bytes the op writes — is not an occupied destination: the move completes.
+// Both-present window of an interrupted move (destination holds exactly the op bytes) completes.
 func TestApplyCompletesInterruptedMove(t *testing.T) {
 	dir := t.TempDir()
 	old := filepath.Join(dir, "old.md")
@@ -90,8 +87,7 @@ func TestApplyCompletesInterruptedMove(t *testing.T) {
 	}
 }
 
-// A re-run after a crash where the new path is already present and the old is gone is
-// a no-op — the plan re-enters idempotently without double-writing.
+// Re-run after crash (new present, old gone) is a no-op.
 func TestApplyIdempotentReentry(t *testing.T) {
 	dir := t.TempDir()
 	old := filepath.Join(dir, "old.md")
@@ -99,7 +95,6 @@ func TestApplyIdempotentReentry(t *testing.T) {
 	if err := os.WriteFile(newp, []byte("already"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// old does not exist; the op is already done.
 	if _, err := Apply([]Op{{OldPath: old, NewPath: newp, Content: []byte("would-overwrite")}}); err != nil {
 		t.Fatal(err)
 	}

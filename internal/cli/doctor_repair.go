@@ -19,9 +19,7 @@ import (
 	"github.com/start-cli/pj/internal/token"
 )
 
-// repairTarget is one scope cleared for repair: the schema-derived autoCommit and the
-// derived git-root, resolved once under the scope flock and threaded through every batch
-// so each agrees on the same values for the whole run.
+// repairTarget holds values resolved once under flock for the whole repair run.
 type repairTarget struct {
 	scope      string
 	dir        string
@@ -31,9 +29,6 @@ type repairTarget struct {
 	hasRoot    bool
 }
 
-// runRepairs applies the mutating doctor procedures over the selected scopes. --repair
-// runs the id-collision, equal-order, and archive-layout repairs; --re-space-order runs
-// only the over-long band re-space.
 func (e *engine) runRepairs(c *cobra.Command, scopes []string, f doctorFlags) error {
 	for _, scope := range scopes {
 		entry, ok := e.reg.Scopes[scope]
@@ -47,28 +42,9 @@ func (e *engine) runRepairs(c *cobra.Command, scopes []string, f doctorFlags) er
 	return nil
 }
 
-// repairScope is the acquiring wrapper pj doctor --repair calls: it holds the scope flock
-// across the reconcile, the preflight, and every repair batch for one scope, and — on an
-// auto-commit git-root — the git-root sync.lock across the same span, so the whole plan
-// runs under the U22 durability contract and every batch commit uses the lock-free
-// self-commit core rather than re-acquiring.
-//
-// The git-root lock is taken here, at the top of the orchestration, not one call-level
-// down inside the batch commit as it once was: pj sync holds this lock across its whole
-// span and drives the repairs through runRepairBatches directly, so the acquisition must
-// live where a caller that already holds it can skip it. Doctor still acquires it (the two
-// locks it always held), only at a higher site.
-//
-// The reconcile is inside the scope lock, not before it: the repair procedures choose which
-// files to rewrite from these rows, so the read that decides and the write that acts must
-// sit in one lock span — the same span every complete-state write verb holds. A reconcile
-// taken outside it could be invalidated by a concurrent pj mark before the first byte
-// is written.
+// repairScope acquires scope flock (+ git-root lock for auto-commit) across reconcile and batches.
 func (e *engine) repairScope(c *cobra.Command, scope, dir string, f doctorFlags) error {
-	// Reachability is checked before the flock, because taking the flock creates a file in
-	// the dir and so fails outright on an unmounted one. Under --all that would stop every
-	// remaining scope over one unplugged drive; the scope skips instead, and the report
-	// still rides unreachable_scope for it.
+	// Stat before flock: flock creates a file and would abort --all on one unmounted drive.
 	if _, err := os.Stat(dir); err != nil {
 		stderrln(c, fmt.Sprintf("skipping %s: dir unreachable", scope))
 		return nil
@@ -98,16 +74,7 @@ func (e *engine) repairScope(c *cobra.Command, scope, dir string, f doctorFlags)
 	return e.runRepairBatches(c, t, f)
 }
 
-// runRepairBatches is the locks-already-held core: it assumes both the scope flock and —
-// for an auto-commit git-root — the git-root sync.lock are held, and applies the mutating
-// doctor procedures over one preflighted target, committing each batch through the
-// self-commit core. pj doctor --repair reaches it via repairScope's acquiring wrapper; pj
-// sync reaches it directly, holding both locks across its whole span.
-//
-// The layout repair runs before the collision repair because an interrupted archive move
-// leaves two same-id copies that the index reports as a collision; completing the move
-// first collapses them, and repairCollisions independently refuses such a pair so the
-// ordering is not the only thing standing between a crash and a forked id.
+// runRepairBatches is the locks-held core (doctor acquires; sync already holds both).
 func (e *engine) runRepairBatches(c *cobra.Command, t *repairTarget, f doctorFlags) error {
 	if f.repair {
 		if err := e.repairArchive(c, t, false); err != nil {
@@ -116,10 +83,7 @@ func (e *engine) runRepairBatches(c *cobra.Command, t *repairTarget, f doctorFla
 		if err := e.repairCollisions(c, t); err != nil {
 			return err
 		}
-		// The collision repair gave every loser a distinct id and so a distinct basename,
-		// which frees the layout moves the first pass deferred as unsafe. This second pass
-		// lands them, and reports whatever is still deferred because its collision could
-		// not be repaired (a quarantined member).
+		// Second layout pass: land moves deferred until collisions got distinct basenames.
 		if err := e.repairArchive(c, t, true); err != nil {
 			return err
 		}
@@ -135,12 +99,7 @@ func (e *engine) runRepairBatches(c *cobra.Command, t *repairTarget, f doctorFla
 	return nil
 }
 
-// repairPreflight decides whether a scope may be repaired at all, under its flock. A nil
-// target with a nil error is a skip the caller reports nothing further about: an
-// unreachable dir, a drifted registration, or an unusable pj.cue all make a write unsafe
-// under the wrong name binding or schema, and each rides its own note here. A mid-rebase
-// auto-commit git-root refuses hard for a single ambient scope and is skipped with a note
-// under --all, where one frozen repo must not block every other scope.
+// repairPreflight: nil,nil is a skip; mid-rebase hard-refuses ambient, skips under --all.
 func (e *engine) repairPreflight(c *cobra.Command, scope, dir string, res *reconcile.Result, f doctorFlags) (*repairTarget, error) {
 	if res.Unreachable[scope] {
 		stderrln(c, fmt.Sprintf("skipping %s: dir unreachable", scope))
@@ -168,18 +127,7 @@ func (e *engine) repairPreflight(c *cobra.Command, scope, dir string, res *recon
 	return t, nil
 }
 
-// repairCollisions resolves every duplicate-id collision in the scope by the
-// deterministic loser pick + short-id extension, keeping both files and leaving edges
-// untouched. It reports each rename and, for each repaired collision, every inbound edge
-// to the collided id as edge_verify (operation-time only, read from the live edges table).
-//
-// The inbound edges are read after every collision in the scope is repaired, not beside
-// each one. A referrer may itself be a member of a later collision, so a pre-repair read
-// names identities the operation then invalidates — two byte-identical lines for two
-// distinct referrers sharing a collided id, one of which no longer exists by the end of
-// the run. Each repair write-throughs its touched paths, so a read at the end resolves
-// every referrer to its post-repair id. The kept side keeps the collided id, so inbound
-// edges still resolve to it and none are lost by reading late.
+// repairCollisions: edge_verify is read after all collisions so referrer ids are post-repair.
 func (e *engine) repairCollisions(c *cobra.Command, t *repairTarget) error {
 	dups, err := e.db.DuplicateIDs([]string{t.scope})
 	if err != nil {
@@ -228,10 +176,7 @@ func (e *engine) repairCollisions(c *cobra.Command, t *repairTarget) error {
 	return e.reportEdgeVerify(c, repaired)
 }
 
-// reportEdgeVerify surfaces every inbound edge to each repaired collided id, converting a
-// silent mispoint into a check: the kept side keeps the id, so a reference meaning the
-// kept side is still right while one meaning the renamed side now resolves elsewhere.
-// Skipped collisions contribute nothing — only ids actually repaired carry the hazard.
+// reportEdgeVerify: only actually-repaired ids; kept side still holds the collided id.
 func (e *engine) reportEdgeVerify(c *cobra.Command, collidedIDs []string) error {
 	for _, collidedID := range collidedIDs {
 		inbound, err := e.db.EdgesByTarget(collidedID)
@@ -264,14 +209,7 @@ func (e *engine) repairEqualOrder(c *cobra.Command, t *repairTarget) error {
 	return nil
 }
 
-// repairArchive moves every project whose layout disagrees with its terminal-ness across
-// the archive boundary, both directions.
-//
-// A project whose id a genuine collision claims is deferred, not moved: its members share
-// a basename, so moving one across the boundary would land it on the other and the source
-// removal would leave no copy of what it overwrote. The collision repair de-conflicts them
-// first; reportDeferred is set on the pass that runs after it, where anything still
-// deferred is a layout the run cannot fix and the operator must hear about.
+// repairArchive defers ids still in genuine collisions (shared basename would clobber).
 func (e *engine) repairArchive(c *cobra.Command, t *repairTarget, reportDeferred bool) error {
 	rows, err := e.db.ScopeProjects(t.scope)
 	if err != nil {
@@ -330,15 +268,7 @@ func (e *engine) repairLongOrder(c *cobra.Command, t *repairTarget) error {
 	return nil
 }
 
-// applyRepairBatch is the durability tail every repair batch shares: apply the ops
-// (write-new-then-remove-old), index-sync the touched paths, and — on an auto-commit
-// scope — self-commit them after every write succeeds (or ride sync_disabled without a
-// git-root). Non-auto-commit writes files only; the host or plain-files sync owns
-// durability.
-//
-// It commits through the self-commit core, never the acquiring wrapper: its two callers
-// (repairScope's wrapper and pj sync's span) both already hold the git-root lock, so a
-// re-acquire here would deadlock the moment a repair commits its first batch.
+// applyRepairBatch uses CommitPathsCore — callers already hold the git-root lock (re-acquire deadlocks).
 func (e *engine) applyRepairBatch(c *cobra.Command, t *repairTarget, ops []rewrite.Op, message string) error {
 	if len(ops) == 0 {
 		return nil
@@ -362,8 +292,6 @@ func (e *engine) applyRepairBatch(c *cobra.Command, t *repairTarget, ops []rewri
 	})
 }
 
-// midRebaseRefusal builds the hard mid-rebase refusal for a single-scope mutating
-// doctor run — the same class as the complete-state verbs.
 func midRebaseRefusal(c *cobra.Command, scope, root string) error {
 	where := "the conflicted file"
 	if files := git.UnmergedFiles(c.Context(), root); len(files) > 0 {
@@ -372,10 +300,6 @@ func midRebaseRefusal(c *cobra.Command, scope, root string) error {
 	return fmt.Errorf("%s is mid-sync-conflict in shared repo %s — resolve %s then run pj sync before repairing", scope, root, where)
 }
 
-// collisionMessage builds the fixed self-commit message for one collision batch. Every
-// loser shares the collided id, so the message names it once and lists every new id in
-// the order repair.DuplicateID produced them — deterministic, and identical to the
-// design's single-loser example when the collision is two-way.
 func collisionMessage(renames []repair.Rename) string {
 	newIDs := make([]string, len(renames))
 	for i, r := range renames {
@@ -396,10 +320,7 @@ func toRepairRow(p *index.Project) repair.Row {
 	return repair.Row{Path: p.Path, FullID: p.ID, ShortID: p.ShortID, OrderKey: p.OrderKey, ParseError: p.ParseError}
 }
 
-// shortIDPaths maps every short-id present in a scope's rows to the file holding it —
-// the occupied set the deterministic short-id extension must avoid, carrying the paths
-// re-entry needs to spot an already-extended loser. A collided short-id resolves to its
-// lexicographically smallest path so dirent order never reaches a repair decision.
+// shortIDPaths: collided short-id maps to lexicographically smallest path (dirent-stable).
 func shortIDPaths(rows []*index.Project) map[string]string {
 	out := make(map[string]string, len(rows))
 	for _, p := range rows {
@@ -413,10 +334,7 @@ func shortIDPaths(rows []*index.Project) map[string]string {
 	return out
 }
 
-// genuineCollisionIDs returns the ids in scope that a real duplicate-id collision claims.
-// The both-present window of an interrupted archive move is excluded: its two copies are
-// byte-identical, so completing the move is exactly the right repair and nothing can be
-// overwritten by it. The layout repair reads this to know which ids it must leave alone.
+// genuineCollisionIDs excludes interrupted archive moves (byte-identical both-present window).
 func (e *engine) genuineCollisionIDs(scope, dir string) (map[string]bool, error) {
 	dups, err := e.db.DuplicateIDs([]string{scope})
 	if err != nil || len(dups) == 0 {

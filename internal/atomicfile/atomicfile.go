@@ -1,12 +1,9 @@
-// Package atomicfile writes a file atomically: it writes a temporary file in the
-// destination's own directory and renames it over the target, so a reader never
-// observes a half-written file and an interrupted write cannot truncate an
-// existing one. Keeping the temp file in the same directory keeps the rename on
-// one filesystem, where POSIX rename is atomic.
+// Package atomicfile writes a file via same-directory temp + rename so readers
+// never see a half-written file and an interrupted write cannot truncate an
+// existing one. Same-directory keeps rename atomic on one filesystem.
 //
-// It is the single write primitive the CUE registry, the scope pj.cue authoring
-// path, and the scope .gitignore share, so the durability guarantee lives in one
-// tested place rather than being re-implemented per call site.
+// Shared write primitive for the CUE registry, scope pj.cue authoring, and
+// scope .gitignore.
 package atomicfile
 
 import (
@@ -15,10 +12,9 @@ import (
 	"path/filepath"
 )
 
-// Write atomically writes data to path with the given permission bits, creating
-// the parent directory if needed. It writes a same-directory temp file, sets its
-// mode explicitly (independent of umask), and renames it over path; on any
-// failure the temp file is removed and path is left untouched.
+// Write atomically writes data to path with the given mode, creating parents if
+// needed. Mode is set on the temp file explicitly (independent of umask); on
+// failure the temp is removed and path is left untouched.
 func Write(path string, data []byte, perm os.FileMode) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {

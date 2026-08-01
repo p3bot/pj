@@ -12,8 +12,7 @@ import (
 	"github.com/start-cli/pj/internal/rewrite"
 )
 
-// writeProj writes a project file and returns its path. An empty created omits the
-// key (a degraded created).
+// writeProj writes a project file and returns its path. Empty created omits the key.
 func writeProj(t *testing.T, dir, fullID, slug, created, orderKey, body string, archived bool) string {
 	t.Helper()
 	target := dir
@@ -40,7 +39,7 @@ func row(path, fullID, orderKey string) Row {
 	return Row{Path: path, FullID: fullID, ShortID: short, OrderKey: orderKey}
 }
 
-// The loser pick renames the newer by created; two runs (any input order) agree.
+// Loser pick renames the newer by created; two runs (any input order) agree.
 func TestDuplicateIDPicksNewerByCreated(t *testing.T) {
 	dir := t.TempDir()
 	older := writeProj(t, dir, "wc-ab2c", "alpha", "2026-01-01T00:00:00Z", "a0", "# A\n", false)
@@ -48,7 +47,7 @@ func TestDuplicateIDPicksNewerByCreated(t *testing.T) {
 
 	for _, in := range [][]Row{
 		{row(older, "wc-ab2c", "a0"), row(newer, "wc-ab2c", "a1")},
-		{row(newer, "wc-ab2c", "a1"), row(older, "wc-ab2c", "a0")}, // reversed input
+		{row(newer, "wc-ab2c", "a1"), row(older, "wc-ab2c", "a0")},
 	} {
 		occ := map[string]string{"ab2c": older}
 		ops, renames, err := DuplicateID("wc", in, occ)
@@ -70,8 +69,7 @@ func TestDuplicateIDPicksNewerByCreated(t *testing.T) {
 	}
 }
 
-// A degraded (absent) created is not-newer-than-any: it is kept, the valid-created
-// side is renamed.
+// Degraded (absent) created is not-newer-than-any: kept; valid-created side is renamed.
 func TestDuplicateIDDegradedCreatedKept(t *testing.T) {
 	dir := t.TempDir()
 	degraded := writeProj(t, dir, "wc-ab2c", "alpha", "", "a0", "# A\n", false)
@@ -87,7 +85,7 @@ func TestDuplicateIDDegradedCreatedKept(t *testing.T) {
 	}
 }
 
-// Equal created falls to the basename tie-break: the greater basename is renamed.
+// Equal created falls to basename tie-break: greater basename is renamed.
 func TestDuplicateIDBasenameTieBreak(t *testing.T) {
 	dir := t.TempDir()
 	alpha := writeProj(t, dir, "wc-ab2c", "alpha", "2026-01-01T00:00:00Z", "a0", "# A\n", false)
@@ -103,8 +101,7 @@ func TestDuplicateIDBasenameTieBreak(t *testing.T) {
 	}
 }
 
-// Equal created and basename (same name at root and archive) falls to the SHA-256
-// tie-break: the greater digest is renamed, deterministically.
+// Equal created and basename falls to SHA-256: greater digest is renamed.
 func TestDuplicateIDSHATieBreak(t *testing.T) {
 	dir := t.TempDir()
 	rootFile := writeProj(t, dir, "wc-ab2c", "same", "2026-01-01T00:00:00Z", "a0", "# ROOT BODY\n", false)
@@ -129,8 +126,7 @@ func TestDuplicateIDSHATieBreak(t *testing.T) {
 	}
 }
 
-// A collision whose members are already at the max short-id length hard-fails naming
-// both paths rather than inventing a non-prefix id.
+// Cap-8 short-id exhaustion hard-fails rather than inventing a non-prefix id.
 func TestDuplicateIDCapExhaustionHardFails(t *testing.T) {
 	dir := t.TempDir()
 	p1 := writeProj(t, dir, "wc-abcdefgh", "one", "2026-01-01T00:00:00Z", "a0", "# One\n", false)
@@ -146,9 +142,7 @@ func TestDuplicateIDCapExhaustionHardFails(t *testing.T) {
 	}
 }
 
-// KeepBefore is the shared collision pick both DuplicateID and the frontmatter merge
-// package call. It is asserted directly, over in-memory members, so the add/add route
-// (which never touches disk) is covered by the same total order the disk repair uses.
+// KeepBefore is the shared collision pick; asserted in-memory so add/add is covered by the same total order.
 func TestKeepBeforeTotalOrder(t *testing.T) {
 	older := LoserMember{Created: "2026-01-01T00:00:00Z", Basename: "b", Raw: []byte("z"), Path: "/z"}
 	newer := LoserMember{Created: "2026-06-01T00:00:00Z", Basename: "a", Raw: []byte("a"), Path: "/a"}
@@ -162,7 +156,7 @@ func TestKeepBeforeTotalOrder(t *testing.T) {
 		t.Error("a degraded created is not-newer-than-any and must be kept")
 	}
 
-	// Equal created and basename (the add/add placeholder case): smaller hash is kept.
+	// Equal created and basename: smaller hash is kept.
 	sameCreated := "2026-01-01T00:00:00Z"
 	a := LoserMember{Created: sameCreated, Basename: "", Raw: []byte("AAA"), Path: ""}
 	b := LoserMember{Created: sameCreated, Basename: "", Raw: []byte("BBB"), Path: ""}
@@ -172,8 +166,7 @@ func TestKeepBeforeTotalOrder(t *testing.T) {
 	}
 }
 
-// EqualOrder re-spaces only the tied files into distinct keys, preserving (order, id)
-// order and leaving untied neighbours untouched.
+// EqualOrder re-spaces only tied files, preserving (order, id) order.
 func TestEqualOrderRespacePreservesOrder(t *testing.T) {
 	dir := t.TempDir()
 	a := writeProj(t, dir, "wc-aaaa", "a", "2026-01-01T00:00:00Z", "a0", "# A\n", false)
@@ -190,11 +183,9 @@ func TestEqualOrderRespacePreservesOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	ka, kb, kc, ke := orderOf(t, a), orderOf(t, b), orderOf(t, c), orderOf(t, e)
-	// Untied anchors are untouched.
 	if ka != "a0" || ke != "a2" {
 		t.Errorf("untied neighbours must not move: a=%q e=%q", ka, ke)
 	}
-	// The tied pair is now distinct and preserves id order (b < c) within (a0, a2).
 	if ka >= kb || kb >= kc || kc >= ke {
 		t.Errorf("re-space must preserve order: %q %q %q %q", ka, kb, kc, ke)
 	}
@@ -245,8 +236,7 @@ func orderOf(t *testing.T, path string) string {
 	return ""
 }
 
-// A same-id pair that is one byte-identical copy at root and one under archive/ is the
-// crash window of an in-flight layout move, never a collision.
+// Same-id pair that is byte-identical at root and under archive/ is an interrupted move, not a collision.
 func TestInterruptedMove(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -296,8 +286,7 @@ func TestInterruptedMove(t *testing.T) {
 	}
 }
 
-// Re-entry across the both-present crash window finishes the interrupted extension
-// rather than minting a second one under a different id.
+// Re-entry across the both-present crash window finishes the interrupted extension.
 func TestDuplicateIDResumesInterruptedExtension(t *testing.T) {
 	dir := t.TempDir()
 	kept := writeProj(t, dir, "wc-ab2c", "alpha", "2026-01-01T00:00:00Z", "a0", "# A\n", false)
@@ -313,7 +302,7 @@ func TestDuplicateIDResumesInterruptedExtension(t *testing.T) {
 		t.Fatalf("want one rename op, got %d", len(ops))
 	}
 
-	// The crash window: the new-id file is written, the old-id file is not yet removed.
+	// Crash window: new-id file written, old-id file not yet removed.
 	if err := os.WriteFile(ops[0].NewPath, ops[0].Content, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -340,8 +329,7 @@ func TestDuplicateIDResumesInterruptedExtension(t *testing.T) {
 	}
 }
 
-// A hand-edited extension is not this loser's content, so it is skipped and a fresh
-// extension is minted rather than silently adopting an unrelated file.
+// Hand-edited extension is not this loser's content; skip and mint a fresh extension.
 func TestDuplicateIDIgnoresUnrelatedExtension(t *testing.T) {
 	dir := t.TempDir()
 	kept := writeProj(t, dir, "wc-ab2c", "alpha", "2026-01-01T00:00:00Z", "a0", "# A\n", false)
@@ -358,15 +346,12 @@ func TestDuplicateIDIgnoresUnrelatedExtension(t *testing.T) {
 	}
 }
 
-// A basename and a frontmatter id can disagree (doctor reports it as a structural class).
-// The composed name still comes out well formed, built from the new id and the slug tail
-// rather than from the disagreement.
+// Basename/frontmatter-id disagreement: composed name still uses new id + slug tail.
 func TestBasename(t *testing.T) {
 	cases := []struct{ base, newID, want string }{
 		{"wc-ab2c-beta.md", "wc-ab2ca", "wc-ab2ca-beta.md"},
 		{"wc-ab2c.md", "wc-ab2ca", "wc-ab2ca.md"},
 		{"wc-ab2c-multi-word-slug.md", "wc-ab2ca", "wc-ab2ca-multi-word-slug.md"},
-		// The name carries a short-id the frontmatter does not claim.
 		{"wc-zz9y-beta.md", "wc-ab2ca", "wc-ab2ca-beta.md"},
 	}
 	for _, tc := range cases {

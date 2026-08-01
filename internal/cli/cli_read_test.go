@@ -7,8 +7,6 @@ import (
 	"testing"
 )
 
-// initScope creates and registers a scope named name and returns its on-disk dir
-// (the cleaned absolute path init printed).
 func initScope(t *testing.T, app *App, name string) string {
 	t.Helper()
 	dir := filepath.Join(t.TempDir(), name)
@@ -19,8 +17,6 @@ func initScope(t *testing.T, app *App, name string) string {
 	return strings.TrimSpace(out)
 }
 
-// addProject writes a project file into a scope dir. archived places it under
-// archive/. The filename embeds the id, matching reconcile's grammar.
 func addProject(t *testing.T, dir, id, slug, status, order, body string, archived bool, extraFM string) {
 	t.Helper()
 	name := id + "-" + slug + ".md"
@@ -60,11 +56,9 @@ func TestListBoardContract(t *testing.T) {
 	if len(rows) != 2 {
 		t.Fatalf("default board should show 2 active rows, got %d: %q", len(rows), out)
 	}
-	// Sorted by (order, id): ab2c then de34. Four fields: id, status, title, waiting-on.
 	if rows[0] != "wc-ab2c\ttodo\tNetwork redesign\t" {
 		t.Errorf("row0 = %q", rows[0])
 	}
-	// de34 waits on the still-todo ab2c.
 	if rows[1] != "wc-de34\ttodo\tAuth flow\twc-ab2c" {
 		t.Errorf("row1 waiting-on wrong: %q", rows[1])
 	}
@@ -74,14 +68,11 @@ func TestListBoardContract(t *testing.T) {
 		}
 	}
 
-	// --all restores the archived done project on the unfiltered board.
 	out, _, _ = run(t, app, "list", "--scope", "wc", "--all")
 	if len(lines(out)) != 3 {
 		t.Errorf("--all should include archived done, got %q", out)
 	}
 
-	// Explicit status filter includes matching archive/ rows without --all.
-	// "list done" means status done, not "done and still at dir root".
 	out, _, err = run(t, app, "list", "--scope", "wc", "done")
 	if err != nil {
 		t.Fatalf("list done: %v", err)
@@ -101,8 +92,6 @@ func TestListBoardContract(t *testing.T) {
 func TestListTSVFlattensControlCharsInFields(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "tv")
-	// An H1 title carrying a literal tab: left raw it would split the record into
-	// extra columns. Summary is not a list column.
 	addProject(t, dir, "tv-ab2c", "note", "todo", "a0", "# col1\tcol2\n", false, "")
 
 	out, _, err := run(t, app, "list", "--scope", "tv")
@@ -138,7 +127,6 @@ func TestNextSelectionAndBlocked(t *testing.T) {
 		t.Errorf("next should pick ab2c, got %q", out)
 	}
 
-	// Finish ab2c → de34 becomes runnable; ab2c moves under archive so it drops out.
 	if err := os.Remove(filepath.Join(dir, "wc-ab2c-network.md")); err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +143,6 @@ func TestNextSelectionAndBlocked(t *testing.T) {
 func TestNextEmptyBecauseBlocked(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	// One todo blocked by a missing same-scope target → held, empty-because-blocked.
 	addProject(t, dir, "wc-de34", "auth", "todo", "a0", "# Auth\n", false, "depends: [wc-zz99]\n")
 
 	out, errOut, err := run(t, app, "next", "--scope", "wc")
@@ -178,18 +165,15 @@ func TestGetMetaAndDuplicate(t *testing.T) {
 	dir := initScope(t, app, "wc")
 	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network redesign\n\nbody", false, "summary: short one\n")
 
-	// get full id → path.
 	out, _, err := run(t, app, "get", "wc-ab2c")
 	if err != nil || !strings.HasSuffix(strings.TrimSpace(out), "wc-ab2c-network.md") {
 		t.Fatalf("get = %q err=%v", out, err)
 	}
-	// get short id needs --scope.
 	out, _, err = run(t, app, "get", "ab2c", "--scope", "wc")
 	if err != nil || strings.TrimSpace(out) == "" {
 		t.Fatalf("get short = %q err=%v", out, err)
 	}
 
-	// meta get prints title-then-path preamble + raw FM including summary.
 	out, _, err = run(t, app, "meta", "get", "wc-ab2c")
 	if err != nil {
 		t.Fatalf("meta get: %v", err)
@@ -206,8 +190,6 @@ func TestGetMetaAndDuplicate(t *testing.T) {
 		t.Errorf("meta get should carry raw summary: %q", out)
 	}
 
-	// Duplicate id → get refuses with the token, and the condition rides exactly once:
-	// the verb's actionable refusal, not also reconcile's generic integrity echo.
 	addProject(t, dir, "wc-ab2c", "dup", "todo", "a3", "# Dup\n", false, "")
 	_, errOut, err := run(t, app, "get", "wc-ab2c")
 	if err == nil {
@@ -224,14 +206,11 @@ func TestGetMetaAndDuplicate(t *testing.T) {
 func TestDuplicateSuppressionKeepsOtherIDs(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	// Two independent duplicate-id collisions in one scope.
 	addProject(t, dir, "wc-ab2c", "one", "todo", "a0", "# Ab One\n", false, "")
 	addProject(t, dir, "wc-ab2c", "two", "todo", "a1", "# Ab Two\n", false, "")
 	addProject(t, dir, "wc-de34", "one", "todo", "a2", "# De One\n", false, "")
 	addProject(t, dir, "wc-de34", "two", "todo", "a3", "# De Two\n", false, "")
 
-	// get refuses on ab2c: its own duplicate_id line carries the refusal, the generic
-	// integrity echo for ab2c is suppressed, but de34's integrity echo still rides.
 	_, errOut, err := run(t, app, "get", "wc-ab2c")
 	if err == nil {
 		t.Fatal("duplicate id must refuse")
@@ -250,7 +229,6 @@ func TestDuplicateSuppressionKeepsOtherIDs(t *testing.T) {
 func TestParseErrorLocatable(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	// Conflict markers inside the frontmatter → quarantine.
 	bad := "---\nid: wc-ab2c\n<<<<<<< HEAD\nstatus: todo\n=======\nstatus: done\n>>>>>>> x\n---\n# T\n"
 	if err := os.WriteFile(filepath.Join(dir, "wc-ab2c-broken.md"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
@@ -284,7 +262,6 @@ func TestSearchAndDeps(t *testing.T) {
 		t.Errorf("search hit wrong: %q", out)
 	}
 
-	// deps: de34 depends on ab2c; ab2c is depended on by de34.
 	out, _, err = run(t, app, "deps", "wc-de34")
 	if err != nil {
 		t.Fatalf("deps: %v", err)
@@ -306,14 +283,11 @@ func TestListExcludesQuarantinedRows(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
 	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
-	// A quarantined file (conflict markers inside the frontmatter) → parse_error row.
 	bad := "---\nid: wc-de34\n<<<<<<< HEAD\nstatus: todo\n=======\nstatus: done\n>>>>>>> x\n---\n# Broken\n"
 	if err := os.WriteFile(filepath.Join(dir, "wc-de34-broken.md"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	// Even --all never renders the quarantined row as a blank board line; it stays
-	// locatable via get/search instead.
 	out, _, err := run(t, app, "list", "--scope", "wc", "--all")
 	if err != nil {
 		t.Fatalf("list --all: %v", err)
@@ -328,7 +302,6 @@ func TestListExcludesQuarantinedRows(t *testing.T) {
 		}
 	}
 
-	// It remains locatable for repair.
 	got, _, err := run(t, app, "get", "wc-de34")
 	if err != nil || strings.TrimSpace(got) == "" {
 		t.Errorf("quarantined project should still resolve via get: out=%q err=%v", got, err)
@@ -338,8 +311,6 @@ func TestListExcludesQuarantinedRows(t *testing.T) {
 func TestSchemaErrorHoldsFromNext(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	// A malformed depends entry (not a legal full id) sets schema_error and holds the
-	// project out of next; the clean todo is still selected and the token rides stderr.
 	addProject(t, dir, "wc-ab2c", "clean", "todo", "a0", "# Clean\n", false, "")
 	addProject(t, dir, "wc-de34", "broken", "todo", "a1", "# Broken\n", false, "depends: [bogus]\n")
 
@@ -358,8 +329,6 @@ func TestSchemaErrorHoldsFromNext(t *testing.T) {
 func TestArchiveDriftTokensRideRead(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	// A non-terminal project under archive/ and a terminal project at the dir root are
-	// both layout drift; their tokens ride any read verb's stderr.
 	addProject(t, dir, "wc-ab2c", "wip", "todo", "a0", "# WIP\n", true, "")
 	addProject(t, dir, "wc-de34", "shipped", "done", "a1", "# Shipped\n", false, "")
 
@@ -378,7 +347,6 @@ func TestArchiveDriftTokensRideRead(t *testing.T) {
 func TestEqualOrderTokenRidesRead(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	// Two projects sharing an order key trip equal_order on any read.
 	addProject(t, dir, "wc-ab2c", "one", "todo", "a0", "# One\n", false, "")
 	addProject(t, dir, "wc-de34", "two", "todo", "a0", "# Two\n", false, "")
 
@@ -396,9 +364,6 @@ func TestConfigUnparseableRidesRead(t *testing.T) {
 	dir := initScope(t, app, "wc")
 	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
 
-	// Corrupt pj.cue into a schema-invalid-but-compilable config: the name still reads
-	// (so the scope resolves, no drift) but the schema fails validation, so reads stay
-	// available and ride config_unparseable.
 	bad := "name: \"wc\"\nautoCommit: true\nfields: {x: {type: \"float\"}}\n"
 	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
@@ -419,8 +384,6 @@ func TestConfigUnparseableRidesRead(t *testing.T) {
 func TestUnreachableScopeRidesRead(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	// The scope's dir vanishes: reconcile leaves rows in place and rides
-	// unreachable_scope rather than dropping the scope.
 	if err := os.RemoveAll(dir); err != nil {
 		t.Fatal(err)
 	}
@@ -432,8 +395,7 @@ func TestUnreachableScopeRidesRead(t *testing.T) {
 	if !strings.Contains(errOut, "unreachable_scope:") {
 		t.Errorf("expected unreachable_scope on stderr, got %q", errOut)
 	}
-	// One token per dir-not-usable mode: an unreachable scope must not also read as a
-	// broken config.
+	// One token per dir-not-usable mode: an unreachable scope must not also read as a broken config.
 	if strings.Contains(errOut, "config_unparseable:") {
 		t.Errorf("unreachable scope must not also ride config_unparseable, got %q", errOut)
 	}
@@ -442,12 +404,10 @@ func TestUnreachableScopeRidesRead(t *testing.T) {
 func TestDepsTransitiveAndTree(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	// A depends chain aa22 -> bb33 -> cc44 exercises both expanded views.
 	addProject(t, dir, "wc-aa22", "top", "todo", "a0", "# Top\n", false, "depends: [wc-bb33]\n")
 	addProject(t, dir, "wc-bb33", "mid", "todo", "a1", "# Mid\n", false, "depends: [wc-cc44]\n")
 	addProject(t, dir, "wc-cc44", "leaf", "todo", "a2", "# Leaf\n", false, "")
 
-	// --transitive flattens the whole prerequisite closure under one section.
 	out, _, err := run(t, app, "deps", "wc-aa22", "--transitive")
 	if err != nil {
 		t.Fatalf("deps --transitive: %v", err)
@@ -459,7 +419,6 @@ func TestDepsTransitiveAndTree(t *testing.T) {
 		t.Errorf("transitive depends should include the whole chain, got %q", out)
 	}
 
-	// --tree pretty-prints the graph with the leaf nested two levels deep.
 	out, _, err = run(t, app, "deps", "wc-aa22", "--tree")
 	if err != nil {
 		t.Fatalf("deps --tree: %v", err)
@@ -475,8 +434,6 @@ func TestDepsTransitiveAndTree(t *testing.T) {
 func TestMetaNoFrontmatterFenceIsNonZero(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	// A file with no frontmatter fence at all: reconcile quarantines it, and meta
-	// reports the non-zero, empty-stdout, token-on-stderr path.
 	if err := os.WriteFile(filepath.Join(dir, "wc-ff44-nofm.md"), []byte("# No frontmatter\n\njust a body\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -498,8 +455,6 @@ func TestSearchMalformedQueryCleanMessage(t *testing.T) {
 	dir := initScope(t, app, "wc")
 	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
 
-	// An unbalanced quote is a query typo: a clean, teaching message, not a leaked
-	// SQLite/FTS5 internal string.
 	out, _, err := run(t, app, "search", `foo"`, "--scope", "wc")
 	if err == nil {
 		t.Fatal("malformed query must be non-zero")
@@ -527,12 +482,10 @@ func TestQueryReadOnly(t *testing.T) {
 	if !strings.Contains(out, "wc-ab2c\ttodo") {
 		t.Errorf("query result wrong: %q", out)
 	}
-	// A write is rejected.
 	_, _, err = run(t, app, "query", "DELETE FROM projects")
 	if err == nil {
 		t.Error("query must reject a write")
 	}
-	// --schema prints the shape.
 	out, _, err = run(t, app, "query", "--schema")
 	if err != nil || !strings.Contains(out, "NOT A STABLE API") {
 		t.Errorf("query --schema = %q err=%v", out, err)
@@ -544,10 +497,8 @@ func TestCrossScopeDependsGate(t *testing.T) {
 	up := initScope(t, app, "up")
 	wc := initScope(t, app, "wc")
 
-	// wc-bb22 depends cross-scope on up-aa22 (still todo → non-terminal).
 	addProject(t, up, "up-aa22", "core", "todo", "a0", "# Core\n", false, "")
 	addProject(t, wc, "wc-bb22", "feat", "todo", "a0", "# Feature\n", false, "depends: [up-aa22]\n")
-	// wc-cc33 depends on an unregistered scope → informational hold.
 	addProject(t, wc, "wc-cc33", "ext", "todo", "a1", "# Ext\n", false, "depends: [zzz-zz99]\n")
 
 	// The cross-scope gate holds wc-bb22 and wc-cc33; next is empty-because-blocked.
@@ -559,14 +510,11 @@ func TestCrossScopeDependsGate(t *testing.T) {
 		t.Errorf("expected depends_unresolvable for the unregistered-scope dep, got %q", errOut)
 	}
 
-	// list shows the unmet cross-scope dep in waiting-on.
 	out, _, _ = run(t, app, "list", "--scope", "wc")
 	if !strings.Contains(out, "wc-bb22\ttodo\tFeature\tup-aa22") {
 		t.Errorf("waiting-on should carry the cross-scope dep: %q", out)
 	}
 
-	// Finish up-aa22 (terminal → archived): the cross-scope gate now reads it done,
-	// so wc-bb22 becomes runnable.
 	if err := os.Remove(filepath.Join(up, "up-aa22-core.md")); err != nil {
 		t.Fatal(err)
 	}
@@ -585,8 +533,6 @@ func TestEditOpensEditorAndIsSilent(t *testing.T) {
 	dir := initScope(t, app, "wc")
 	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
 
-	// A no-op editor (true) stands in for $EDITOR: edit resolves the path, runs the
-	// editor, and prints nothing on success (it is not a path-hand-off verb).
 	t.Setenv("EDITOR", "true")
 	out, _, err := run(t, app, "edit", "wc-ab2c")
 	if err != nil {
@@ -615,8 +561,6 @@ func TestQueryRejectsSmuggledWrites(t *testing.T) {
 	dir := initScope(t, app, "wc")
 	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
 
-	// A write hidden behind a CTE passes the leading-keyword classifier (WITH) but is
-	// caught by the runtime query_only guard.
 	if _, _, err := run(t, app, "query", "WITH x AS (SELECT 1) DELETE FROM projects"); err == nil {
 		t.Error("query must reject a CTE-smuggled write")
 	}
@@ -638,7 +582,6 @@ func TestLensAppliesAndEchoes(t *testing.T) {
 	addProject(t, dir, "wc-de34", "be", "todo", "a1", "# Backend\n", false, "tags: [backend]\n")
 	addProject(t, dir, "wc-gh56", "un", "todo", "a2", "# Untagged\n", false, "")
 
-	// Set a lens to frontend.
 	if _, _, err := run(t, app, "lens", "frontend", "--scope", "wc"); err != nil {
 		t.Fatalf("lens set: %v", err)
 	}
@@ -660,13 +603,11 @@ func TestLensAppliesAndEchoes(t *testing.T) {
 		t.Errorf("active lens should echo on stderr, got %q", errOut)
 	}
 
-	// --no-lens restores everything.
 	out, _, _ = run(t, app, "list", "--scope", "wc", "--no-lens")
 	if len(lines(out)) != 3 {
 		t.Errorf("--no-lens should bypass, got %q", out)
 	}
 
-	// Clear the lens.
 	if _, _, err := run(t, app, "lens", "--clear", "--scope", "wc"); err != nil {
 		t.Fatalf("lens clear: %v", err)
 	}

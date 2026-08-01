@@ -10,11 +10,6 @@ import (
 	"github.com/start-cli/pj/internal/token"
 )
 
-// gate is the depends-gating view the board reads on: the machine-wide project
-// index (so a cross-scope target's terminal-ness is one lookup), each project's
-// depends edges, per-scope schemas for terminal decisions, and the duplicate-id set
-// for the home scopes. It is the single place list's waiting-on and next's
-// eligibility are computed, so P4's next --claim can reuse the same rules.
 type gate struct {
 	e       *engine
 	byID    map[string][]*index.Project
@@ -23,8 +18,7 @@ type gate struct {
 	dupSet  map[string]bool
 }
 
-// buildGate assembles the gate over the reconciled state. homeScopes are the scopes
-// whose projects are being listed/selected; the duplicate-id set is scoped to them.
+// buildGate scopes the duplicate-id set to homeScopes (listed/selected scopes only).
 func (e *engine) buildGate(res *reconcile.Result, homeScopes []string) (*gate, error) {
 	all, err := e.db.AllProjects()
 	if err != nil {
@@ -60,27 +54,15 @@ func (e *engine) buildGate(res *reconcile.Result, homeScopes []string) (*gate, e
 	return g, nil
 }
 
-// depStatus is the outcome of evaluating a project's depends gate.
 type depStatus struct {
-	// WaitingOn is the sorted set of unmet direct depends full ids — non-terminal,
-	// dangling, or unresolvable targets. Malformed entries are not full ids and are
-	// excluded (the schema_error token is their signal).
-	WaitingOn []string
-	// Tokens are the stderr diagnostic lines this project's edges produced.
-	Tokens []string
-	// SchemaError is true when the project carries a malformed depends/related entry.
+	WaitingOn   []string
+	Tokens      []string
 	SchemaError bool
 }
 
-// Held reports whether the project is held out of next by its dependencies: any
-// unmet depend, or a malformed edge.
 func (d depStatus) Held() bool { return len(d.WaitingOn) > 0 || d.SchemaError }
 
-// evalDepends computes a project's gate: its unmet depends (waiting-on) and the
-// tokens they ride. A same-scope missing target is a hard dangle
-// (depends_dangling); a cross-scope one an informational hold
-// (depends_unresolvable); a non-terminal target is a plain wait; a malformed edge
-// on the project rides schema_error and holds it.
+// evalDepends: same-scope missing is depends_dangling; cross-scope is depends_unresolvable.
 func (g *gate) evalDepends(p *index.Project) depStatus {
 	var ds depStatus
 	if p.SchemaError {
@@ -116,9 +98,7 @@ func (g *gate) evalDepends(p *index.Project) depStatus {
 	return ds
 }
 
-// allTerminal reports whether every row for a depends target is terminal. Held-not-
-// surfaced: a prerequisite that cannot be confirmed done (ambiguous under a
-// duplicate id, or any non-terminal member) holds rather than falsely satisfying.
+// allTerminal holds rather than falsely satisfying when any row is non-terminal or ambiguous.
 func (g *gate) allTerminal(rows []*index.Project) bool {
 	for _, r := range rows {
 		if !status.IsTerminal(r.Status, schemaCustom(g.schema(r.Scope))) {
@@ -128,9 +108,6 @@ func (g *gate) allTerminal(rows []*index.Project) bool {
 	return len(rows) > 0
 }
 
-// nextEligible reports whether a project can be returned by next: built-in todo, at
-// the dir root (never under archive/), not a duplicate-id collision, no malformed
-// edge, and every depend terminal. The lens is applied by the caller.
 func (g *gate) nextEligible(p *index.Project, ds depStatus) bool {
 	if !status.IsNextEligible(p.Status) || p.Archived || p.ParseError {
 		return false
@@ -141,14 +118,11 @@ func (g *gate) nextEligible(p *index.Project, ds depStatus) bool {
 	return true
 }
 
-// isDuplicate reports whether a project's id is in a duplicate_id collision set.
 func (g *gate) isDuplicate(p *index.Project) bool {
 	return g.dupSet[p.Scope+"\x00"+p.ID]
 }
 
-// schema returns a scope's schema, resolving lazily via the cache for a scope not
-// in the reconciled set (a cross-scope depends target's scope), and caching the
-// result — including a nil for an unusable or unregistered scope.
+// schema caches nil for unusable/unregistered scopes so cross-scope targets are not re-resolved.
 func (g *gate) schema(scope string) *scopeconfig.Schema {
 	if s, ok := g.schemas[scope]; ok {
 		return s

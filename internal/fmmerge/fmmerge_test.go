@@ -12,8 +12,7 @@ import (
 	"github.com/start-cli/pj/internal/status"
 )
 
-// testSchema is a scope with a custom done-category status, a custom active status, a
-// custom strings field, and a custom int field, so the typed rules are exercised.
+// testSchema has a custom done-category status, active status, strings field, and int field.
 func testSchema() *scopeconfig.Schema {
 	return &scopeconfig.Schema{
 		Name: "wc",
@@ -42,7 +41,7 @@ func date(s string) time.Time {
 	return t
 }
 
-// meta with ours strictly newer than theirs, so LWW deterministically favours ours.
+// oursNewer makes LWW favour ours.
 func oursNewer() MergeMeta {
 	return MergeMeta{OursDate: date("2026-06-01T00:00:00Z"), TheirsDate: date("2026-01-01T00:00:00Z")}
 }
@@ -84,8 +83,8 @@ func wantStatus(t *testing.T, r Result, want string) {
 
 func TestListAddRemoveClashKeeps(t *testing.T) {
 	base := blob("id: wc-ab2c\nstatus: todo\norder: \"a0\"\ntags: [core]\n", "b\n")
-	ours := blob("id: wc-ab2c\nstatus: todo\norder: \"a0\"\ntags: [core, x]\n", "b\n") // adds x
-	theirs := blob("id: wc-ab2c\nstatus: todo\norder: \"a0\"\ntags: [core]\n", "b\n")  // no x
+	ours := blob("id: wc-ab2c\nstatus: todo\norder: \"a0\"\ntags: [core, x]\n", "b\n")
+	theirs := blob("id: wc-ab2c\nstatus: todo\norder: \"a0\"\ntags: [core]\n", "b\n")
 	r := mustMerge(t, present(base), present(ours), present(theirs), oursNewer())
 	if strings.Join(r.Model.Tags, ",") != "core,x" {
 		t.Errorf("added tag must be kept: got %v", r.Model.Tags)
@@ -94,8 +93,8 @@ func TestListAddRemoveClashKeeps(t *testing.T) {
 
 func TestDependsPruneVsAdd(t *testing.T) {
 	base := blob("id: wc-ab2c\nstatus: todo\norder: \"a0\"\ndepends: [wc-p111]\n", "b\n")
-	ours := blob("id: wc-ab2c\nstatus: todo\norder: \"a0\"\ndepends: [wc-n222]\n", "b\n")   // pruned p111, added n222
-	theirs := blob("id: wc-ab2c\nstatus: todo\norder: \"a0\"\ndepends: [wc-p111]\n", "b\n") // unchanged
+	ours := blob("id: wc-ab2c\nstatus: todo\norder: \"a0\"\ndepends: [wc-n222]\n", "b\n")
+	theirs := blob("id: wc-ab2c\nstatus: todo\norder: \"a0\"\ndepends: [wc-p111]\n", "b\n")
 	r := mustMerge(t, present(base), present(ours), present(theirs), oursNewer())
 	if strings.Join(r.Model.Depends, ",") != "wc-n222" {
 		t.Errorf("pruned id must stay pruned and new id kept: got %v", r.Model.Depends)
@@ -104,8 +103,8 @@ func TestDependsPruneVsAdd(t *testing.T) {
 
 func TestScalarOneSideTakesDone(t *testing.T) {
 	base := blob("id: wc-ab2c\nstatus: todo\norder: \"a0\"\n", "b\n")
-	ours := blob("id: wc-ab2c\nstatus: done\norder: \"a0\"\n", "b\n")           // status change
-	theirs := blob("id: wc-ab2c\nstatus: todo\norder: \"a0\"\n", "body edit\n") // body only
+	ours := blob("id: wc-ab2c\nstatus: done\norder: \"a0\"\n", "b\n")
+	theirs := blob("id: wc-ab2c\nstatus: todo\norder: \"a0\"\n", "body edit\n")
 	r := mustMerge(t, present(base), present(ours), present(theirs), oursNewer())
 	if r.Outcome != OutcomeMerged {
 		t.Fatalf("outcome = %v, want merged", r.Outcome)
@@ -121,12 +120,10 @@ func TestScalarBothNonTerminalLWW(t *testing.T) {
 	if r.Outcome != OutcomeMerged {
 		t.Fatalf("non-terminal both-sides must not dispute, got %v", r.Outcome)
 	}
-	wantStatus(t, r, "todo") // ours newer
+	wantStatus(t, r, "todo")
 }
 
-// Equal author dates fall to the SHA-256 residual of the whole stage bytes, pinned by
-// polarity: the greater-hashing stage wins, asserted with it as each side in turn, so a
-// smaller-hash-keeps implementation (P5's collision polarity) fails.
+// Equal author dates fall to greater SHA-256 of whole stage bytes, polarity-pinned both ways.
 func TestEqualDatesSHAResidualPolarity(t *testing.T) {
 	base := blob("id: wc-ab2c\nstatus: todo\norder: \"a0\"\n", "b\n")
 	aRaw := blob("id: wc-ab2c\nstatus: todo\norder: \"a1\"\n", "body A\n")
@@ -156,7 +153,7 @@ func TestStatusDisputeBothTerminal(t *testing.T) {
 	if r.Outcome != OutcomeStatusConflict {
 		t.Fatalf("outcome = %v, want status conflict", r.Outcome)
 	}
-	wantStatus(t, r, "todo") // merge-base
+	wantStatus(t, r, "todo")
 	if strings.Join(r.StatusConflict, ",") != "cancelled,done" {
 		t.Errorf("status_conflict = %v, want [cancelled done]", r.StatusConflict)
 	}
@@ -190,7 +187,7 @@ func TestStatusBothChangedOneUnknownFailsClosed(t *testing.T) {
 
 func TestCustomDoneCategoryDispute(t *testing.T) {
 	base := blob("id: wc-ab2c\nstatus: todo\norder: \"a0\"\n", "b\n")
-	ours := blob("id: wc-ab2c\nstatus: shipped\norder: \"a0\"\n", "b\n") // custom done-category
+	ours := blob("id: wc-ab2c\nstatus: shipped\norder: \"a0\"\n", "b\n")
 	theirs := blob("id: wc-ab2c\nstatus: in-progress\norder: \"a0\"\n", "b\n")
 	r := mustMerge(t, present(base), present(ours), present(theirs), oursNewer())
 	if r.Outcome != OutcomeStatusConflict {
@@ -277,7 +274,7 @@ func TestMissingSchemaErrors(t *testing.T) {
 func TestImmutableKeepBase(t *testing.T) {
 	base := blob("id: wc-ab2c\nstatus: todo\norder: \"a0\"\ncreated: 2026-01-01T00:00:00Z\n", "b\n")
 	ours := blob("id: wc-ab2c\nstatus: todo\norder: \"a0\"\ncreated: 2026-01-01T00:00:00Z\n", "b\n")
-	theirs := blob("id: wc-ab2c\nstatus: todo\norder: \"a0\"\ncreated: 2030-12-31T00:00:00Z\n", "b\n") // hand edit
+	theirs := blob("id: wc-ab2c\nstatus: todo\norder: \"a0\"\ncreated: 2030-12-31T00:00:00Z\n", "b\n")
 	r := mustMerge(t, present(base), present(ours), present(theirs), oursNewer())
 	if r.Model.Created != "2026-01-01T00:00:00Z" {
 		t.Errorf("one-side immutable change must keep base: got %q", r.Model.Created)
@@ -328,7 +325,6 @@ func TestDeleteEditHandoffEachSide(t *testing.T) {
 	base := blob("id: wc-ab2c\nstatus: todo\norder: \"a0\"\n", "b\n")
 	edit := blob("id: wc-ab2c\nstatus: done\norder: \"a0\"\n", "edited\n")
 
-	// theirs deleted, ours survives
 	r := mustMerge(t, present(base), present(edit), absent(), oursNewer())
 	if r.Outcome != OutcomeDeleteEdit || r.DeleteEdit == nil {
 		t.Fatalf("outcome = %v, want delete/edit", r.Outcome)
@@ -337,7 +333,6 @@ func TestDeleteEditHandoffEachSide(t *testing.T) {
 		t.Errorf("delete/edit = %+v, want theirs deleted, surviving done", r.DeleteEdit)
 	}
 
-	// ours deleted, theirs survives
 	r2 := mustMerge(t, present(base), absent(), present(edit), oursNewer())
 	if r2.DeleteEdit == nil || r2.DeleteEdit.Deleted != SideOurs {
 		t.Errorf("delete/edit = %+v, want ours deleted", r2.DeleteEdit)

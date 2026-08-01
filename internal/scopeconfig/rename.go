@@ -13,12 +13,8 @@ import (
 	"github.com/start-cli/pj/internal/id"
 )
 
-// RewriteName rewrites only the top-level name field of <dir>/pj.cue to newName,
-// preserving every other field, comment, and formatting — it parses the file into a
-// CUE AST, replaces the name field's value node, and re-formats. It is pj scope
-// rename's config-write step: the design forbids string-templating .cue files, so the
-// name change goes through the CUE AST like every other config write. newName must be
-// a legal scope name; the file must compile and already carry a top-level name field.
+// RewriteName rewrites only the top-level name field of <dir>/pj.cue via CUE AST
+// (no string templating), preserving other fields, comments, and formatting.
 func RewriteName(dir, newName string) error {
 	if !id.IsScopeName(newName) {
 		return fmt.Errorf("%q is not a legal scope name", newName)
@@ -55,9 +51,7 @@ func RewriteName(dir, newName string) error {
 	return atomicfile.Write(p, data, 0o600)
 }
 
-// labelName returns the string a field label denotes, handling both a bare
-// identifier (name: …) and a quoted string label ("name": …); any other label
-// shape yields "" and is skipped.
+// labelName returns the string a field label denotes (bare ident or quoted string).
 func labelName(label ast.Label) string {
 	switch l := label.(type) {
 	case *ast.Ident:

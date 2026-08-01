@@ -56,7 +56,6 @@ fields: {
 		t.Errorf("owners should have no enum, got %v", s.Fields["owners"].Values)
 	}
 
-	// Schema helper methods.
 	if !s.StatusKnown("shipped") || !s.StatusKnown(status.Todo) {
 		t.Error("StatusKnown should accept custom and built-in")
 	}
@@ -132,8 +131,7 @@ func TestLoadAbsent(t *testing.T) {
 func TestReadName(t *testing.T) {
 	ctx := cuecontext.New()
 
-	// Reads name even when the fuller schema is invalid (bad field type) as long
-	// as the file compiles and the name is legal.
+	// Name readable even when fuller schema is invalid (bad field type).
 	dir := writeCfg(t, `name: "wc"`+"\nautoCommit: true\nfields: {x: {type: \"float\"}}")
 	name, err := ReadName(ctx, dir)
 	if err != nil {
@@ -143,13 +141,11 @@ func TestReadName(t *testing.T) {
 		t.Errorf("name = %q", name)
 	}
 
-	// Uncompilable → error.
 	bad := writeCfg(t, `name: "wc" broken:::`)
 	if _, err := ReadName(ctx, bad); err == nil {
 		t.Error("expected error on uncompilable pj.cue")
 	}
 
-	// Illegal name → error.
 	illegal := writeCfg(t, `name: "WC"`+"\nautoCommit: true")
 	if _, err := ReadName(ctx, illegal); err == nil {
 		t.Error("expected error on illegal name")
@@ -172,8 +168,7 @@ func TestWriteMinimalRoundTrip(t *testing.T) {
 }
 
 func TestCueReasonIsSingleLine(t *testing.T) {
-	// A multi-line underlying error must collapse to one line so the
-	// config_unparseable diagnostic stays one token per line.
+	// Multi-line underlying error must collapse so config_unparseable stays one token line.
 	got := cueReason(errors.New("line one\nline two\n\tindented three"))
 	if strings.ContainsAny(got, "\n\r") {
 		t.Errorf("cueReason must not contain a newline, got %q", got)

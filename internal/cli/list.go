@@ -67,8 +67,7 @@ func runList(app *App, c *cobra.Command, p listParams) error {
 	if err != nil {
 		return err
 	}
-	// An unreachable scope still lists from what is indexed (rows may be stale); the
-	// unreachable_scope warning already rode stderr from reconcile.
+	// Unreachable still lists indexed rows (stale ok); warning already rode from reconcile.
 	schema := res.Schema(scope)
 
 	statusFilter, err := parseStatusFilter(p.statuses, schema)
@@ -119,10 +118,7 @@ func runList(app *App, c *cobra.Command, p listParams) error {
 	return nil
 }
 
-// parseStatusFilter validates the status positionals against the target scope's
-// known statuses (built-ins plus its customs; only built-ins when the config is
-// unusable) and returns the set to union-filter on. An unknown status is a usage
-// error (exit 2). An empty result means "no explicit status filter".
+// parseStatusFilter: unknown status → exit 2; empty set means no filter.
 func parseStatusFilter(names []string, schema *scopeconfig.Schema) (map[string]bool, error) {
 	if len(names) == 0 {
 		return nil, nil
@@ -138,20 +134,12 @@ func parseStatusFilter(names []string, schema *scopeconfig.Schema) (map[string]b
 	return out, nil
 }
 
-// listVisible applies the status/archive axes: explicit positionals select exact
-// statuses (including rows under archive/ — "list done" means status done, not
-// "done and still at dir root"); otherwise the default active set, or every
-// non-quarantined status under --all. Without a status filter, archive/ rows
-// appear only under --all (there is no --archived flag). Quarantined
-// (parse_error) rows are never board rows — get/search locate them for repair.
+// listVisible: status positionals ignore layout; archive/ only under --all when unfiltered.
 func listVisible(p *index.Project, statusFilter map[string]bool, all bool, schema *scopeconfig.Schema) bool {
-	// A quarantined row has no trustworthy status/title; it is located via get/search
-	// (its repair surface), never surfaced as a blank board row — matching next.
+	// parse_error rows are never board rows (get/search locate them).
 	if p.ParseError {
 		return false
 	}
-	// Status positionals are a pure status union: layout (archive/ vs root) does not
-	// hide a matching row. --all only matters for the unfiltered board.
 	if len(statusFilter) > 0 {
 		return statusFilter[p.Status]
 	}
@@ -175,8 +163,6 @@ func matchesAnyTag(p *index.Project, tags []string) bool {
 	return false
 }
 
-// sortProjects orders a board by (order, id): the order key sorts by byte value,
-// which equals rank order by construction, then full id breaks ties stably.
 func sortProjects(rows []*index.Project) {
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].OrderKey != rows[j].OrderKey {
@@ -186,8 +172,7 @@ func sortProjects(rows []*index.Project) {
 	})
 }
 
-// tokenSet collects diagnostic token lines in first-seen order without duplicates,
-// so a condition shared by several rows rides stderr once.
+// tokenSet de-dupes diagnostic lines in first-seen order.
 type tokenSet struct {
 	seen  map[string]bool
 	order []string
@@ -206,13 +191,7 @@ func (t *tokenSet) add(lines []string) {
 
 func (t *tokenSet) lines() []string { return t.order }
 
-// tsvLine joins fields into one tab-separated stdout record, neutralising any
-// tab, carriage return, or newline inside a field to a single space first. An
-// H1 title (or search summary) can legitimately carry those control characters,
-// and left raw they would split one record into extra columns or extra lines —
-// silently breaking the parse-stable "one TSV line per project" contract every
-// board reader depends on. The index keeps the raw bytes; only this output
-// boundary flattens them.
+// tsvLine flattens tab/CR/LF in fields so one project stays one TSV record.
 func tsvLine(fields ...string) string {
 	cleaned := make([]string, len(fields))
 	for i, f := range fields {
@@ -221,8 +200,6 @@ func tsvLine(fields ...string) string {
 	return strings.Join(cleaned, "\t")
 }
 
-// tsvSanitize replaces every tab, carriage return, and newline in a TSV field
-// with a single space so the field stays on its own column and line.
 func tsvSanitize(field string) string {
 	return strings.Map(func(r rune) rune {
 		if r == '\t' || r == '\r' || r == '\n' {

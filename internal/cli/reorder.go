@@ -9,9 +9,6 @@ import (
 	"github.com/start-cli/pj/internal/order"
 )
 
-// reorderDest is the parsed destination for a reorder: exactly one of the four
-// mutually exclusive placements. before/after carry a neighbour id; first/last are
-// scope-wide bounds.
 type reorderDest struct {
 	before string
 	after  string
@@ -19,8 +16,6 @@ type reorderDest struct {
 	last   bool
 }
 
-// chosen reports how many destination placements were requested; exactly one is
-// legal.
 func (d reorderDest) count() int {
 	n := 0
 	if d.before != "" {
@@ -155,11 +150,7 @@ func runReorder(app *App, c *cobra.Command, idArg string, dest reorderDest, scop
 	return nil
 }
 
-// reorderBounds computes the (left, right) order-key pair KeyBetween writes between,
-// from the destination and the scope's other valid-order projects (subject excluded,
-// so a move relative to others is well defined). --first/--last bound against the
-// scope-wide min/max; --before/--after resolve the neighbour and take its adjacent
-// slot in (order, id) order. An open bound is the empty string.
+// reorderBounds: open bound is ""; subject is excluded from the ordered set.
 func (e *engine) reorderBounds(scope string, subject *index.Project, rows []*index.Project, dest reorderDest) (left, right string, err error) {
 	others := make([]*index.Project, 0, len(rows))
 	for _, p := range rows {
@@ -188,11 +179,6 @@ func (e *engine) reorderBounds(scope string, subject *index.Project, rows []*ind
 	}
 }
 
-// neighbourBounds resolves a --before/--after neighbour id and returns the bounds
-// that place the subject immediately before or after it. The neighbour must resolve
-// to one in-scope project (an unknown well-formed id is generic non-zero, a
-// duplicate_id collision refuses, a malformed id was already a usage error) that is
-// not the subject and carries a valid order.
 func (e *engine) neighbourBounds(scope string, subject *index.Project, others []*index.Project, neighbourArg string, before bool) (left, right string, err error) {
 	form, ok := parseIDArg(neighbourArg)
 	if !ok {
@@ -217,8 +203,6 @@ func (e *engine) neighbourBounds(scope string, subject *index.Project, others []
 		}
 	}
 	if idx < 0 {
-		// The neighbour has a valid order and is not the subject, so it is in the
-		// filtered set by construction; a miss would be a reconcile inconsistency.
 		return "", "", fmt.Errorf("neighbour %q not found in scope order", neighbourArg)
 	}
 	if before {

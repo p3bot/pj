@@ -57,7 +57,6 @@ func runLens(app *App, c *cobra.Command, args []string, scopeFlag string, clearL
 	case clearLens:
 		return e.writeLens(scope, nil)
 	case len(args) == 0:
-		// Show the current lens (empty line when none is set).
 		stdoutln(c, strings.Join(e.reg.Lens[scope], " "))
 		return nil
 	default:
@@ -67,9 +66,7 @@ func runLens(app *App, c *cobra.Command, args []string, scopeFlag string, clearL
 	}
 }
 
-// writeLens installs a scope's lens under the machine-global flock: acquire, load
-// the registry fresh, set or clear this scope's entry, and regenerate lens.cue. The
-// lock spans load-modify-write so a concurrent registry change cannot be clobbered.
+// writeLens: machine-global flock spans load-modify-write.
 func (e *engine) writeLens(scope string, tags []string) error {
 	lock, err := xdg.AcquireConfigLock(e.app.ConfigDir)
 	if err != nil {
@@ -93,10 +90,6 @@ func (e *engine) writeLens(scope string, tags []string) error {
 	return store.WriteLens(reg.Lens)
 }
 
-// warnUnknownTags rides a schema_warn line for each lens tag not present in the
-// scope's declared knownTags. Free-form tags remain legal — this is a typo nudge,
-// not a rejection — and a scope with no knownTags (or an unusable config) warns on
-// nothing.
 func warnUnknownTags(c *cobra.Command, e *engine, scope, dir string, tags []string) {
 	schema := e.rec.SchemaCached(scope, dir)
 	if schema == nil || len(schema.KnownTags) == 0 {
@@ -113,9 +106,7 @@ func warnUnknownTags(c *cobra.Command, e *engine, scope, dir string, tags []stri
 	}
 }
 
-// passesLens reports whether a project is visible under a lens. An empty lens shows
-// everything; an untagged project is never hidden (unclassified is not off-topic);
-// otherwise the project's tags must intersect the lens.
+// passesLens: empty lens shows all; untagged projects are never hidden.
 func passesLens(p *index.Project, lens []string) bool {
 	if len(lens) == 0 || len(p.Tags) == 0 {
 		return true
@@ -132,9 +123,7 @@ func passesLens(p *index.Project, lens []string) bool {
 	return false
 }
 
-// lensEcho is the stderr line naming the active lens for list/next. It is never a
-// TSV stdout field; agents parse list lines as pure TSV. It shares lensBracket's
-// [a, b] rendering so the echo and next's empty-queue diagnostic stay consistent.
+// lensEcho rides stderr only — never a TSV stdout field.
 func lensEcho(lens []string) string {
 	return "lens: " + lensBracket(lens)
 }

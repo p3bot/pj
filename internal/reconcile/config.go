@@ -9,20 +9,16 @@ import (
 	"github.com/start-cli/pj/internal/scopeconfig"
 )
 
-// closureFile is one file in a config import closure with the stat that decides
-// whether it changed. The JSON tags stay short because a copy is stored per scope.
+// closureFile is one file in a config import closure with the stat that decides change.
 type closureFile struct {
 	Path    string `json:"p"`
 	MtimeNS int64  `json:"m"`
 	Size    int64  `json:"s"`
 }
 
-// schemaFor returns a scope's evaluated config, using the index cache when the
-// config import closure is unchanged and falling back to a CUE evaluation
-// otherwise. A *scopeconfig.ConfigError (returned as the second value) means the
-// config is unusable — the scope's reads still work but its writes are blocked and
-// it rides config_unparseable. The negative is cached too, so a still-broken,
-// unchanged config is not re-evaluated every command.
+// schemaFor returns a scope's evaluated config, using the index cache when the import
+// closure is unchanged. Negative results are cached too. A *ConfigError means the
+// config is unusable (reads work; writes blocked).
 func (r *Reconciler) schemaFor(scope, dir string) (*scopeconfig.Schema, *scopeconfig.ConfigError) {
 	if entry, ok, err := r.db.ConfigCacheGet(scope); err == nil && ok {
 		if files, ok := parseClosure(entry.ClosureJSON); ok && closureUnchanged(files) {
@@ -38,26 +34,20 @@ func (r *Reconciler) schemaFor(scope, dir string) (*scopeconfig.Schema, *scopeco
 	return r.evaluateAndCache(scope, dir)
 }
 
-// SchemaCached returns a scope's evaluated schema via the cache, or nil when its
-// config is unusable. It is the read-side lookup for a scope a command did not
-// reconcile but must still judge (a cross-scope depends target's terminal-ness),
-// so it never reconciles rows and never surfaces the config error.
+// SchemaCached returns a scope's schema via the cache, or nil when unusable.
+// Never reconciles rows or surfaces the config error.
 func (r *Reconciler) SchemaCached(scope, dir string) *scopeconfig.Schema {
 	s, _ := r.schemaFor(scope, dir)
 	return s
 }
 
-// SchemaOrError returns a scope's evaluated schema, or the config error when its
-// config is unusable. It is the lookup for a command that must judge a scope it did
-// not reconcile and needs to report why the config is unusable — doctor's per-git-root
-// sibling preflight. Like SchemaCached it never reconciles rows.
+// SchemaOrError returns a scope's schema or the config error when unusable.
+// Never reconciles rows.
 func (r *Reconciler) SchemaOrError(scope, dir string) (*scopeconfig.Schema, *scopeconfig.ConfigError) {
 	return r.schemaFor(scope, dir)
 }
 
-// evaluateAndCache runs the cold path: evaluate the config through CUE, discover
-// its closure, stat every closure file, and store the result (schema or the config
-// error) under those stats for the next command to reuse.
+// evaluateAndCache is the cold path: CUE evaluate, stat the closure, store schema or error.
 func (r *Reconciler) evaluateAndCache(scope, dir string) (*scopeconfig.Schema, *scopeconfig.ConfigError) {
 	schema, closurePaths, loadErr := scopeconfig.LoadWithClosure(r.ctx, dir)
 	entry := index.ConfigCacheEntry{ClosureJSON: marshalClosure(statClosure(closurePaths))}
@@ -79,9 +69,7 @@ func (r *Reconciler) evaluateAndCache(scope, dir string) (*scopeconfig.Schema, *
 	return schema, nil
 }
 
-// statClosure stats each closure path, recording (mtime, size). A path that cannot
-// be stated is recorded with zeroes so its later reappearance or change is still a
-// closure change (the key differs), forcing a re-evaluation rather than a stale hit.
+// statClosure records (mtime, size) per path; unstatable paths get zeroes so later change still invalidates.
 func statClosure(paths []string) []closureFile {
 	out := make([]closureFile, 0, len(paths))
 	for _, p := range paths {
@@ -96,9 +84,7 @@ func statClosure(paths []string) []closureFile {
 	return out
 }
 
-// closureUnchanged reports whether every recorded closure file still has the same
-// (mtime, size) on disk. Any drift — a changed sibling schema, a vanished import —
-// means the cached schema may be stale and the config must be re-evaluated.
+// closureUnchanged reports whether every recorded closure file still matches on-disk (mtime, size).
 func closureUnchanged(files []closureFile) bool {
 	for _, f := range files {
 		fi, err := os.Stat(f.Path)

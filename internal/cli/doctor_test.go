@@ -10,7 +10,6 @@ import (
 	"github.com/start-cli/pj/internal/token"
 )
 
-// projectFiles returns the .md basenames directly under dir and its archive child.
 func projectFiles(t *testing.T, dir string) []string {
 	t.Helper()
 	var out []string
@@ -20,8 +19,6 @@ func projectFiles(t *testing.T, dir string) []string {
 	return out
 }
 
-// projectFilesIn returns the .md basenames directly under one directory. A missing
-// directory is empty, not an error — a scope need not have an archive/ child.
 func projectFilesIn(t *testing.T, root string) []string {
 	t.Helper()
 	entries, err := os.ReadDir(root)
@@ -78,8 +75,6 @@ func TestDoctorRepairDuplicateID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("doctor --repair: %v", err)
 	}
-	// Equal created (both 2026-01-01) → basename tie-break → beta (greater) renamed to
-	// the deterministic first-free extension ab2ca.
 	if !fileExists(dir, "wc-ab2c-alpha.md") {
 		t.Errorf("kept side must retain its id/filename")
 	}
@@ -92,7 +87,6 @@ func TestDoctorRepairDuplicateID(t *testing.T) {
 	if !strings.Contains(out, "repaired duplicate id: wc-ab2c -> wc-ab2ca") {
 		t.Errorf("repair should report the rename, got %q", out)
 	}
-	// Every inbound edge to the collided id is surfaced as edge_verify.
 	if !strings.Contains(out, "edge_verify:") || !strings.Contains(out, "wc-de34") {
 		t.Errorf("repair should emit edge_verify for the referrer, got %q", out)
 	}
@@ -103,10 +97,6 @@ func TestDoctorRepairDuplicateID(t *testing.T) {
 	}
 }
 
-// The indexer accepts any tail after a valid short-id (so no project goes invisible) but
-// the allowlist requires a valid slug (so no malformed name is committed). Doctor is what
-// reports the resulting inconsistency; without the shape check the file is a live project
-// that only rides non_allowlist, which reads as "remove this real work".
 func TestDoctorFlagsMalformedSlugTail(t *testing.T) {
 	app := newApp(t)
 	t.Setenv("PJ_SCOPE", "wc")
@@ -124,14 +114,11 @@ func TestDoctorFlagsMalformedSlugTail(t *testing.T) {
 	if !strings.Contains(out, "filename/id mismatch: wc-de34-Bad__Slug!.md is not a project file shape") {
 		t.Errorf("malformed slug tail must ride the structural check, got %q", out)
 	}
-	// The well-formed sibling is untouched by the new condition.
 	if strings.Contains(out, "wc-ab2c-good.md") {
 		t.Errorf("a valid project filename must not be flagged, got %q", out)
 	}
 }
 
-// A custom strings field carries the same set merge as the built-in lists, so duplicates
-// in it ride the same schema_warn.
 func TestDoctorFlagsDuplicateInCustomStringsField(t *testing.T) {
 	app := newApp(t)
 	t.Setenv("PJ_SCOPE", "wc")
@@ -170,8 +157,6 @@ func TestFieldTypeError(t *testing.T) {
 		{"strings int element", strs, []any{"api", 7}, "has a non-string entry (7)"},
 		{"strings bool element", strs, []any{true}, "has a non-string entry (true)"},
 		{"strings nested list", strs, []any{[]any{"a"}}, "has a non-string entry ([a])"},
-		// The element check runs first, so a mixed list can no longer slip past into the
-		// enum loop — the hole that let areas: [7] pass under a declared enum.
 		{"enum int element", enum, []any{7}, "has a non-string entry (7)"},
 		{"enum outside values", enum, []any{"api", "db"}, `has value "db" outside its declared values`},
 		{"enum within values", enum, []any{"api", "ui"}, ""},
@@ -185,7 +170,6 @@ func TestFieldTypeError(t *testing.T) {
 	}
 }
 
-// A non-string element in a strings field is a hard schema_error, not silence.
 func TestDoctorFlagsNonStringInStringsField(t *testing.T) {
 	app := newApp(t)
 	t.Setenv("PJ_SCOPE", "wc")
@@ -205,9 +189,6 @@ func TestDoctorFlagsNonStringInStringsField(t *testing.T) {
 	}
 }
 
-// A pure self-depends is owned by depends_self; depends_cycle covers cycles among two or
-// more distinct projects. A project in a real cycle that also self-depends rides both,
-// because the two defects are then genuinely separate.
 func TestDoctorSelfDependsIsNotAlsoACycle(t *testing.T) {
 	app := newApp(t)
 	t.Setenv("PJ_SCOPE", "wc")
@@ -226,7 +207,6 @@ func TestDoctorSelfDependsIsNotAlsoACycle(t *testing.T) {
 	if strings.Contains(out, "depends_cycle: wc-ab2c") {
 		t.Errorf("a pure self-depends must not also ride depends_cycle, got %q", out)
 	}
-	// The genuine two-node cycle is untouched.
 	for _, id := range []string{"wc-de34", "wc-fg56"} {
 		if !strings.Contains(out, "depends_cycle: "+id) {
 			t.Errorf("real cycle member %s must still ride depends_cycle, got %q", id, out)
@@ -237,20 +217,13 @@ func TestDoctorSelfDependsIsNotAlsoACycle(t *testing.T) {
 	}
 }
 
-// Combined --reindex --repair ends with an index that matches the repaired file tree.
-//
-// End-state assertions only. The pre-repair-rebuild and post-repair-rebuild orders are
-// observationally identical while every repair reports each path it touches, so no test
-// distinguishes them; the ordering is a contract, held by the comment in runDoctor.
-// TestDoctorReindexRepairSeesUnindexedCollision covers the part that can actually break.
 func TestDoctorReindexWithRepairRebuildsAfterRepairs(t *testing.T) {
 	app := newApp(t)
 	t.Setenv("PJ_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
 	addProject(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
 	addProject(t, dir, "wc-ab2c", "beta", "todo", "a1", "# Beta\n", false, "")
-	// Seed the index, then delete a file behind pj's back: the end state must not carry
-	// the removed row.
+	// Seed the index, then delete a file behind pj's back: the end state must not carry the removed row.
 	if _, _, err := run(t, app, "list"); err != nil {
 		t.Fatalf("seed index: %v", err)
 	}
@@ -270,8 +243,6 @@ func TestDoctorReindexWithRepairRebuildsAfterRepairs(t *testing.T) {
 		t.Errorf("the repair must still run, got %q", out)
 	}
 
-	// The post-repair index reflects the repaired tree exactly: renamed loser present,
-	// old id gone, deleted file gone.
 	list, _, err := run(t, app, "list")
 	if err != nil {
 		t.Fatalf("list: %v", err)
@@ -287,9 +258,6 @@ func TestDoctorReindexWithRepairRebuildsAfterRepairs(t *testing.T) {
 	}
 }
 
-// order is the board's rank space: an invalid key still sorts, just not where intended,
-// so it must not pass doctor clean. Reconcile does not quarantine these — they are valid
-// YAML — and order_long is gated on validity, so this is the only class that catches them.
 func TestDoctorFlagsInvalidOrderKeys(t *testing.T) {
 	app := newApp(t)
 	t.Setenv("PJ_SCOPE", "wc")
@@ -327,16 +295,12 @@ func TestDoctorFlagsInvalidOrderKeys(t *testing.T) {
 	}
 }
 
-// edge_verify identifies referrers by id, so it must be read after every collision in the
-// scope is repaired. Two referrers that themselves collide would otherwise produce two
-// byte-identical lines, one naming an id the same run then renames away.
 func TestDoctorRepairEdgeVerifyNamesPostRepairReferrers(t *testing.T) {
 	app := newApp(t)
 	t.Setenv("PJ_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
 	addProject(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# A\n", false, "")
 	addProject(t, dir, "wc-ab2c", "beta", "todo", "a1", "# B\n", false, "")
-	// Both referrers of wc-ab2c are themselves a collision on wc-de34.
 	addProject(t, dir, "wc-de34", "gamma", "todo", "a2", "# G\n", false, "depends: [wc-ab2c]\n")
 	addProject(t, dir, "wc-de34", "delta", "todo", "a3", "# D\n", false, "depends: [wc-ab2c]\n")
 
@@ -364,10 +328,6 @@ func TestDoctorRepairEdgeVerifyNamesPostRepairReferrers(t *testing.T) {
 	}
 }
 
-// Repairs run before the --reindex rebuild, so they depend on the pre-repair reconcile to
-// have populated the index. Rebuild drops every table and only repopulates afterwards, so
-// skipping that reconcile whenever --reindex is set would leave DuplicateIDs querying an
-// empty index and silently repair nothing.
 func TestDoctorReindexRepairSeesUnindexedCollision(t *testing.T) {
 	app := newApp(t)
 	t.Setenv("PJ_SCOPE", "wc")
@@ -375,8 +335,6 @@ func TestDoctorReindexRepairSeesUnindexedCollision(t *testing.T) {
 	addProject(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
 	addProject(t, dir, "wc-ab2c", "beta", "todo", "a1", "# Beta\n", false, "")
 
-	// No prior read seeds the index: --reindex --repair is the first command to touch it,
-	// so the collision exists only on disk when the repair pass needs to find it.
 	out, _, err := run(t, app, "doctor", "--reindex", "--repair")
 	if err != nil {
 		t.Fatalf("doctor --reindex --repair: %v", err)
@@ -417,9 +375,7 @@ func TestDoctorRepairArchiveLayoutBothWays(t *testing.T) {
 	app := newApp(t)
 	t.Setenv("PJ_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
-	// terminal at root → should move under archive/.
 	addProject(t, dir, "wc-aaaa", "done1", "done", "a0", "# Done\n", false, "")
-	// non-terminal under archive/ → should move to root.
 	addProject(t, dir, "wc-bbbb", "todo1", "todo", "a1", "# Todo\n", true, "")
 
 	if _, _, err := run(t, app, "doctor", "--repair"); err != nil {
@@ -433,16 +389,10 @@ func TestDoctorRepairArchiveLayoutBothWays(t *testing.T) {
 	}
 }
 
-// A duplicate id whose members share a frozen slug shares a basename, so a layout move
-// across the archive boundary would land one member on the other and remove the source —
-// erasing a whole project. The layout repair defers those ids until the collision repair
-// has given them distinct names, then lands the move in the same run.
 func TestDoctorRepairCollisionAcrossArchiveBoundaryKeepsBothProjects(t *testing.T) {
 	app := newApp(t)
 	t.Setenv("PJ_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
-	// Same id, same slug, different content: one terminal at root, one non-terminal
-	// under archive/ — both misplaced, so both are layout-repair candidates.
 	addProject(t, dir, "wc-ab2c", "alpha", "done", "a0", "# Root copy\n", false, "")
 	addProject(t, dir, "wc-ab2c", "alpha", "todo", "a1", "# Archive copy\n", true, "")
 
@@ -462,8 +412,6 @@ func TestDoctorRepairCollisionAcrossArchiveBoundaryKeepsBothProjects(t *testing.
 	if !bodies["# Root copy"] || !bodies["# Archive copy"] {
 		t.Fatalf("repair must keep both projects, found bodies %v (files %v)", bodies, projectFiles(t, dir))
 	}
-	// The loser took the deterministic extension, and each project now sits on the side
-	// of the archive boundary its status calls for.
 	if !fileExists(dir, filepath.Join("archive", "wc-ab2c-alpha.md")) {
 		t.Errorf("the done project must end under archive/, files=%v", projectFiles(t, dir))
 	}
@@ -482,9 +430,6 @@ func TestDoctorReSpaceOrder(t *testing.T) {
 	addProject(t, dir, "wc-bbbb", "b", "todo", longKey, "# B\n", false, "")
 	addProject(t, dir, "wc-cccc", "c", "todo", "a2", "# C\n", false, "")
 
-	// The report locates the offending file by path, like every other per-project line —
-	// with no ambient scope the report spans every scope, so the path is what says which
-	// dir to open.
 	out, _, err := run(t, app, "doctor")
 	if err != nil {
 		t.Fatalf("bare doctor: %v", err)
@@ -499,7 +444,6 @@ func TestDoctorReSpaceOrder(t *testing.T) {
 	if fmValue(t, filepath.Join(dir, "wc-bbbb-b.md"), "order") != longKey {
 		t.Errorf("--repair must not re-space an over-long key")
 	}
-	// --re-space-order shortens it.
 	if _, _, err := run(t, app, "doctor", "--re-space-order"); err != nil {
 		t.Fatalf("doctor --re-space-order: %v", err)
 	}
@@ -548,8 +492,6 @@ func TestDoctorStructuralAndCreatedClasses(t *testing.T) {
 	if !strings.Contains(out, "created value missing or not RFC3339 in wc-ab2c") {
 		t.Errorf("doctor should flag a non-RFC3339 created, got %q", out)
 	}
-	// This class carries no token by design, so no report line may open with the shape of
-	// one — a lowercase word and a colon is what an agent scans for.
 	for _, line := range lines(out) {
 		if word, _, found := strings.Cut(line, ": "); found && !strings.ContainsAny(word, " /") {
 			if !token.HasKnownPrefix(word + ":") {
@@ -557,7 +499,6 @@ func TestDoctorStructuralAndCreatedClasses(t *testing.T) {
 			}
 		}
 	}
-	// The file was not mutated.
 	if fmValue(t, filepath.Join(dir, "wc-ab2c-x.md"), "created") != "2026-06-20" {
 		t.Errorf("bare doctor must not rewrite created")
 	}
@@ -567,7 +508,6 @@ func TestDoctorSchemaWarnClasses(t *testing.T) {
 	app := newApp(t)
 	t.Setenv("PJ_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
-	// self-related (schema_warn), an id-shaped link (schema_warn), a duplicate tag.
 	extra := "related: [wc-ab2c]\nlinks: [wc-de34]\ntags: [x, x]\n"
 	addProject(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, extra)
 
@@ -593,9 +533,6 @@ func TestDoctorReindexRebuilds(t *testing.T) {
 		t.Errorf("--reindex must not touch project files")
 	}
 
-	// Non-mutating --reindex skips the union reconcile, so the rebuild and its
-	// machine-wide reconcile are the only things populating the index. Seed a row, remove
-	// its file behind pj's back, and the rebuild must derive the tree without it.
 	addProject(t, dir, "wc-de34", "ghost", "todo", "a1", "# Ghost\n", false, "")
 	if _, _, err := run(t, app, "list"); err != nil {
 		t.Fatalf("seed index: %v", err)
@@ -618,13 +555,10 @@ func TestDoctorReindexRebuilds(t *testing.T) {
 	}
 }
 
-// Re-entry after a crash inside the archive move's write-new-then-remove-old window
-// completes the move; it must never be escalated into a duplicate-id rename.
 func TestDoctorRepairResumesInterruptedArchiveMove(t *testing.T) {
 	app := newApp(t)
 	t.Setenv("PJ_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
-	// The crash window: the new copy is written, the old copy is not yet removed.
 	addProject(t, dir, "wc-ab2c", "ship", "done", "a0", "# Ship\n", false, "")
 	addProject(t, dir, "wc-ab2c", "ship", "done", "a0", "# Ship\n", true, "")
 
@@ -642,7 +576,6 @@ func TestDoctorRepairResumesInterruptedArchiveMove(t *testing.T) {
 	if !fileExists(dir, filepath.Join("archive", "wc-ab2c-ship.md")) {
 		t.Errorf("terminal project must end under archive/ with its id intact, got %v", files)
 	}
-	// A second run is a no-op.
 	if _, _, err := run(t, app, "doctor", "--repair"); err != nil {
 		t.Fatalf("second doctor --repair: %v", err)
 	}
@@ -651,8 +584,6 @@ func TestDoctorRepairResumesInterruptedArchiveMove(t *testing.T) {
 	}
 }
 
-// Re-entry after a crash inside the collision extension's write-new-then-remove-old
-// window finishes that extension; it must never mint a second one.
 func TestDoctorRepairResumesInterruptedExtension(t *testing.T) {
 	app := newApp(t)
 	t.Setenv("PJ_SCOPE", "wc")
@@ -690,9 +621,6 @@ func TestDoctorRepairResumesInterruptedExtension(t *testing.T) {
 	}
 }
 
-// Under --all one unreachable scope must skip, not stop the run: the flock is a file in
-// the scope dir, so taking it before checking reachability would abort every remaining
-// scope over one unplugged drive.
 func TestDoctorRepairAllSkipsUnreachableScope(t *testing.T) {
 	app := newApp(t)
 	gone := initScope(t, app, "gone")

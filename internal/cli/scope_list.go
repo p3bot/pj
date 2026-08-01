@@ -24,10 +24,7 @@ func newScopeListCmd(app *App) *cobra.Command {
 	}
 }
 
-// runScopeList is shared by `pj scope list` and bare `pj scope`. TSV rows go to
-// stdout (never coloured, never interleaved with diagnostics); soft tokens go to
-// stderr. It returns nil even when diagnostics are present — a bad scope is a
-// stderr note, not a failed listing.
+// runScopeList: soft diagnostics on stderr; always returns nil (bad scope is not a failed listing).
 func runScopeList(app *App, c *cobra.Command) error {
 	listing, err := app.admin().List()
 	if err != nil {

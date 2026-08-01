@@ -34,7 +34,6 @@ func pulseKeys(out string) []string {
 func TestStatusDashboardKeyOrderAndCounts(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	// Every built-in status represented.
 	addProject(t, dir, "wc-aa22", "todo", "todo", "a1", "# T\n", false, "")
 	addProject(t, dir, "wc-ab23", "review", "review", "a2", "# R\n", false, "")
 	addProject(t, dir, "wc-ac24", "ip", "in-progress", "a3", "# I\n", false, "")
@@ -51,14 +50,12 @@ func TestStatusDashboardKeyOrderAndCounts(t *testing.T) {
 	if keys := pulseKeys(out); !slicesEqual(keys, statusKeys) {
 		t.Fatalf("key order = %v, want %v\nout=%q", keys, statusKeys, out)
 	}
-	// Key column is fixed-width: tab sits at the same index on every line.
 	for _, line := range lines(out) {
 		tab := strings.IndexByte(line, '\t')
 		if tab != statusKeyWidth {
 			t.Errorf("tab at col %d want %d on line %q", tab, statusKeyWidth, line)
 		}
 	}
-	// No closed tokens on stdout.
 	for _, tok := range []string{"duplicate_id:", "parse_error:", "uncommitted:", "lens:"} {
 		if strings.Contains(out, tok) {
 			t.Errorf("stdout must not carry token %q: %q", tok, out)
@@ -81,7 +78,6 @@ func TestStatusDashboardKeyOrderAndCounts(t *testing.T) {
 	if p["lens"] != "" {
 		t.Errorf("lens should be empty, got %q", p["lens"])
 	}
-	// total = bare list: todo+review+in-progress+blocked+draft = 5 (not backlog)
 	if p["total"] != "5" {
 		t.Errorf("total = %q want 5", p["total"])
 	}
@@ -112,7 +108,6 @@ func TestStatusDashboardKeyOrderAndCounts(t *testing.T) {
 		t.Errorf("uncommitted = %q want 0", p["uncommitted"])
 	}
 
-	// Bare list membership matches total.
 	listOut, _, err := run(t, app, "list", "--scope", "wc")
 	if err != nil {
 		t.Fatalf("list: %v", err)
@@ -139,7 +134,6 @@ func TestStatusEmptyNextExitsZero(t *testing.T) {
 	if p["next"] != "" {
 		t.Errorf("next should be empty, got %q", p["next"])
 	}
-	// Bare next is non-zero with a plain diagnostic.
 	nextOut, _, nextErr := run(t, app, "next", "--scope", "wc")
 	if nextErr == nil || nextOut != "" {
 		t.Fatalf("bare next should fail empty-queue, out=%q err=%v", nextOut, nextErr)
@@ -179,8 +173,6 @@ func TestStatusLensFiltersWorkingBoard(t *testing.T) {
 	if p["lens"] != "frontend" {
 		t.Errorf("lens field = %q", p["lens"])
 	}
-	// Working board under frontend: wc-aa22 (todo+tag), wc-ad25 (blocked+tag).
-	// backend-tagged rows are filtered. total = those in default list = 2.
 	if p["todo"] != "1" || p["blocked"] != "1" || p["in-progress"] != "0" {
 		t.Errorf("lens counts: todo=%s blocked=%s in-progress=%s", p["todo"], p["blocked"], p["in-progress"])
 	}
@@ -196,7 +188,6 @@ func TestStatusLensFiltersWorkingBoard(t *testing.T) {
 	if p["blocked_ids"] != "wc-ad25" {
 		t.Errorf("blocked_ids = %q", p["blocked_ids"])
 	}
-	// Terminal tallies ignore lens.
 	if p["done"] != "1" {
 		t.Errorf("done should ignore lens, got %q", p["done"])
 	}
@@ -238,8 +229,6 @@ func TestStatusNextUsesReconcileClosure(t *testing.T) {
 func TestStatusNextTokensMatchBareNext(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	// First candidate is ready; second still holds on a missing depend — full walk
-	// must still emit depends_dangling for the later candidate.
 	addProject(t, dir, "wc-aa22", "ready", "todo", "a0", "# Ready\n", false, "")
 	addProject(t, dir, "wc-ab23", "held", "todo", "a1", "# Held\n", false, "depends: [wc-zz99]\n")
 
@@ -257,7 +246,6 @@ func TestStatusNextTokensMatchBareNext(t *testing.T) {
 	if !strings.Contains(nextErr, "depends_dangling:") {
 		t.Errorf("next baseline missing depends_dangling, stderr=%q", nextErr)
 	}
-	// Token line set should match (order preserved by first-seen walk).
 	statusToks := tokenLines(statusErr)
 	nextToks := tokenLines(nextErr)
 	if !slicesEqual(statusToks, nextToks) {
@@ -265,7 +253,6 @@ func TestStatusNextTokensMatchBareNext(t *testing.T) {
 	}
 }
 
-// tokenLines keeps closed-token stderr lines (prefix ends with ':') in order.
 func tokenLines(errOut string) []string {
 	var out []string
 	for _, line := range lines(errOut) {
@@ -279,10 +266,8 @@ func tokenLines(errOut string) []string {
 func TestStatusDanglingEdgeCount(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	// Two projects each depend on the same missing same-scope id → edge count 2.
 	addProject(t, dir, "wc-aa22", "a", "todo", "a0", "# A\n", false, "depends: [wc-zz99]\n")
 	addProject(t, dir, "wc-ab23", "b", "todo", "a1", "# B\n", false, "depends: [wc-zz99]\n")
-	// Cross-scope missing is not dangling.
 	addProject(t, dir, "wc-ac24", "c", "todo", "a2", "# C\n", false, "depends: [other-xx00]\n")
 
 	out, _, err := run(t, app, "status", "--scope", "wc")
@@ -300,7 +285,6 @@ func TestStatusIntegrityAmbientOnly(t *testing.T) {
 	dir := initScope(t, app, "wc")
 	other := initScope(t, app, "ot")
 	addProject(t, dir, "wc-aa22", "ok", "todo", "a0", "# Ok\n", false, "depends: [ot-bb22]\n")
-	// Depended-on scope has a duplicate_id integrity issue.
 	addProject(t, other, "ot-bb22", "one", "done", "a0", "# One\n", true, "")
 	addProject(t, other, "ot-bb22", "two", "done", "a1", "# Two\n", true, "")
 
@@ -313,7 +297,6 @@ func TestStatusIntegrityAmbientOnly(t *testing.T) {
 		t.Errorf("depended-on duplicate must not flip ambient integrity, got %q", p["integrity"])
 	}
 
-	// Ambient duplicate flips to issues.
 	addProject(t, dir, "wc-aa22", "dup", "todo", "a2", "# Dup\n", false, "")
 	out, _, err = run(t, app, "status", "--scope", "wc")
 	if err != nil {
@@ -329,7 +312,6 @@ func TestStatusIntegrityHardClasses(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
 
-	// parse_error row present → issues.
 	bad := "---\nid: wc-aa22\nstatus: [unterminated\n---\n# broke\n"
 	if err := os.WriteFile(filepath.Join(dir, "wc-aa22-x.md"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
@@ -345,7 +327,6 @@ func TestStatusIntegrityHardClasses(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// equal_order → issues.
 	addProject(t, dir, "wc-ab23", "a", "todo", "a0", "# A\n", false, "")
 	addProject(t, dir, "wc-ac24", "b", "todo", "a0", "# B\n", false, "")
 	out, _, err = run(t, app, "status", "--scope", "wc")
@@ -362,7 +343,6 @@ func TestStatusIntegrityHardClasses(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// archive_terminal_at_root: done still at dir root → issues.
 	addProject(t, dir, "wc-ad25", "done", "done", "a1", "# Done\n", false, "")
 	out, _, err = run(t, app, "status", "--scope", "wc")
 	if err != nil {
@@ -375,7 +355,6 @@ func TestStatusIntegrityHardClasses(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// archive_non_terminal: non-terminal under archive/ → issues.
 	addProject(t, dir, "wc-ae26", "todo", "todo", "a2", "# Todo\n", true, "")
 	out, _, err = run(t, app, "status", "--scope", "wc")
 	if err != nil {
@@ -425,7 +404,6 @@ func TestStatusCustomActiveInTotal(t *testing.T) {
 		t.Fatalf("status: %v", err)
 	}
 	p := parsePulse(out)
-	// Custom active is default-list (counts in total); backlog is not.
 	if p["total"] != "1" {
 		t.Errorf("total with custom active = %q want 1", p["total"])
 	}
@@ -483,7 +461,6 @@ func TestStatusModeUnparseableIsPlainFiles(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
 	addProject(t, dir, "wc-aa22", "t", "todo", "a0", "# T\n", false, "")
-	// Schema-invalid but name still reads: config_unparseable rides, mode stays plain-files.
 	bad := "name: \"wc\"\nautoCommit: false\nfields: {x: {type: \"float\"}}\n"
 	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
@@ -510,7 +487,6 @@ func TestStatusModePjDrivenUncommittedZero(t *testing.T) {
 	app := newApp(t)
 	dir, _ := initGitScope(t, app, "wc", true)
 	addProject(t, dir, "wc-aa22", "t", "todo", "a0", "# T\n", false, "")
-	// Dirty allowlisted file: pj-driven still reports uncommitted 0.
 	if err := os.WriteFile(filepath.Join(dir, "pj.cue"),
 		[]byte("name: \"wc\"\nautoCommit: true\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -529,8 +505,6 @@ func TestStatusModePjDrivenUncommittedZero(t *testing.T) {
 	}
 }
 
-// Planned auto-commit layout: autoCommit true with no git-root stays pj-driven
-// (same as scope list / sync_disabled writes), never plain-files or repo-driven.
 func TestStatusModePjDrivenPlanned(t *testing.T) {
 	app := newApp(t)
 	dir := filepath.Join(t.TempDir(), "wc")
@@ -566,7 +540,6 @@ func TestStatusModeRepoDrivenDirtyCount(t *testing.T) {
 	if p["mode"] != "repo-driven" {
 		t.Errorf("mode = %q want repo-driven", p["mode"])
 	}
-	// Scope has uncommitted project file + possibly pj.cue — allowlisted dirt ≥ 1.
 	if p["uncommitted"] == "0" {
 		t.Errorf("repo-driven dirty board should report uncommitted > 0, got %q", p["uncommitted"])
 	}
@@ -577,7 +550,6 @@ func TestStatusResolvedSources(t *testing.T) {
 	dir := initScope(t, app, "wc")
 	addProject(t, dir, "wc-aa22", "t", "todo", "a0", "# T\n", false, "")
 
-	// --scope → flag
 	out, _, err := run(t, app, "status", "--scope", "wc")
 	if err != nil {
 		t.Fatal(err)
@@ -586,7 +558,6 @@ func TestStatusResolvedSources(t *testing.T) {
 		t.Errorf("want flag, got %q", parsePulse(out)["resolved"])
 	}
 
-	// PJ_SCOPE → env
 	t.Setenv("PJ_SCOPE", "wc")
 	out, _, err = run(t, app, "status")
 	if err != nil {
@@ -596,7 +567,6 @@ func TestStatusResolvedSources(t *testing.T) {
 		t.Errorf("want env, got %q", parsePulse(out)["resolved"])
 	}
 
-	// cwd longest-prefix (plain-files code-root is the scope dir itself).
 	t.Setenv("PJ_SCOPE", "")
 	t.Chdir(dir)
 	out, _, err = run(t, app, "status")

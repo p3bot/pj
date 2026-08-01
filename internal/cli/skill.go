@@ -9,9 +9,7 @@ import (
 	"github.com/start-cli/pj/internal/skill"
 )
 
-// skillInstallRefuse is the shared hard-refuse message for the v1 skill
-// install family. Same text for install, list, and uninstall — no fake empty
-// list, no success no-op, no write into any tree.
+// skillInstallRefuse is shared by install/list/uninstall (hard refuse, no tree write).
 const skillInstallRefuse = "not implemented in v1 — use 'pj skill' to print the workflow; persistent install is planned via agentdex skills directories"
 
 func newSkillCmd(_ *App) *cobra.Command {
@@ -25,8 +23,7 @@ func newSkillCmd(_ *App) *cobra.Command {
 			"message so agents do not invent paths.",
 		Args: usageArgs(cobra.NoArgs),
 		RunE: func(c *cobra.Command, _ []string) error {
-			// Discovery command: no scope resolution, no engine, no tree write.
-			// Bulk dump: surface write failure (EPIPE, etc.) like meta / query --schema.
+			// Surface write failure (EPIPE) like meta / query --schema.
 			_, err := fmt.Fprint(c.OutOrStdout(), skill.Text())
 			return err
 		},
@@ -39,8 +36,6 @@ func newSkillCmd(_ *App) *cobra.Command {
 	return cmd
 }
 
-// newSkillRefuseCmd registers one install-family placeholder that always exits
-// non-zero with the shared refuse message and never touches the filesystem.
 func newSkillRefuseCmd(use, short string) *cobra.Command {
 	return &cobra.Command{
 		Use:   use,

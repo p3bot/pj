@@ -10,13 +10,7 @@ import (
 	"github.com/start-cli/pj/internal/status"
 )
 
-// runClaim is pj next --claim: the complete-state write that reuses next's selection
-// and eligibility to start work. Under the scope flock for the whole span it
-// reconciles the ambient scope plus its transitive depends-closure, walks the same
-// candidates in the same order, and claims the first that still validates as eligible
-// from trusted on-disk state — skipping any that lost the race, collides on a
-// duplicate id, or is in parse_error quarantine. It writes status: in-progress only
-// (no archive move), self-commits on an auto-commit git-root, and prints the path.
+// runClaim: scope flock spans reconcile→claim so candidates stay valid under the same lock.
 func runClaim(app *App, c *cobra.Command, scopeFlag string, noLens bool) error {
 	e, err := app.openEngine(c)
 	if err != nil {
@@ -42,9 +36,7 @@ func runClaim(app *App, c *cobra.Command, scopeFlag string, noLens bool) error {
 	if err != nil {
 		return err
 	}
-	// The ambient scope's own config must be usable to validate and write. A
-	// depended-on sibling with a bad config only holds its gates and rides its warning
-	// below; it does not refuse the claim.
+	// Ambient config must be usable; sibling config failures only hold gates.
 	if err := refuseUnusableScope(res, scope, dir); err != nil {
 		return err
 	}
@@ -94,7 +86,6 @@ func runClaim(app *App, c *cobra.Command, scopeFlag string, noLens bool) error {
 			claimed = p
 			break
 		}
-		// Lost the race (re-validation failed): skip to the next eligible candidate.
 	}
 
 	if applyLens {
@@ -115,12 +106,6 @@ func runClaim(app *App, c *cobra.Command, scopeFlag string, noLens bool) error {
 	return emptyQueueError(applyLens, lens, blocked, readyOutsideLens)
 }
 
-// claimProject re-validates one candidate from trusted on-disk state under the flock
-// and, if it is still a next-eligible todo at the dir root, writes status:
-// in-progress, write-throughs the index, and self-commits when available. It returns
-// ok=false without writing when the candidate lost the race (already claimed, status
-// changed, or file unreadable), so the caller moves to the next candidate. A write or
-// commit failure after the point of no return is returned as an error.
 func (e *engine) claimProject(ctx context.Context, c *cobra.Command, scope, dir string, autoCommit bool, p *index.Project, root string, hasRoot bool) (bool, error) {
 	m, body, err := readProjectFile(p.Path)
 	if err != nil {

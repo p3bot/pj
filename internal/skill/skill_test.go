@@ -91,9 +91,7 @@ func TestEighteenSectionsOnly(t *testing.T) {
 }
 
 func TestNoDesignDependency(t *testing.T) {
-	// skill.md is the sole runtime contract: body text must not point agents at
-	// an external design file, and production sources in this package must not
-	// load one (string path or go:embed).
+	// skill.md is sole runtime contract; body and production sources must not load design.md.
 	text := skill.Text()
 	if strings.Contains(text, "design.md") {
 		t.Error("skill body must not tell agents to read design.md as a runtime dependency")

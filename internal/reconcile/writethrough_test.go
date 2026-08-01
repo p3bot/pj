@@ -7,8 +7,7 @@ import (
 	"time"
 )
 
-// SyncPaths must reflect a write pj just made regardless of mtime: it upserts a
-// present path unconditionally (no racy-index skip) and deletes an absent one.
+// SyncPaths must reflect a write pj just made regardless of mtime.
 func TestSyncPathsUpsertsAndDeletes(t *testing.T) {
 	r, db := newReconciler(t)
 	dir := mkScope(t, "wc")
@@ -18,9 +17,7 @@ func TestSyncPathsUpsertsAndDeletes(t *testing.T) {
 	now := time.Now().UnixNano()
 	reconcileOne(t, r, "wc", dir, now)
 
-	// A same-size status rewrite (todo -> done, both 4 chars) with the mtime pinned to
-	// the original reconcile stamp: a read-path reconcile would skip this, but SyncPaths
-	// must upsert it because pj knows it wrote it.
+	// Same-size status rewrite with mtime pinned: read-path reconcile would skip; SyncPaths must not.
 	writeFile(t, fp, projFile("wc-ab2c", "done", "a0", "# X\n"))
 	if err := os.Chtimes(fp, time.Unix(0, now), time.Unix(0, now)); err != nil {
 		t.Fatal(err)
@@ -33,7 +30,6 @@ func TestSyncPathsUpsertsAndDeletes(t *testing.T) {
 		t.Fatalf("SyncPaths must upsert the new state regardless of mtime, got %+v", rows)
 	}
 
-	// A removed path (the vanished side of a terminal-boundary move) is deleted.
 	if err := os.Remove(fp); err != nil {
 		t.Fatal(err)
 	}

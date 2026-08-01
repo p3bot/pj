@@ -16,7 +16,6 @@ import (
 	"github.com/start-cli/pj/internal/token"
 )
 
-// metaOp is the mutate operation for the shared write path.
 type metaOp int
 
 const (
@@ -38,7 +37,6 @@ func (op metaOp) String() string {
 	}
 }
 
-// metaKeyClass partitions frontmatter keys for meta get/set/add/rm.
 type metaKeyClass int
 
 const (
@@ -48,8 +46,6 @@ const (
 	metaKeyMulti
 )
 
-// builtinMetaKeyOrder is the closed built-in catalogue order for unknown-key
-// usage errors (document order matching frontmatter key constants).
 var builtinMetaKeyOrder = []string{
 	frontmatter.KeyID,
 	frontmatter.KeyStatus,
@@ -240,7 +236,7 @@ func runMetaGet(app *App, c *cobra.Command, idArg, key, scope string) error {
 		return unknownMetaKeyError(key, schema)
 	}
 
-	// Single-key get needs the typed model; parse failure is not "key absent".
+	// Single-key get: parse failure is not "key absent".
 	m, err := frontmatter.Parse(interior)
 	if err != nil {
 		msg := err.Error()
@@ -251,7 +247,7 @@ func runMetaGet(app *App, c *cobra.Command, idArg, key, scope string) error {
 			fmt.Sprintf("%s: %s — cannot decode frontmatter for key get", p.ID, msg)))
 	}
 	if p.ParseError {
-		// Row quarantined but Parse succeeded (race or index lag): still ride the token.
+		// Quarantined row but Parse succeeded (race/lag): still ride the token.
 		stderrln(c, token.Line(token.ParseError, fmt.Sprintf("%s: %s", p.ID, p.ParseMsg)))
 	}
 
@@ -348,7 +344,6 @@ func runMetaMutate(app *App, c *cobra.Command, op metaOp, idArg, key, valueArg, 
 		return err
 	}
 
-	// depends/related: normalise short → full in subject scope before checks/store.
 	if key == frontmatter.KeyDepends || key == frontmatter.KeyRelated {
 		value, err = normaliseEdgeValue(scope, value)
 		if err != nil {
@@ -388,9 +383,7 @@ func runMetaMutate(app *App, c *cobra.Command, op metaOp, idArg, key, valueArg, 
 	return nil
 }
 
-// loadMetaValue resolves a CLI value argument: "-" means read stdin (strip one
-// optional final line ending — CRLF, LF, or CR); otherwise the argv value is
-// used as-is.
+// loadMetaValue: "-" reads stdin and strips one optional final line ending.
 func loadMetaValue(c *cobra.Command, valueArg string) (string, error) {
 	if valueArg != "-" {
 		return valueArg, nil
@@ -409,9 +402,7 @@ func loadMetaValue(c *cobra.Command, valueArg string) (string, error) {
 	return s, nil
 }
 
-// normaliseEdgeValue turns a short or full project id into the on-disk full-id
-// form for depends/related. Short ids expand in the subject scope; full ids are
-// left unchanged. Malformed form is usage exit 2.
+// normaliseEdgeValue expands short ids in the subject scope; malformed → exit 2.
 func normaliseEdgeValue(subjectScope, value string) (string, error) {
 	form, ok := parseIDArg(value)
 	if !ok {
@@ -423,9 +414,7 @@ func normaliseEdgeValue(subjectScope, value string) (string, error) {
 	return value, nil
 }
 
-// checkDependsAdd enforces write-time depends integrity for meta add. Self and
-// same-scope dangling refuse with hard tokens; cross-scope needs a registered
-// target scope with a non-quarantined row after reconciling that scope alone.
+// checkDependsAdd: self/same-scope missing hard refuse; cross-scope needs a live row.
 func (e *engine) checkDependsAdd(subjectID, subjectScope, targetFull string) error {
 	if targetFull == subjectID {
 		return fmt.Errorf("%s", token.Line(token.DependsSelf,
@@ -468,8 +457,7 @@ func (e *engine) checkDependsAdd(subjectID, subjectScope, targetFull string) err
 	return nil
 }
 
-// nonQuarantinedExists reports whether scope has at least one non-parse_error row
-// for fullID (quarantined-only counts as absent for depends write checks).
+// nonQuarantinedExists: quarantine-only counts as absent for depends write checks.
 func (e *engine) nonQuarantinedExists(scope, fullID string) (bool, error) {
 	rows, err := e.db.ProjectsByID(scope, fullID)
 	if err != nil {
@@ -483,9 +471,6 @@ func (e *engine) nonQuarantinedExists(scope, fullID string) (bool, error) {
 	return false, nil
 }
 
-// classifyMetaKey maps a key name to its meta class against builtins and the
-// scope schema's custom fields. A declared custom that shadows a builtin is
-// impossible (scopeconfig rejects it); undeclared free-form keys are unknown.
 func classifyMetaKey(key string, schema *scopeconfig.Schema) (metaKeyClass, scopeconfig.Field, error) {
 	switch key {
 	case frontmatter.KeyID, frontmatter.KeyStatus, frontmatter.KeyOrder,
@@ -526,8 +511,6 @@ func immutableMetaKeyError(key string) error {
 	}
 }
 
-// metaKnownKeys is the catalogue for unknown-key usage errors: all closed
-// builtins in document order, then declared custom field names sorted ascending.
 func metaKnownKeys(schema *scopeconfig.Schema) []string {
 	out := append([]string(nil), builtinMetaKeyOrder...)
 	if schema == nil || len(schema.Fields) == 0 {
@@ -564,7 +547,6 @@ func metaGetValue(m *frontmatter.Model, key string, class metaKeyClass, field sc
 	case frontmatter.KeyStatusConflict:
 		return joinLines(m.StatusConflict), nil
 	}
-	// Custom field.
 	v, ok := customValue(m, key)
 	if !ok {
 		return "", nil
@@ -591,7 +573,6 @@ func applyMetaSet(m *frontmatter.Model, key, value string, field scopeconfig.Fie
 		m.Summary = value
 		return nil
 	}
-	// Custom scalar.
 	if value == "" {
 		removeCustom(m, key)
 		return nil
@@ -616,7 +597,6 @@ func applyMetaListOp(m *frontmatter.Model, op metaOp, key, value string, field s
 	case frontmatter.KeyLinks:
 		list = &m.Links
 	default:
-		// Custom strings.
 		cur, _ := customValue(m, key)
 		existing, err := anyStringList(cur)
 		if err != nil {
@@ -649,7 +629,7 @@ func mutateStringList(list []string, op metaOp, value string, field scopeconfig.
 		}
 		for _, e := range list {
 			if e == value {
-				return list, nil // idempotent
+				return list, nil
 			}
 		}
 		return append(list, value), nil
@@ -760,7 +740,6 @@ func formatScalar(v any) string {
 	case nil:
 		return ""
 	default:
-		// ints and other YAML scalars
 		return fmt.Sprint(x)
 	}
 }

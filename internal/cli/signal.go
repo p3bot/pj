@@ -8,14 +8,9 @@ import (
 	"syscall"
 )
 
-// caughtSignal records which signal, if any, cancelled the run so main can map
-// it to the POSIX 128+signum exit code. It is orthogonal to the error map: a
-// user interrupt is intent, not a failure the agent should retry.
+// caughtSignal: interrupt is intent (POSIX 128+signum), not a retryable failure.
 var caughtSignal atomic.Int32
 
-// signalContext returns a context cancelled on SIGINT/SIGTERM and a stop function
-// that tears down the handler. The caught signal is recorded for SignalExitCode.
-// This matters most later for verbs that block on the git subprocess.
 func signalContext() (context.Context, func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 	ch := make(chan os.Signal, 1)
@@ -31,7 +26,7 @@ func signalContext() (context.Context, func()) {
 			}
 			cancel()
 		case <-ctx.Done():
-			// stop() cancelled the run; exit rather than park on ch forever.
+			// stop() cancelled; exit rather than park on ch.
 		}
 	}()
 	return ctx, func() {
@@ -40,9 +35,7 @@ func signalContext() (context.Context, func()) {
 	}
 }
 
-// SignalExitCode returns 128+signum when the run was interrupted by SIGINT (130)
-// or SIGTERM (143), else 0. main consults it before the error path so a
-// cancelled run exits with the POSIX code rather than a generic failure.
+// SignalExitCode returns 128+signum when interrupted, else 0 (checked before error map).
 func SignalExitCode() int {
 	if s := caughtSignal.Load(); s != 0 {
 		return 128 + int(s)

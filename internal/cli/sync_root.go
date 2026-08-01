@@ -15,9 +15,7 @@ import (
 	"github.com/start-cli/pj/internal/token"
 )
 
-// rootOutcome is one git-root's result. Both synced and "nothing to do" exit 0; only a
-// root that ended needing a human or a retry is outcomeNeedsAttention, which makes the
-// whole run exit non-zero (an ambient sync's single root, or any root under --all).
+// rootOutcome: only NeedsAttention makes the run exit non-zero.
 type rootOutcome int
 
 const (
@@ -25,10 +23,6 @@ const (
 	outcomeNeedsAttention
 )
 
-// syncReport accumulates one root's outcome for the closing summary. Token lines
-// (non_allowlist, edge_verify, the handoffs) are emitted as they happen; this carries
-// the counts the summary names and the add/add collided ids whose inbound edges are
-// verified once the rebase settles.
 type syncReport struct {
 	label       string   // participating scope names, for human-facing lines
 	snapshotN   int      // allowlisted paths committed in the snapshot
@@ -38,22 +32,15 @@ type syncReport struct {
 	unpushed    int
 }
 
-// syncRoot runs one git-root through the five steps under its lock span. It is the unit
-// of work --all isolates: it reports its own outcome and never returns an error that
-// would strand a sibling root, so the caller continues past it.
+// syncRoot isolates one git-root so --all continues past a bad sibling.
 func (e *engine) syncRoot(c *cobra.Command, t syncTarget) rootOutcome {
 	ctx := c.Context()
 	rep := &syncReport{label: participantLabel(t.participants)}
 
-	// Preflight before the lock span (requirement 2): refuse the whole root under a
-	// violated or unverifiable shared-repo invariant rather than pushing under it.
 	if !e.syncPreflight(c, t.root) {
 		return outcomeNeedsAttention
 	}
 
-	// Lock span (requirement 8): every participating scope's .pj.lock in sorted name
-	// order, then the git-root sync.lock, held across snapshot, integrate, repair, and
-	// push, and released on every exit path below.
 	release, err := e.acquireSyncLocks(t)
 	if err != nil {
 		stderrln(c, fmt.Sprintf("%s: could not acquire sync locks: %v", rep.label, err))
@@ -61,34 +48,18 @@ func (e *engine) syncRoot(c *cobra.Command, t syncTarget) rootOutcome {
 	}
 	defer release()
 
-	// The add/add edge_verify sweep is drained on every exit from here, not only the two
-	// that used to reach it (step 3 and the paused report). Five exits can carry a recorded
-	// collision — a failed integrity step, a failed post-resume snapshot, an integrate that
-	// errored at a later stop, a failed push, and a push that succeeded only after the race
-	// retry re-integrated and repaired one more. The token is operation-time only and is
-	// never persisted, and the next sync finds no duplicate to re-report because this run
-	// repaired it, so an exit that skips the sweep loses the signal for good. Deferring it
-	// against the report's own lifetime is what makes that unforgettable rather than a rule
-	// each new exit path has to remember. Registered after release so it runs before the
-	// locks drop (defers are LIFO), keeping the index read inside the span.
 	defer func() {
 		if err := e.drainEdgeVerify(c, rep); err != nil {
 			stderrln(c, fmt.Sprintf("%s: edge_verify query failed: %v", rep.label, err))
 		}
 	}()
 
-	// Mid-rebase entry (requirement 7): a paused rebase is an entry condition of the
-	// whole command, not a case inside step 2. Skip the snapshot entirely — a snapshot
-	// commit on the rebase's temporary HEAD is the exact write the freeze prevents — and
-	// resume the paused rebase. The upstream precondition is not checked here: a paused
-	// rebase detaches HEAD, so @{u} does not resolve mid-rebase; it resolves again once the
-	// rebase completes, before the push.
 	var res integrateResult
 	snapshotted := false
+	// Mid-rebase entry: skip snapshot (no commit on temporary HEAD), resume, then fall through.
 	if git.MidRebase(ctx, t.root) {
 		res = e.resumeRebase(c, t, rep)
 	} else {
-		// The repo exists (a git-root derived) but sync still needs an upstream to push to.
 		if !git.HasUpstream(ctx, t.root) {
 			stderrln(c, token.Line(token.SyncDisabled,
 				fmt.Sprintf("%s: git-root %s has no upstream — add a remote, then pj sync", rep.label, t.root)))
@@ -104,10 +75,6 @@ func (e *engine) syncRoot(c *cobra.Command, t syncTarget) rootOutcome {
 
 	switch res {
 	case integrateCompleted:
-		// A resume that completed the rebase falls through into step 1 (requirement 7): the
-		// same invocation snapshots the leftover dirt the mid-rebase entry skipped, so it too
-		// runs the integrity step and pushes. The fresh path already snapshotted before the
-		// integrate, so it does not repeat it here.
 		if !snapshotted {
 			if err := e.snapshot(c, t, rep); err != nil {
 				stderrln(c, fmt.Sprintf("%s: snapshot failed: %v", rep.label, err))
@@ -123,19 +90,11 @@ func (e *engine) syncRoot(c *cobra.Command, t syncTarget) rootOutcome {
 	}
 }
 
-// finishSynced runs step 3 (integrity), the deferred add/add edge_verify sweep, step 4
-// (push with the fetch→push race loop), and step 5 (report) once the rebase completed.
 func (e *engine) finishSynced(c *cobra.Command, t syncTarget, rep *syncReport) rootOutcome {
 	if err := e.syncIntegrity(c, t); err != nil {
 		stderrln(c, fmt.Sprintf("%s: integrity step failed: %v", rep.label, err))
 		return outcomeNeedsAttention
 	}
-	// The rebase completed and the integrity step reconciled: the merged rows are live, so
-	// the add/add inbound-edge check runs here, in step 3, as requirement 4 places it —
-	// before the push, not after the closing report. syncRoot's deferred drain is only the
-	// backstop for ids discovered after this point; draining here is what keeps the ordinary
-	// case in its documented step. A query failure is a fault worth stopping on while the
-	// push is still ahead of us.
 	if err := e.drainEdgeVerify(c, rep); err != nil {
 		stderrln(c, fmt.Sprintf("%s: edge_verify query failed: %v", rep.label, err))
 		return outcomeNeedsAttention
@@ -151,12 +110,7 @@ func (e *engine) finishSynced(c *cobra.Command, t syncTarget, rep *syncReport) r
 	return outcomeSynced
 }
 
-// syncPreflight refuses the whole git-root when a scope sharing it violates a shared-repo
-// invariant sync cannot push under: an unparseable sibling pj.cue (autoCommit
-// unverifiable), a name-drifted sibling (its files ride the push under an unverifiable
-// name), or divergent autoCommit values. It returns true when the root is clear. An
-// unreachable sibling is invisible here — a git-root cannot be derived from a dir pj
-// cannot stat, so it can never be shown to share this root (requirement 2).
+// syncPreflight refuses the whole root on unparseable/drifted/mismatched siblings.
 func (e *engine) syncPreflight(c *cobra.Command, root string) bool {
 	refuse := false
 	seenTrue, seenFalse := false, false
@@ -190,8 +144,6 @@ func (e *engine) syncPreflight(c *cobra.Command, root string) bool {
 	return !refuse
 }
 
-// siblingScopeNames is every registered scope whose dir derives root, sorted. An
-// unreachable dir derives no root and is excluded, matching the preflight's premise.
 func (e *engine) siblingScopeNames(root string) []string {
 	var out []string
 	for name, entry := range e.reg.Scopes {
@@ -203,11 +155,7 @@ func (e *engine) siblingScopeNames(root string) []string {
 	return out
 }
 
-// acquireSyncLocks takes every participating scope's .pj.lock in sorted name order, then
-// the git-root sync.lock, and returns a release closure that drops them in reverse. The
-// order is fixed: the write verbs take the scope lock first and the git-root lock inside
-// it, so taking the git-root lock first here would deadlock sync against a concurrent
-// pj mark. The participants are already sorted by name.
+// acquireSyncLocks: scope locks first (name order), then git-root — reverse would deadlock write verbs.
 func (e *engine) acquireSyncLocks(t syncTarget) (func(), error) {
 	var locks []*flock.Lock
 	release := func() {
@@ -232,11 +180,7 @@ func (e *engine) acquireSyncLocks(t syncTarget) (func(), error) {
 	return release, nil
 }
 
-// drainEdgeVerify reports the inbound-edge check for every add/add collided id recorded so
-// far and clears the list, so each id is emitted exactly once however the root exits. The
-// report-and-clear is one step on purpose: it is what lets syncRoot defer this as a
-// backstop over every exit path while the step-3 call keeps the ordinary case in its
-// documented place — whichever runs first emits, and the other is a silent no-op.
+// drainEdgeVerify: report-and-clear so deferred backstop and step-3 are mutually no-op.
 func (e *engine) drainEdgeVerify(c *cobra.Command, rep *syncReport) error {
 	if len(rep.collidedIDs) == 0 {
 		return nil
@@ -246,30 +190,16 @@ func (e *engine) drainEdgeVerify(c *cobra.Command, rep *syncReport) error {
 	return e.reportEdgeVerify(c, ids)
 }
 
-// reportPaused surfaces the unresolved stop that left the rebase paused. The handoff detail
-// line was already printed where the stop was classified; this closes with the resume
-// instruction. The add/add edge_verify sweep is not run here — syncRoot's deferred drain
-// covers this exit along with every other, off whatever rows are available before exiting
-// (requirement 4).
 func (e *engine) reportPaused(c *cobra.Command, rep *syncReport) {
 	stderrln(c, fmt.Sprintf("%s: rebase paused for a human — resolve the file(s) above in place, then run pj sync again", rep.label))
 }
 
-// reportSuccess prints the closing summary line for a synced root: what the snapshot
-// committed, the push state, and what residue was left (requirement 5). Per-event
-// detail — the integrity step's repairs, the add/add renames, the conflict handoffs —
-// is emitted inline as it happens during the run, not restated here.
 func (e *engine) reportSuccess(c *cobra.Command, rep *syncReport) {
 	var parts []string
 	if rep.snapshotN > 0 {
 		parts = append(parts, fmt.Sprintf("snapshot %d path(s)", rep.snapshotN))
 	}
-	// The unpushed count is tested before the pushed flag, not after. Both OK exits from the
-	// push step leave the count at zero — nothing was ahead, or the push landed — so a
-	// non-zero count here means the ref did not advance the way a successful push implied.
-	// Testing pushed first would render that as a flat "pushed" and throw away the one
-	// reading the re-count exists to produce. This is requirement 6's unpushed count in the
-	// report: zero is spelled as "pushed" or "up to date", and anything else is named.
+	// Test unpushed before pushed so a non-zero re-count is not flattened to "pushed".
 	switch {
 	case rep.unpushed > 0:
 		parts = append(parts, fmt.Sprintf("%d commit(s) still unpushed", rep.unpushed))
@@ -284,8 +214,6 @@ func (e *engine) reportSuccess(c *cobra.Command, rep *syncReport) {
 	stderrln(c, fmt.Sprintf("pj sync %s: %s", rep.label, strings.Join(parts, ", ")))
 }
 
-// participantLabel joins the participating scope names for the human-facing report
-// lines — the scopes whose files this one push carries.
 func participantLabel(parts []participant) string {
 	names := make([]string, len(parts))
 	for i, p := range parts {

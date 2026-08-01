@@ -1,13 +1,10 @@
-// Package order implements the order wire format: an integer-plus-fraction rank
-// key (fractional indexing) whose byte-wise string comparison equals rank
-// order. It ships generation (KeyBetween) and validation (Valid) only; re-space
-// and doctor repair live elsewhere.
+// Package order implements fractional-index rank keys whose byte-wise string
+// comparison equals rank order. Generation (KeyBetween) and validation (Valid) only.
 //
-// The algorithm is a faithful port of the Rocicorp / Figma fractional-indexing
-// construction (https://github.com/rocicorp/fractional-indexing), specialised
-// to this design's fixed alphabets so it emits the exact on-disk format. The
-// format is a frozen wire contract: the alphabet, head rule, and sort meaning
-// must not change without a versioned migration of every stored key.
+// Faithful port of the Rocicorp / Figma construction
+// (https://github.com/rocicorp/fractional-indexing), specialised to fixed alphabets.
+// The format is a frozen wire contract; alphabet, head rule, and sort meaning must
+// not change without a versioned migration of every stored key.
 package order
 
 import (
@@ -16,37 +13,26 @@ import (
 	"strings"
 )
 
-// digitsAlphabet is the 62-character base for digit values (ascending =
-// rank order = ASCII byte order).
+// digitsAlphabet is the 62-character base (ascending = rank order = ASCII byte order).
 const digitsAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
-// intDigitsAlphabet is the head alphabet (A-Z then a-z, i.e. digitsAlphabet
-// without its ten numeric digits): its first half are the negative-length heads
-// and its second half the positive-length heads.
+// intDigitsAlphabet is the head alphabet (A–Z then a–z): first half negative-length heads, second half positive.
 const intDigitsAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
-// IntegerZero is the order key for an empty board — the result of
-// KeyBetween("", "") and the value pj create writes to the first project.
+// IntegerZero is the order key for an empty board — KeyBetween("", "") / first project.
 const IntegerZero = "a0"
 
-// SmallestInteger is the least legal integer part: the most-negative head
-// followed by all-zero digits. It cannot be decremented further.
+// SmallestInteger is the least legal integer part; it cannot be decremented further.
 var SmallestInteger = string(intDigitsAlphabet[0]) + strings.Repeat(string(digitsAlphabet[0]), len(intDigitsAlphabet)/2)
 
-// Sentinel errors returned by KeyBetween. Callers match these to distinguish a
-// caller mistake (invalid bound, equal keys) from true rank-space exhaustion.
 var (
 	// ErrInvalidKey is returned when a non-empty bound fails the grammar.
 	ErrInvalidKey = errors.New("order: invalid key")
-	// ErrEqualKeys is returned when both bounds are the same key; equal keys
-	// have no strict between and must be resolved by re-space, not invention.
+	// ErrEqualKeys is returned when both bounds are the same; equal keys need re-space, not invention.
 	ErrEqualKeys = errors.New("order: equal keys have no key between them")
-	// ErrUnorderedBounds is returned when left sorts after right. The contract
-	// is left < right; a reversed pair is a caller-ordering bug, surfaced rather
-	// than silently swapped.
+	// ErrUnorderedBounds is returned when left sorts after right; reversed pairs are not silently swapped.
 	ErrUnorderedBounds = errors.New("order: left bound must sort before right bound")
-	// ErrExhausted is returned at true floor/ceiling exhaustion of the integer
-	// space — a theoretical limit, never reached in normal use.
+	// ErrExhausted is returned at true floor/ceiling exhaustion of the integer space.
 	ErrExhausted = errors.New("order: rank space exhausted")
 )
 
@@ -68,11 +54,8 @@ func init() {
 	}
 }
 
-// Valid reports whether key satisfies the closed order grammar: non-empty;
-// every character in the base-62 alphabet; a valid head (A-Z or a-z) whose
-// length marker does not exceed the key length; and a fractional part that does
-// not end in the minimum digit '0'. SmallestInteger satisfies the grammar
-// (it is a legal stored key); KeyBetween separately refuses it as a bound.
+// Valid reports whether key satisfies the closed order grammar.
+// SmallestInteger is a legal stored key; KeyBetween separately refuses it as a bound.
 func Valid(key string) bool {
 	if key == "" {
 		return false
@@ -94,12 +77,7 @@ func Valid(key string) bool {
 }
 
 // KeyBetween returns an order key that sorts strictly between left and right.
-// An empty string denotes an open bound: KeyBetween("", "") is the first key
-// (IntegerZero), KeyBetween(left, "") appends after left, and
-// KeyBetween("", right) prepends before right. Non-empty bounds must be valid
-// keys and must satisfy left < right. Equal keys return ErrEqualKeys, a
-// reversed pair returns ErrUnorderedBounds, and true rank-space exhaustion
-// returns ErrExhausted.
+// Empty string is an open bound. Equal keys → ErrEqualKeys; reversed → ErrUnorderedBounds.
 func KeyBetween(left, right string) (string, error) {
 	a, b := left, right
 	if a != "" {
@@ -168,9 +146,8 @@ func KeyBetween(left, right string) (string, error) {
 	}
 }
 
-// validateBound accepts a key usable as a KeyBetween bound. It is stricter than
-// Valid: SmallestInteger passes the grammar but cannot serve as a bound (there
-// is nothing strictly before it), so it is reported as exhaustion.
+// validateBound is stricter than Valid: SmallestInteger cannot serve as a bound
+// (nothing strictly before it), so it is reported as exhaustion.
 func validateBound(key string) error {
 	if !Valid(key) {
 		return ErrInvalidKey
@@ -181,8 +158,6 @@ func validateBound(key string) error {
 	return nil
 }
 
-// integerLength returns the length of the integer part (head plus its digits)
-// for the given head, or ok=false if head is not a legal head character.
 func integerLength(head byte) (int, bool) {
 	i := intDigitIndex[head]
 	if i < 0 {
@@ -195,17 +170,12 @@ func integerLength(head byte) (int, bool) {
 	return i - half + 2, true
 }
 
-// integerPart returns the leading integer part of a key already known to be
-// valid.
 func integerPart(key string) string {
 	intLen, _ := integerLength(key[0])
 	return key[:intLen]
 }
 
-// midpoint returns a fractional string strictly between a and b (with b empty
-// meaning an open upper bound). Preconditions — a < b when b is non-empty, and
-// neither ends in '0' — are guaranteed by KeyBetween and preserved across the
-// recursion.
+// midpoint returns a fractional string strictly between a and b (b empty = open upper bound).
 func midpoint(a, b string) string {
 	zero := digitsAlphabet[0]
 	if b != "" {
@@ -246,8 +216,8 @@ func midpoint(a, b string) string {
 	return string(digitsAlphabet[digitA]) + midpoint(sliceFrom(a, 1), "")
 }
 
-// incrementInteger returns the next integer part after x, widening the head on
-// overflow. ok is false only when x is already the maximum positive integer.
+// incrementInteger returns the next integer part after x, widening the head on overflow.
+// ok is false only when x is already the maximum positive integer.
 func incrementInteger(x string) (string, bool) {
 	head := x[0]
 	zero := digitsAlphabet[0]
@@ -267,8 +237,8 @@ func incrementInteger(x string) (string, bool) {
 	return widenHead(intDigitsAlphabet[headIdx+1], head, trailing, zero), true
 }
 
-// decrementInteger returns the previous integer part before x, widening the
-// head on underflow. ok is false only when x is already SmallestInteger.
+// decrementInteger returns the previous integer part before x, widening the head on underflow.
+// ok is false only when x is already SmallestInteger.
 func decrementInteger(x string) (string, bool) {
 	head := x[0]
 	last := digitsAlphabet[len(digitsAlphabet)-1]
@@ -290,7 +260,6 @@ func decrementInteger(x string) (string, bool) {
 
 // widenHead assembles a carried/borrowed integer part under a new head,
 // growing or shrinking the digit run to match the new head's integer length.
-// pad is '0' on increment overflow and the max digit on decrement underflow.
 func widenHead(newHead, oldHead byte, trailing string, pad byte) string {
 	newLen, _ := integerLength(newHead)
 	oldLen, _ := integerLength(oldHead)

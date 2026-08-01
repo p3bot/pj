@@ -1,12 +1,5 @@
-// Package flock is a thin POSIX advisory-lock helper shared by pj's machine-local
-// serialisation points: the per-scope dir lock (<dir>/.pj.lock) that serialises a
-// scope's reconcile→write span, and the per-git-root commit lock
-// (git-roots/<key>/sync.lock) that serialises two scopes sharing one repo through
-// their self-commit. Both are exclusive, blocking, and machine-local — they do not
-// coordinate cross-clone or networked-filesystem writers.
-//
-// The lock is Unix-only by construction (syscall.Flock); pj supports macOS and
-// Linux only, so no build tag or portable fallback is provided.
+// Package flock provides exclusive, blocking POSIX advisory locks via syscall.Flock.
+// Unix-only (macOS/Linux); no cross-clone or networked-filesystem coordination.
 package flock
 
 import (
@@ -15,15 +8,13 @@ import (
 	"syscall"
 )
 
-// Lock is a held exclusive flock over a single lock file, released exactly once.
+// Lock is a held exclusive flock, released exactly once.
 type Lock struct {
 	f *os.File
 }
 
-// Acquire opens (creating if absent) the lock file at path and takes the exclusive
-// flock, blocking until it is available. The caller holds it across the span it
-// must serialise and releases it with Release. The parent directory must already
-// exist; callers that own a state directory create it before acquiring.
+// Acquire opens path (creating if needed) and takes an exclusive flock, blocking until available.
+// The parent directory must already exist.
 func Acquire(path string) (*Lock, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
@@ -36,8 +27,7 @@ func Acquire(path string) (*Lock, error) {
 	return &Lock{f: f}, nil
 }
 
-// Release drops the flock and closes the descriptor. It is safe on a nil or
-// already-released lock.
+// Release drops the flock and closes the descriptor. Safe on a nil or already-released lock.
 func (l *Lock) Release() error {
 	if l == nil || l.f == nil {
 		return nil

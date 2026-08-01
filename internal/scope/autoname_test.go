@@ -37,12 +37,12 @@ func TestAutoNameDerives(t *testing.T) {
 
 func TestAutoNameHardErrors(t *testing.T) {
 	fail := []string{
-		"ill",  // seed "il" -> both dropped -> empty
-		"101",  // seed "10" -> '1'/'0' not in alphabet -> empty
-		"",     // empty basename -> empty seed
-		"illo", // opaque -> "il" -> dropped
-		"oil",  // opaque -> "oi" -> dropped
-		"...",  // only separators -> no tokens
+		"ill", // seed drops to empty
+		"101", // seed drops to empty
+		"",
+		"illo",
+		"oil",
+		"...",
 	}
 	for _, s := range fail {
 		if got, err := AutoName(s); !errors.Is(err, ErrCannotDerive) {
@@ -52,7 +52,6 @@ func TestAutoNameHardErrors(t *testing.T) {
 }
 
 func TestAutoNameLeadingDigitDropped(t *testing.T) {
-	// Initials "3m" (3d-model): the leading digit is stripped so a letter leads.
 	got, err := AutoName("3d-model")
 	if err != nil {
 		t.Fatalf("AutoName(3d-model) err: %v", err)
@@ -63,7 +62,6 @@ func TestAutoNameLeadingDigitDropped(t *testing.T) {
 }
 
 func TestAutoNameCap(t *testing.T) {
-	// Fifteen single-letter tokens -> 15-char seed, capped to 12.
 	got, err := AutoName("a-b-c-d-e-f-g-h-j-k-m-n-p-q-r")
 	if err != nil {
 		t.Fatalf("AutoName cap err: %v", err)

@@ -1,10 +1,8 @@
-// Package xdg resolves pj's machine-local XDG config location and provides the
-// machine-global flock that serialises every write to the XDG config tier.
+// Package xdg resolves pj's machine-local XDG config/state dirs and the
+// machine-global flock over the config tier.
 //
-// The config directory is resolved through the XDG environment variable
-// directly (${XDG_CONFIG_HOME:-~/.config}/pj) rather than os.UserConfigDir,
-// which returns the wrong location on macOS. All I/O here is deliberately thin:
-// callers own the CUE read/modify/write cycle and hold the lock across it.
+// Config uses ${XDG_CONFIG_HOME:-~/.config}/pj directly rather than
+// os.UserConfigDir, which returns the wrong location on macOS.
 package xdg
 
 import (
@@ -14,14 +12,9 @@ import (
 	"syscall"
 )
 
-// lockName is the machine-global flock file under the config directory. It is
-// gitignored by pj scope init at the scope tier; here it lives beside the
-// registry it guards.
 const lockName = ".pj.lock"
 
-// ConfigDir returns the pj XDG config directory: $XDG_CONFIG_HOME/pj when
-// XDG_CONFIG_HOME is set and non-empty, else ~/.config/pj. The path is not
-// created; callers that write create it under the lock.
+// ConfigDir returns $XDG_CONFIG_HOME/pj or ~/.config/pj. Path is not created.
 func ConfigDir() (string, error) {
 	if base := os.Getenv("XDG_CONFIG_HOME"); base != "" {
 		return filepath.Join(base, "pj"), nil
@@ -33,10 +26,7 @@ func ConfigDir() (string, error) {
 	return filepath.Join(home, ".config", "pj"), nil
 }
 
-// StateDir returns the pj XDG state directory: $XDG_STATE_HOME/pj when
-// XDG_STATE_HOME is set and non-empty, else ~/.local/state/pj. It holds the
-// machine-local SQLite index, which is derived and never synced — state, not
-// config. The path is not created; the index opener creates it on demand.
+// StateDir returns $XDG_STATE_HOME/pj or ~/.local/state/pj (SQLite index; not synced).
 func StateDir() (string, error) {
 	if base := os.Getenv("XDG_STATE_HOME"); base != "" {
 		return filepath.Join(base, "pj"), nil
@@ -48,18 +38,14 @@ func StateDir() (string, error) {
 	return filepath.Join(home, ".local", "state", "pj"), nil
 }
 
-// Lock is a held machine-global flock over the XDG config tier. It is released
-// exactly once via Release.
+// Lock is a held machine-global flock over the XDG config tier.
 type Lock struct {
 	f *os.File
 }
 
-// AcquireConfigLock takes the exclusive machine-global flock at
-// <configDir>/.pj.lock, creating the config directory if needed. The lock spans
-// the whole read-modify-write cycle of a registry mutation — the caller loads,
-// validates against that just-loaded state, regenerates, and renames before
-// Release — so two concurrent registrations cannot both pass a check the other's
-// write then invalidates. It blocks until the lock is available.
+// AcquireConfigLock takes the exclusive flock at <configDir>/.pj.lock, creating
+// the directory if needed. Hold across the full registry read-modify-write so two
+// concurrent registrations cannot both pass a check the other's write then invalidates.
 func AcquireConfigLock(configDir string) (*Lock, error) {
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create XDG config directory %s: %w", configDir, err)

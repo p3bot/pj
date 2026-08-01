@@ -21,7 +21,6 @@ func newReconciler(t *testing.T) (*Reconciler, *index.DB) {
 	return New(db, cuecontext.New()), db
 }
 
-// mkScope creates a scope dir with a minimal pj.cue and returns its path.
 func mkScope(t *testing.T, name string) string {
 	t.Helper()
 	dir := filepath.Join(t.TempDir(), name)
@@ -68,7 +67,6 @@ func TestReconcileIndexesAndReflectsEdit(t *testing.T) {
 		t.Fatalf("initial row = %+v", rows)
 	}
 
-	// Edit the file (status -> done) with a later mtime, reconcile at a later now.
 	writeFile(t, fp, projFile("wc-ab2c", "done", "a0", "# Network redesign\n\ndone"))
 	future := time.Now().Add(time.Hour)
 	_ = os.Chtimes(fp, future, future)
@@ -81,8 +79,6 @@ func TestReconcileIndexesAndReflectsEdit(t *testing.T) {
 }
 
 func TestReconcileNamesScopeIndependently(t *testing.T) {
-	// A scope named other than "wc" indexes under its own name, so a later verb
-	// namespaces its rows correctly.
 	r, db := newReconciler(t)
 	dir := mkScope(t, "ui")
 	writeFile(t, filepath.Join(dir, "ui-ab2c-x.md"), projFile("ui-ab2c", "todo", "a0", "# X"))
@@ -93,10 +89,7 @@ func TestReconcileNamesScopeIndependently(t *testing.T) {
 }
 
 func TestForeignScopeFrontmatterIDNotAdopted(t *testing.T) {
-	// A file under scope "wc" whose frontmatter claims another scope's id must not
-	// adopt that id: doing so would leave the row's scope ("wc") and id-prefix ("sb")
-	// disagreeing and make the project unresolvable by get/meta. The filename-derived
-	// id is kept instead so the project stays reachable.
+	// Foreign-scope FM id must not be adopted (would leave scope vs id-prefix disagreeing).
 	r, db := newReconciler(t)
 	dir := mkScope(t, "wc")
 	fp := filepath.Join(dir, "wc-ab2c-note.md")
@@ -116,8 +109,7 @@ func TestForeignScopeFrontmatterIDNotAdopted(t *testing.T) {
 }
 
 func TestSameScopeFrontmatterIDIsAuthoritative(t *testing.T) {
-	// Same-scope id/filename drift is legitimate: the frontmatter id is authoritative,
-	// so a file named wc-ab2c-*.md carrying id wc-cd34 indexes as wc-cd34.
+	// Same-scope id/filename drift: frontmatter id wins.
 	r, db := newReconciler(t)
 	dir := mkScope(t, "wc")
 	writeFile(t, filepath.Join(dir, "wc-ab2c-note.md"), projFile("wc-cd34", "todo", "a0", "# Note"))
@@ -162,7 +154,6 @@ func TestUnreachableScopeKeepsRows(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "wc-ab2c-x.md"), projFile("wc-ab2c", "todo", "a0", "# X"))
 	reconcileOne(t, r, "wc", dir, time.Now().UnixNano())
 
-	// Remove the dir: it becomes unreachable. Rows must survive.
 	if err := os.RemoveAll(dir); err != nil {
 		t.Fatal(err)
 	}
@@ -176,8 +167,7 @@ func TestUnreachableScopeKeepsRows(t *testing.T) {
 	if !hasToken(res.Warnings, "unreachable_scope:") {
 		t.Errorf("expected unreachable_scope warning, got %v", res.Warnings)
 	}
-	// An unreachable dir rides unreachable_scope only — never config_unparseable for
-	// a pj.cue that is unreadable solely because the dir is gone.
+	// Unreachable rides unreachable_scope only — never also config_unparseable.
 	if hasToken(res.Warnings, "config_unparseable:") {
 		t.Errorf("unreachable scope must not also ride config_unparseable, got %v", res.Warnings)
 	}
@@ -192,7 +182,6 @@ func TestForgottenScopePruned(t *testing.T) {
 		t.Fatalf("precondition: wc should have a row")
 	}
 
-	// Reconcile a different scope with wc no longer registered → wc pruned.
 	other := mkScope(t, "ui")
 	if _, err := r.Reconcile(map[string]string{"ui": other}, map[string]bool{"ui": true}, time.Now().UnixNano()); err != nil {
 		t.Fatal(err)
@@ -204,8 +193,7 @@ func TestForgottenScopePruned(t *testing.T) {
 
 func TestConfigCacheHitAndInvalidation(t *testing.T) {
 	r, db := newReconciler(t)
-	// A packaged scope whose knownTags live in a sibling schema.cue — a real import
-	// closure with more than the entry file.
+	// Packaged scope with a sibling schema.cue — multi-file import closure.
 	dir := filepath.Join(t.TempDir(), "wc")
 	writeFile(t, filepath.Join(dir, "pj.cue"), "package wccfg\nname: \"wc\"\nautoCommit: false\nknownTags: tags\n")
 	writeFile(t, filepath.Join(dir, "schema.cue"), "package wccfg\ntags: [\"frontend\"]\n")
@@ -215,9 +203,7 @@ func TestConfigCacheHitAndInvalidation(t *testing.T) {
 		t.Fatalf("cold eval = %+v err=%v", schema, cfgErr)
 	}
 
-	// Prove the cache is used: overwrite the cached schema with a sentinel while
-	// leaving the closure stats untouched, and confirm schemaFor returns it without
-	// re-evaluating CUE.
+	// Sentinel schema with untouched closure stats proves cache hit without re-eval.
 	entry, _, _ := db.ConfigCacheGet("wc")
 	entry.SchemaJSON = `{"Name":"wc","KnownTags":["CACHED"]}`
 	if err := db.ConfigCacheSet("wc", entry); err != nil {
@@ -228,7 +214,6 @@ func TestConfigCacheHitAndInvalidation(t *testing.T) {
 		t.Fatalf("expected cache hit to serve the sentinel, got %+v", cached)
 	}
 
-	// Editing the imported schema.cue invalidates the closure → re-evaluate.
 	writeFile(t, filepath.Join(dir, "schema.cue"), "package wccfg\ntags: [\"backend\"]\n")
 	future := time.Now().Add(time.Hour)
 	_ = os.Chtimes(filepath.Join(dir, "schema.cue"), future, future)

@@ -9,9 +9,7 @@ import (
 	"github.com/start-cli/pj/internal/resolve"
 )
 
-// doctorFlags carries the four closed doctor flags. Bare doctor (all false)
-// diagnoses without mutating; --repair / --re-space-order are the explicit,
-// scope-gated file mutations; --reindex rebuilds the derived index from files.
+// doctorFlags: bare doctor diagnoses only; --repair / --re-space-order mutate; --reindex rebuilds.
 type doctorFlags struct {
 	reindex      bool
 	repair       bool
@@ -57,19 +55,14 @@ func runDoctor(app *App, c *cobra.Command, f doctorFlags) error {
 		return err
 	}
 
-	// The repairs run first and reconcile each scope themselves, under its flock, so the
-	// rows a repair chooses from cannot change between that read and its writes.
+	// Repairs first under flock so chosen rows cannot change between read and write.
 	if f.mutating() {
 		if err := e.runRepairs(c, mutateScopes, f); err != nil {
 			return err
 		}
 	}
 
-	// The full rebuild runs after the scoped file work, so the final index is a clean
-	// post-repair derivation rather than a pre-repair one patched by each repair's
-	// write-through. Rebuild only drops and recreates the tables — the reconcile
-	// below is what repopulates them from files, so the two must move together,
-	// which is why a rebuild widens the reconcile to every scope.
+	// Rebuild then machine-wide reconcile: Rebuild only drops tables; reconcile repopulates.
 	targets := e.targetsFor(reportScopes)
 	if f.reindex {
 		if err := e.db.Rebuild(); err != nil {
@@ -78,9 +71,7 @@ func runDoctor(app *App, c *cobra.Command, f doctorFlags) error {
 		targets = e.allTargets()
 	}
 
-	// This reconcile carries the report's schemas, unreachable flags, and config errors,
-	// and runs after the repairs so the report describes the post-repair state. Doctor
-	// prints its own full report, so the ride-along warnings are deliberately not echoed.
+	// Post-repair reconcile feeds the report; doctor prints its own report, so no ride-along echo.
 	res, err := e.reconcileResult(targets)
 	if err != nil {
 		return err
@@ -99,12 +90,7 @@ func runDoctor(app *App, c *cobra.Command, f doctorFlags) error {
 	return nil
 }
 
-// doctorScopes applies the closed doctor scope-selection rules. The report set is the
-// ambient scope alone when one resolves (PJ_SCOPE or cwd code-root — doctor has no
-// --scope flag), else every registered scope. The mutate set (only when a mutating
-// flag is present) is every registered scope under --all, else the ambient scope,
-// else a usage error naming all three ways to select — never a silent machine-wide
-// rewrite. --all wins over ambient for mutation.
+// doctorScopes: report is ambient or all; mutate needs ambient/--all (never silent machine-wide).
 func (e *engine) doctorScopes(mutating, all bool) (report, mutate []string, err error) {
 	name, ok, err := e.ambientForDoctor()
 	if err != nil {
@@ -132,11 +118,6 @@ func (e *engine) doctorScopes(mutating, all bool) (report, mutate []string, err 
 	return report, mutate, nil
 }
 
-// ambientForDoctor resolves the ambient scope for doctor, drift-tolerant: doctor is a
-// diagnosis command allowed under name drift, so a drifted scope resolves by its
-// registry key (and is reported as name_drift by the diagnosis) rather than
-// fail-closing. No ambient (ErrNoScope) is ok=false — the report then covers every
-// scope. A PJ_SCOPE naming an unregistered scope is a real error.
 func (e *engine) ambientForDoctor() (name string, ok bool, err error) {
 	opts, err := ambientOptions("")
 	if err != nil {
@@ -156,8 +137,6 @@ func (e *engine) ambientForDoctor() (name string, ok bool, err error) {
 	return "", false, err
 }
 
-// sortedRegistered is every registered scope name, sorted for a stable report and
-// deterministic machine-wide mutation order.
 func (e *engine) sortedRegistered() []string {
 	names := make([]string, 0, len(e.reg.Scopes))
 	for name := range e.reg.Scopes {
@@ -167,8 +146,6 @@ func (e *engine) sortedRegistered() []string {
 	return names
 }
 
-// targetsFor builds the name -> dir reconcile map for a scope-name set, skipping any
-// name no longer registered.
 func (e *engine) targetsFor(scopes []string) map[string]string {
 	out := make(map[string]string, len(scopes))
 	for _, s := range scopes {

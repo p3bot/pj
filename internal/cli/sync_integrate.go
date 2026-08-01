@@ -18,8 +18,6 @@ import (
 	"github.com/start-cli/pj/internal/token"
 )
 
-// integrateResult is the outcome of driving a rebase: it completed, it paused for a
-// human at a stop pj could not resolve, or an operational fault aborted the integrate.
 type integrateResult int
 
 const (
@@ -28,37 +26,21 @@ const (
 	integrateError
 )
 
-// conflictMarkers are the git merge-conflict marker line prefixes.
 var conflictMarkers = [][]byte{[]byte("<<<<<<<"), []byte("======="), []byte(">>>>>>>")}
 
-// conflictKind is what pj can do with a path a rebase stop left unmerged. It is one value
-// rather than a set of flags because the four cases are mutually exclusive and two of them
-// differ in exactly the way flags invite you to conflate: pj.cue and .gitignore are both
-// allowlisted files sync commits, and both are staged from a human's resolution at a
-// resume — but only pj.cue types frontmatter, so only pj.cue may gate a field-merge.
+// conflictKind: mutually exclusive; only kindSchema gates field-merge.
 type conflictKind int
 
 const (
-	// kindOther is a path pj can neither own nor classify: outside every participating
-	// scope dir, or inside one but off the closed allowlist. pj never touches it.
 	kindOther conflictKind = iota
-	// kindSchema is a scope's pj.cue. A real text conflict here leaves the scope's schema
-	// untrustworthy, so every project .md under it fails closed until a human resolves it.
 	kindSchema
-	// kindIgnore is a scope's .gitignore: allowlisted and resolved like pj.cue, but it
-	// types nothing, so a conflict in it gates no field-merge and is not a schema failure.
 	kindIgnore
-	// kindProject is a project .md the rebase driver field-merges.
 	kindProject
 )
 
-// isConfig reports whether the kind is a config file sync commits and stages from a human's
-// in-place resolution — pj.cue or .gitignore. Only kindSchema additionally gates a scope's
-// project .md field-merges.
+// isConfig: pj.cue or .gitignore; only kindSchema gates .md merges.
 func (k conflictKind) isConfig() bool { return k == kindSchema || k == kindIgnore }
 
-// conflictItem is one path a rebase stop left unmerged, classified against the scope that
-// owns it. owner is meaningful for every kind but kindOther, which by definition has none.
 type conflictItem struct {
 	path  string // repo-relative
 	abs   string
@@ -66,10 +48,6 @@ type conflictItem struct {
 	kind  conflictKind
 }
 
-// fetchAndIntegrate is step 2 on a fresh (not mid-rebase) root: always fetch, then rebase
-// local commits onto the upstream. A clean fast-forward completes immediately; otherwise
-// the per-stop procedure drives every stop pj can resolve on its own and the loop carries
-// the rebase to completion or pauses at the first stop needing a human.
 func (e *engine) fetchAndIntegrate(c *cobra.Command, t syncTarget, rep *syncReport) integrateResult {
 	ctx := c.Context()
 	if err := git.Fetch(ctx, t.root); err != nil {
@@ -90,10 +68,7 @@ func (e *engine) fetchAndIntegrate(c *cobra.Command, t syncTarget, rep *syncRepo
 	})
 }
 
-// resumeRebase is the layer-4 resume: entered mid-rebase, it re-runs the per-stop
-// procedure at the current (human-touched) stop with the merged-vs-unmerged discriminator
-// (requirement 7), then hands to the same continue loop, where any later replayed commit
-// pj resolves on its own is driven exactly as in a fresh integrate.
+// resumeRebase: mid-rebase entry skips snapshot (no commit on temporary HEAD).
 func (e *engine) resumeRebase(c *cobra.Command, t syncTarget, rep *syncReport) integrateResult {
 	driver := e.newDriver(t)
 	return e.runStops(c, t, driver, rep, func() (bool, error) {
@@ -101,10 +76,6 @@ func (e *engine) resumeRebase(c *cobra.Command, t syncTarget, rep *syncReport) i
 	})
 }
 
-// runStops drives the rebase from a first-stop procedure to completion. After each stop
-// is fully staged it continues the rebase; a later stop is a fresh per-stop drive; a stop
-// that leaves any path unstaged pauses the whole command. Only a stop needing a human ends
-// it — a stop pj resolves itself is continued, never surfaced as work for a human.
 func (e *engine) runStops(c *cobra.Command, t syncTarget, driver *rebasedriver.Driver, rep *syncReport, first func() (bool, error)) integrateResult {
 	ctx := c.Context()
 	allStaged, err := first()
@@ -132,21 +103,12 @@ func (e *engine) runStops(c *cobra.Command, t syncTarget, driver *rebasedriver.D
 	}
 }
 
-// driveStop runs the fresh per-stop procedure (requirement 4): resolve every conflicted
-// pj.cue first (schema-before-data), then drive every conflicted project .md through the
-// rebase driver. It returns whether every conflicted path ended up staged, which the
-// continue loop reads to decide continue-or-pause.
+// driveStop: schema-before-data; only conflicted pj.cue fail-closes project .md.
 func (e *engine) driveStop(c *cobra.Command, t syncTarget, driver *rebasedriver.Driver, rep *syncReport) (bool, error) {
 	ctx := c.Context()
 	items := classifyStop(ctx, t)
 	allStaged := true
 
-	// Pass 1, schema before data: a conflicted config file git could not auto-merge on a
-	// fresh stop is a real text conflict — never field-merged — so it pauses for a human.
-	// Only a conflicted pj.cue also fail-closes its scope's project .md in pass 2, because
-	// it is the file that types frontmatter; a conflicted .gitignore pauses on its own and
-	// gates nothing. A delete/edit is classified by stage set so the report names the three
-	// (or two) ways out rather than markers the file does not carry.
 	schemaConflicted := map[string]bool{}
 	for _, it := range items {
 		if !it.kind.isConfig() {
@@ -178,13 +140,7 @@ func (e *engine) driveStop(c *cobra.Command, t syncTarget, driver *rebasedriver.
 	return allStaged, nil
 }
 
-// reportConflictedConfig names a config file the human must resolve in place. When
-// deletedSide is non-empty the path is a delete/edit and deletedSide is the reader's
-// label for the deleting side; when empty the file carries real conflict markers.
-// Only a conflicted pj.cue rides config_unparseable: that token is a frozen entry in the
-// closed catalogue meaning a scope whose schema cannot be trusted, and a .gitignore types
-// nothing — putting its scope into that state on the wire would tell every agent matching
-// the prefix that the schema is unreadable when it is fine.
+// reportConflictedConfig: config_unparseable only for pj.cue, never .gitignore.
 func reportConflictedConfig(c *cobra.Command, it conflictItem, deletedSide string) {
 	if deletedSide != "" {
 		if it.kind == kindSchema {
@@ -207,18 +163,10 @@ func reportConflictedConfig(c *cobra.Command, it conflictItem, deletedSide strin
 		"conflicted .gitignore: resolve the conflict markers in %s, then run pj sync", it.path))
 }
 
-// mdItemBlocked handles every conflicted path that is not a drivable project .md, plus the
-// one project .md case the driver must not see. It returns true when the caller should skip
-// the item, and marks the stop unstaged (via allStaged) only for the cases that genuinely
-// block: a path pj can neither own nor classify, and a project .md whose scope's pj.cue is
-// still conflicted (fail-closed). A config item was already reported by the caller's first
-// pass, so it is skipped here without re-marking — that is what keeps a resume's
-// human-resolved (and staged) config from being flipped back to unstaged.
 func (e *engine) mdItemBlocked(c *cobra.Command, it conflictItem, schemaConflicted map[string]bool, allStaged *bool) bool {
 	switch it.kind {
 	case kindOther:
-		// A path pj cannot classify or own: leave the rebase paused and name it, so
-		// the closing "resolve the file(s) above" line has a file to point at.
+		// A path pj cannot classify or own: leave the rebase paused and name it, so the closing "resolve the file(s)
 		stderrln(c, fmt.Sprintf(
 			"unresolvable conflict: resolve the conflict markers in %s, then run pj sync", it.path))
 		*allStaged = false
@@ -235,10 +183,6 @@ func (e *engine) mdItemBlocked(c *cobra.Command, it conflictItem, schemaConflict
 	return false
 }
 
-// driveMD field-merges one drivable conflicted project .md through the rebase driver and
-// records its outcome, marking the stop unstaged (via allStaged) when the driver left the
-// file for a human. Callers reach it for a fresh stop, a resume's never-field-merged file
-// (frontmatter still marked), and an unactioned delete/edit re-drive (report only).
 func (e *engine) driveMD(ctx context.Context, c *cobra.Command, driver *rebasedriver.Driver, it conflictItem, head, rebaseHead string, rep *syncReport, allStaged *bool) error {
 	outcome, derr := driver.Resolve(ctx, rebasedriver.Conflict{
 		Path: it.path, ScopeDir: it.owner.dir, OursRev: head, TheirsRev: rebaseHead,
@@ -252,14 +196,6 @@ func (e *engine) driveMD(ctx context.Context, c *cobra.Command, driver *rebasedr
 	return nil
 }
 
-// resolveResumeStop is the discriminating per-stop procedure at a resumed stop. It stages
-// a config file the human resolved (freeing that scope's project .md to be driven) and
-// pauses on one still marked or still-unactioned as a delete/edit; then, for each
-// conflicted project .md, it field-merges one whose frontmatter still carries markers
-// (never merged — the fail-closed leftover of a pj.cue conflict), re-drives an unactioned
-// delete/edit for its report, and for driver output (clean frontmatter, both sides
-// present) stages the human's resolution — except a still-present status_conflict, which
-// blocks the continue.
 func (e *engine) resolveResumeStop(c *cobra.Command, t syncTarget, driver *rebasedriver.Driver, rep *syncReport) (bool, error) {
 	ctx := c.Context()
 	items := classifyStop(ctx, t)
@@ -298,8 +234,6 @@ func (e *engine) resolveResumeStop(c *cobra.Command, t syncTarget, driver *rebas
 			allStaged = false
 			continue
 		}
-		// The human resolved it and left it unstaged; stage it so the rebase can continue
-		// and so the driver can merge that scope's now-freed project .md this same stop.
 		if err := git.Add(ctx, t.root, []string{it.path}); err != nil {
 			return false, fmt.Errorf("stage resolved %s: %w", it.path, err)
 		}
@@ -318,9 +252,6 @@ func (e *engine) resolveResumeStop(c *cobra.Command, t syncTarget, driver *rebas
 			return false, fmt.Errorf("enumerate conflict stages for %s: %w", it.path, err)
 		}
 		if isDeleteEditStages(stages) {
-			// Delete/edit: stage only when the human removed or modified the worktree file;
-			// an unactioned re-run re-drives for the same handoff report as the first pause.
-			// Re-driving is read-only here — a one-side-absent stage set cannot write.
 			acted, err := stageDeleteEditIfActed(ctx, t.root, it.path, it.abs, stages)
 			if err != nil {
 				return false, err
@@ -334,24 +265,17 @@ func (e *engine) resolveResumeStop(c *cobra.Command, t syncTarget, driver *rebas
 			continue
 		}
 		if frontmatterHasMarkers(it.abs) {
-			// Never field-merged (the state a pj.cue conflict leaves behind): drive it now,
-			// through the schema the human's resolved pj.cue parses to this time.
 			if err := e.driveMD(ctx, c, driver, it, head, rebaseHead, rep, &allStaged); err != nil {
 				return false, err
 			}
 			continue
 		}
-		// Driver output — clean field-merged frontmatter, a body or status decision awaiting
-		// the human. Never re-drive: re-reading its still-present stages would overwrite the
-		// body the human just resolved.
 		if frontmatterHasStatusConflict(it.abs) {
 			stderrln(c, token.Line(token.StatusConflict, fmt.Sprintf(
 				"%s: unresolved status_conflict — set status to one value and delete status_conflict in %s, then run pj sync", it.owner.name, it.path)))
 			allStaged = false
 			continue
 		}
-		// A body conflict is the human's say-so: stage and push whatever body they left,
-		// never scanning it for marker-like lines (legitimate prose can carry them).
 		if err := git.Add(ctx, t.root, []string{it.path}); err != nil {
 			return false, fmt.Errorf("stage resolved %s: %w", it.path, err)
 		}
@@ -359,10 +283,6 @@ func (e *engine) resolveResumeStop(c *cobra.Command, t syncTarget, driver *rebas
 	return allStaged, nil
 }
 
-// applyDriverOutcome records one driver Outcome and reports its handoff. It returns
-// whether the path is staged (the rebase can continue over it): a clean merge and an
-// add/add rename are staged; a body conflict, a status dispute, a delete/edit, and a
-// fail-closed merge are left unstaged and reported for a human.
 func (e *engine) applyDriverOutcome(c *cobra.Command, o rebasedriver.Outcome, rep *syncReport) bool {
 	for _, w := range o.Warnings {
 		stderrln(c, w)
@@ -371,8 +291,6 @@ func (e *engine) applyDriverOutcome(c *cobra.Command, o rebasedriver.Outcome, re
 	case rebasedriver.ClassClean:
 		return true
 	case rebasedriver.ClassRename:
-		// The driver wrote and staged both files; this project records the collided id and
-		// runs its inbound-edge check later — that is index work, not the driver's.
 		rep.collidedIDs = append(rep.collidedIDs, o.Rename.OldID)
 		stdoutln(c, fmt.Sprintf("repaired add/add duplicate: %s kept, renamed to %s (%s)",
 			o.Rename.OldID, o.Rename.NewID, o.Rename.NewPath))
@@ -400,9 +318,7 @@ func (e *engine) applyDriverOutcome(c *cobra.Command, o rebasedriver.Outcome, re
 	}
 }
 
-// newDriver builds a rebase driver for one root, typing each field merge through the
-// reconcile-cache-backed schema loader keyed on the on-disk pj.cue as it stands at call
-// time — never a snapshot captured before the fetch.
+// newDriver loads schema from on-disk pj.cue at call time, never a pre-fetch snapshot.
 func (e *engine) newDriver(t syncTarget) *rebasedriver.Driver {
 	dirToScope := make(map[string]string, len(t.participants))
 	for _, p := range t.participants {
@@ -422,8 +338,6 @@ func (e *engine) newDriver(t syncTarget) *rebasedriver.Driver {
 	return rebasedriver.New(t.root, load)
 }
 
-// classifyStop reads the unmerged paths at the current stop and classifies each against
-// the scope that owns it — the single git read the per-stop procedures share.
 func classifyStop(ctx context.Context, t syncTarget) []conflictItem {
 	var items []conflictItem
 	for _, path := range git.UnmergedFiles(ctx, t.root) {
@@ -437,9 +351,6 @@ func classifyStop(ctx context.Context, t syncTarget) []conflictItem {
 	return items
 }
 
-// classifyConflict decides what an absolute conflicted path under a scope dir is: the
-// scope's schema (pj.cue), its .gitignore, or a project .md the driver resolves. A path
-// outside the closed allowlist is kindOther — pj does not touch it.
 func classifyConflict(abs string, p participant) conflictKind {
 	if !isAllowlistedScopeFile(abs, p.dir) {
 		return kindOther
@@ -454,8 +365,6 @@ func classifyConflict(abs string, p participant) conflictKind {
 	}
 }
 
-// owningParticipant finds the auto-commit scope whose dir contains a repo-relative
-// conflicted path. Scope dirs are disjoint, so at most one matches.
 func owningParticipant(repoRelPath string, t syncTarget) (participant, bool) {
 	for _, p := range t.participants {
 		rel, err := filepath.Rel(t.root, p.dir)
@@ -469,16 +378,11 @@ func owningParticipant(repoRelPath string, t syncTarget) (participant, bool) {
 	return participant{}, false
 }
 
-// isDeleteEditStages reports whether the unmerged path's stage set is a delete/edit:
-// base present and exactly one of stage 2 / stage 3 present. Field-merged driver output
-// still has both sides in the index until staged, so stage-set — not marker-freeness —
-// is what separates the two shapes.
+// isDeleteEditStages: stage-set separates delete/edit from driver output (both sides still in index).
 func isDeleteEditStages(s git.Stages) bool {
 	return s.Base && s.Ours != s.Theirs
 }
 
-// survivingStageNumber returns the present side's stage number (2 or 3). Call only when
-// isDeleteEditStages is true so exactly one side is present.
 func survivingStageNumber(s git.Stages) int {
 	if s.Ours {
 		return 2
@@ -486,9 +390,6 @@ func survivingStageNumber(s git.Stages) int {
 	return 3
 }
 
-// configDeleteEditSide returns the reader's label for the deleting side when s is a
-// delete/edit, or "" when it is not. Labelling keys off the deleted stage number — the
-// stable rebase coordinate — never an ours/theirs side string.
 func configDeleteEditSide(s git.Stages) string {
 	if !isDeleteEditStages(s) {
 		return ""
@@ -500,8 +401,6 @@ func configDeleteEditSide(s git.Stages) string {
 	return deleteEditStageLabel(2)
 }
 
-// sideToStage maps the driver's deleted side onto its git stage number (ours=:2,
-// theirs=:3). Human-facing text then keys only on that stage, never on the side label.
 func sideToStage(s fmmerge.Side) int {
 	if s == fmmerge.SideTheirs {
 		return 3
@@ -509,9 +408,7 @@ func sideToStage(s fmmerge.Side) int {
 	return 2
 }
 
-// deleteEditStageLabel names the deleting side for a human mid-rebase. Each label carries
-// its own article so format strings can say "on %s" without forcing "the" onto every side.
-// Stage 2 is the incoming upstream tip; stage 3 is this machine's commit being replayed.
+// deleteEditStageLabel: stage 2 = incoming upstream; stage 3 = local replay.
 func deleteEditStageLabel(stage int) string {
 	switch stage {
 	case 2:
@@ -523,11 +420,7 @@ func deleteEditStageLabel(stage int) string {
 	}
 }
 
-// stageDeleteEditIfActed stages a delete/edit path when the human has acted on it —
-// removed the worktree file (deletion wins) or modified it (edit wins) — and returns
-// true when it staged. An unactioned path (worktree still equals the surviving stage
-// blob) returns false without staging. Only a does-not-exist result is a removal;
-// every other worktree or stage-blob read error aborts.
+// stageDeleteEditIfActed: unactioned (worktree == survivor blob) does not stage.
 func stageDeleteEditIfActed(ctx context.Context, gitRoot, repoPath, abs string, s git.Stages) (acted bool, err error) {
 	blob, err := git.ShowStage(ctx, gitRoot, survivingStageNumber(s), repoPath)
 	if err != nil {
@@ -552,8 +445,6 @@ func stageDeleteEditIfActed(ctx context.Context, gitRoot, repoPath, abs string, 
 	return true, nil
 }
 
-// fileHasConflictMarkers reports whether a whole file carries any git conflict-marker
-// line — the resume-time test for whether a human has resolved a config file yet.
 func fileHasConflictMarkers(abs string) bool {
 	data, err := os.ReadFile(abs)
 	if err != nil {
@@ -562,9 +453,6 @@ func fileHasConflictMarkers(abs string) bool {
 	return hasConflictMarker(data)
 }
 
-// frontmatterHasMarkers reports whether a project file's frontmatter still carries
-// conflict markers — the resume discriminator for a never-field-merged file. A broken
-// fence (markers spanning it) reads as markers present: it too has never been merged.
 func frontmatterHasMarkers(abs string) bool {
 	data, err := os.ReadFile(abs)
 	if err != nil {
@@ -577,9 +465,6 @@ func frontmatterHasMarkers(abs string) bool {
 	return hasConflictMarker(interior)
 }
 
-// frontmatterHasStatusConflict reports whether a clean-frontmatter project file still
-// carries the structured status_conflict key — the one reliable signal a terminal
-// dispute is unresolved, which gates rebase --continue.
 func frontmatterHasStatusConflict(abs string) bool {
 	data, err := os.ReadFile(abs)
 	if err != nil {

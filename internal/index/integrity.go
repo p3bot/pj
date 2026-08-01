@@ -7,29 +7,24 @@ import (
 )
 
 // Collision is a group of project rows in one scope that share a key that must be
-// unique — a full id (duplicate_id) or an order key (equal_order). Members lists
-// the colliding paths, sorted, so the warning is stable and repair can find them.
+// unique (full id or order key). Members are sorted paths for stable warnings.
 type Collision struct {
 	Scope   string
 	Key     string
 	Members []string
 }
 
-// DuplicateIDs returns, for the given scopes, every full id claimed by two or more
-// project files — the cheap post-reconcile aggregate behind the duplicate_id
-// warning. It reads only materialized rows; it never re-stats or re-parses.
+// DuplicateIDs returns full ids claimed by two or more files in the given scopes.
 func (d *DB) DuplicateIDs(scopes []string) ([]Collision, error) {
 	return d.collisions(scopes, "id", `1`)
 }
 
-// EqualOrders returns, for the given scopes, every order key shared by two or more
-// projects (empty keys excluded) — the aggregate behind the equal_order warning.
+// EqualOrders returns non-empty order keys shared by two or more projects in the given scopes.
 func (d *DB) EqualOrders(scopes []string) ([]Collision, error) {
 	return d.collisions(scopes, "order_key", `order_key <> ''`)
 }
 
-// collisions groups a scope's rows by keyCol, keeping only groups of size > 1, and
-// returns each group's sorted member paths. extraPred narrows the rows considered.
+// collisions groups rows by keyCol, keeping groups of size > 1.
 func (d *DB) collisions(scopes []string, keyCol, extraPred string) ([]Collision, error) {
 	if len(scopes) == 0 {
 		return nil, nil
@@ -74,8 +69,7 @@ func (d *DB) collisions(scopes []string, keyCol, extraPred string) ([]Collision,
 	return out, nil
 }
 
-// ParseErrorCount returns how many quarantined (parse_error) project rows exist
-// across the given scopes — the number behind the terse "N unparseable" warning.
+// ParseErrorCount returns how many parse_error quarantine rows exist across scopes.
 func (d *DB) ParseErrorCount(scopes []string) (int, error) {
 	if len(scopes) == 0 {
 		return 0, nil
@@ -86,10 +80,7 @@ func (d *DB) ParseErrorCount(scopes []string) (int, error) {
 	return n, err
 }
 
-// DuplicateIDSet returns the full ids (scope-qualified as "<scope>\x00<id>") that
-// are in a duplicate_id collision for the given scopes, so next can skip any
-// candidate whose id collides. The key is scope+id because a bare id is not
-// machine-unique.
+// DuplicateIDSet returns scope-qualified collision keys ("<scope>\x00<id>") for next's skip set.
 func (d *DB) DuplicateIDSet(scopes []string) (map[string]bool, error) {
 	cols, err := d.DuplicateIDs(scopes)
 	if err != nil {
@@ -102,8 +93,6 @@ func (d *DB) DuplicateIDSet(scopes []string) (map[string]bool, error) {
 	return out, nil
 }
 
-// inClause builds a "?, ?, ?" placeholder run and the matching args slice for a
-// stable, sorted set of values.
 func inClause(values []string) (string, []any) {
 	sorted := append([]string(nil), values...)
 	sort.Strings(sorted)

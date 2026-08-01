@@ -20,12 +20,10 @@ func TestScopeRenameEndToEnd(t *testing.T) {
 		t.Fatalf("rename: %v", err)
 	}
 
-	// pj.cue name rewritten (the CUE formatter may align the value).
 	data, _ := os.ReadFile(filepath.Join(wcDir, "pj.cue"))
 	if !strings.Contains(string(data), `"core"`) || strings.Contains(string(data), `"wc"`) {
 		t.Errorf("pj.cue name not rewritten to core: %q", data)
 	}
-	// Every filename and frontmatter id rewritten; the in-scope edge follows.
 	if !fileExists(wcDir, "core-ab2c-target.md") || !fileExists(wcDir, "core-de34-dep.md") {
 		t.Errorf("filenames not rewritten to the new scope: %v", projectFiles(t, wcDir))
 	}
@@ -39,8 +37,6 @@ func TestScopeRenameEndToEnd(t *testing.T) {
 	if !strings.Contains(string(dep), "core-ab2c") || strings.Contains(string(dep), "wc-ab2c") {
 		t.Errorf("in-scope edge not re-keyed: %q", dep)
 	}
-	// Only the cross-scope inbound edge is reported (the in-scope wc-de34 -> wc-ab2c
-	// edge was rewritten, not reported), never rewritten in the other scope.
 	if !strings.Contains(out, "edge_verify:") || !strings.Contains(out, "api-mm22") {
 		t.Errorf("cross-scope inbound edge should be reported, got %q", out)
 	}
@@ -51,7 +47,6 @@ func TestScopeRenameEndToEnd(t *testing.T) {
 	if !strings.Contains(string(apiFile), "wc-ab2c") {
 		t.Errorf("cross-scope edge must not be rewritten: %q", apiFile)
 	}
-	// Registry re-keyed: the old name is gone from the listing, the new appears.
 	list, _, _ := run(t, app, "scope", "list")
 	for _, row := range strings.Split(strings.TrimRight(list, "\n"), "\n") {
 		if strings.HasPrefix(row, "wc\t") {
@@ -69,15 +64,10 @@ func TestScopeRenameEndToEnd(t *testing.T) {
 	}
 }
 
-// A filename and a frontmatter id can legitimately disagree — bare doctor reports it as
-// a structural class. The rename must re-prefix the id the file declares, not the one its
-// name implies: doing the latter would move the project onto a different id and dangle
-// every edge pointing at the real one.
 func TestScopeRenameRePrefixesTheFrontmatterID(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
 	addProject(t, dir, "wc-ab2c", "auth", "todo", "a0", "# Auth\n", false, "")
-	// Rename the file only, leaving the frontmatter id at wc-ab2c.
 	if err := os.Rename(filepath.Join(dir, "wc-ab2c-auth.md"), filepath.Join(dir, "wc-zz9y-auth.md")); err != nil {
 		t.Fatal(err)
 	}
@@ -93,8 +83,6 @@ func TestScopeRenameRePrefixesTheFrontmatterID(t *testing.T) {
 	}
 }
 
-// An id that is not a project id of the old scope cannot be re-prefixed without guessing,
-// so the whole rename refuses and names the file rather than inventing an identity.
 func TestScopeRenameRefusesForeignFrontmatterID(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
@@ -140,16 +128,11 @@ func TestScopeRenameValidation(t *testing.T) {
 	}
 }
 
-// A rename interrupted after the pj.cue name write but before the registry re-key
-// leaves registry-old / pj.cue-new — byte-identical to name_drift. Re-running the same
-// rename is the exempt path that finishes the idempotent tail.
 func TestScopeRenameIdempotentReentry(t *testing.T) {
 	app := newApp(t)
 	wcDir := initScope(t, app, "wc")
 	addProject(t, wcDir, "wc-ab2c", "target", "todo", "a0", "# Target\n", false, "")
 
-	// Simulate the crash window: files and pj.cue already migrated to core, registry
-	// still keys wc.
 	if err := os.Rename(filepath.Join(wcDir, "wc-ab2c-target.md"), filepath.Join(wcDir, "core-ab2c-target.md")); err != nil {
 		t.Fatal(err)
 	}
@@ -174,15 +157,11 @@ func TestScopeRenameIdempotentReentry(t *testing.T) {
 	}
 }
 
-// Machine-uniqueness of <new> is decided against the registry loaded under the config
-// lock, not the caller's pre-lock snapshot: a registration landing in that window must be
-// refused, never overwritten.
 func TestScopeRenameRefusesNameTakenUnderLock(t *testing.T) {
 	app := newApp(t)
 	wcDir := initScope(t, app, "wc")
 	addProject(t, wcDir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
 
-	// The engine's registry snapshot is taken here, while "core" is still free.
 	e, err := app.openEngine(newRootCmd(app))
 	if err != nil {
 		t.Fatal(err)
@@ -209,7 +188,6 @@ func TestScopeRenameRefusesNameTakenUnderLock(t *testing.T) {
 		}
 	}
 
-	// The concurrent registration survives intact, still bound to its own dir.
 	list, _, _ := run(t, app, "scope", "list")
 	if !strings.Contains(list, victim) {
 		t.Errorf("the concurrently registered scope must keep its dir binding, got %q", list)
@@ -219,8 +197,6 @@ func TestScopeRenameRefusesNameTakenUnderLock(t *testing.T) {
 	}
 }
 
-// A completed rename re-run is still idempotent: <new> is legitimately taken, by this very
-// scope, and the absent-<old> tail must be reached before the uniqueness refusal.
 func TestScopeRenameRekeyStaysIdempotentAfterCompletion(t *testing.T) {
 	app := newApp(t)
 	initScope(t, app, "wc")
@@ -242,7 +218,6 @@ func TestScopeRenameRekeyStaysIdempotentAfterCompletion(t *testing.T) {
 func TestScopeRenameRejectsGenuineDrift(t *testing.T) {
 	app := newApp(t)
 	wcDir := initScope(t, app, "wc")
-	// pj.cue name is neither the old nor the requested new name: genuine drift.
 	if err := os.WriteFile(filepath.Join(wcDir, "pj.cue"), []byte("name: \"other\"\nautoCommit: false\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

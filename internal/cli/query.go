@@ -48,7 +48,7 @@ func runQuery(app *App, c *cobra.Command, args []string, schema bool) error {
 	}
 	defer e.close()
 
-	// Reconcile every registered scope so an ad-hoc query sees fresh state.
+	// Ad-hoc query needs fresh state across every registered scope.
 	if _, err := e.reconcile(c, e.allTargets()); err != nil {
 		return err
 	}

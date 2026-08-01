@@ -46,14 +46,12 @@ func runEdit(app *App, c *cobra.Command, idArg, scope string) error {
 		return err
 	}
 
-	// $EDITOR commonly carries flags (code --wait, emacsclient -nw), so split it into
-	// program + args rather than treating the whole string as one binary name.
+	// $EDITOR may carry flags; split into program + args.
 	fields := strings.Fields(os.Getenv("EDITOR"))
 	if len(fields) == 0 {
 		return fmt.Errorf("$EDITOR is not set — set it to your editor to use pj edit")
 	}
-	// Hand the terminal straight to the editor: pj is otherwise non-interactive, but
-	// edit is the one human-in-the-loop verb, so it must share stdio.
+	// Share stdio: edit is the human-in-the-loop verb.
 	args := append(append([]string(nil), fields[1:]...), p.Path)
 	ed := exec.Command(fields[0], args...)
 	ed.Stdin, ed.Stdout, ed.Stderr = os.Stdin, os.Stdout, os.Stderr

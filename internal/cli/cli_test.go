@@ -19,8 +19,6 @@ func newApp(t *testing.T) *App {
 	return &App{Ctx: cuecontext.New(), ConfigDir: t.TempDir(), StateDir: t.TempDir()}
 }
 
-// run executes the command tree with captured output and returns stdout, stderr,
-// and the handler error.
 func run(t *testing.T, app *App, args ...string) (string, string, error) {
 	t.Helper()
 	root := newRootCmd(app)
@@ -65,13 +63,11 @@ func TestGenericFailuresExitOne(t *testing.T) {
 		t.Fatalf("first init: %v", err)
 	}
 
-	// Name collision: well-formed but conflicting → generic non-zero, not usage.
 	_, _, err := run(t, app, "scope", "init", filepath.Join(base, "two"), "--name", "dup")
 	if got := ExitCodeFromError(err); got != exitFailure {
 		t.Fatalf("name collision exit = %d want %d", got, exitFailure)
 	}
 
-	// Rebind an unknown (but well-formed) scope name → generic non-zero, not usage.
 	_, _, err = run(t, app, "scope", "rebind", first, "--name", "ghost")
 	if got := ExitCodeFromError(err); got != exitFailure {
 		t.Fatalf("unknown-scope rebind exit = %d want %d (err=%v)", got, exitFailure, err)
@@ -100,7 +96,6 @@ func TestScopeListEndToEnd(t *testing.T) {
 		t.Errorf("a healthy scope should ride no diagnostics, got stderr %q", errOut)
 	}
 
-	// Bare `pj scope` runs list; `pj scopes` aliases it.
 	bare, _, _ := run(t, app, "scope")
 	if bare != out {
 		t.Errorf("bare scope != scope list: %q vs %q", bare, out)
@@ -122,7 +117,6 @@ func TestScopeUnknownSubcommandExitsTwo(t *testing.T) {
 		t.Errorf("unknown subcommand must not print a listing, got stdout %q", out)
 	}
 
-	// Bare `pj scope`, the `pj scopes` alias, and a real subcommand still work.
 	if _, _, err := run(t, app, "scope"); err != nil {
 		t.Errorf("bare scope should list, got %v", err)
 	}
@@ -146,16 +140,13 @@ func TestScopeListEmptyExitsZeroEmptyStdout(t *testing.T) {
 	}
 }
 
-// helpSection returns the lines under title until the next section header
-// (a line ending with ':' that is a standalone title line) or EOF.
+// helpSection returns the lines under title until the next section header (a line ending
 func helpSection(help, title string) string {
 	idx := strings.Index(help, title+"\n")
 	if idx < 0 {
 		return ""
 	}
 	rest := help[idx+len(title)+1:]
-	// Next section: a non-indented line ending with ':' (Cobra group titles and
-	// "Additional Commands:" / "Flags:" / "Aliases:" style headers).
 	lines := strings.Split(rest, "\n")
 	var b strings.Builder
 	for _, line := range lines {
@@ -197,7 +188,6 @@ func TestRootHelpGroups(t *testing.T) {
 			board := helpSection(out, groupBoardTitle)
 			admin := helpSection(out, groupAdminTitle)
 
-			// Membership and within-group order (mini workflow, not pure alpha).
 			wantWork := []string{"create", "get", "edit", "mark", "reorder", "next"}
 			wantBoard := []string{"list", "status", "meta", "deps", "search", "query", "lens"}
 			wantAdmin := []string{"scope", "sync", "doctor", "skill"}
@@ -224,7 +214,6 @@ func TestRootHelpGroups(t *testing.T) {
 		})
 	}
 
-	// Nested parents stay a single flat Available Commands list.
 	for _, parent := range []string{"scope", "skill"} {
 		t.Run(parent+"-flat", func(t *testing.T) {
 			out, _, err := run(t, app, parent, "--help")
@@ -243,8 +232,7 @@ func TestRootHelpGroups(t *testing.T) {
 	}
 }
 
-// commandListedInSection reports whether name appears as a Cobra help command
-// row (two-space indent, name, then padding spaces before the Short).
+// commandListedInSection reports whether name appears as a Cobra help command row
 func commandListedInSection(section, name string) bool {
 	for _, line := range strings.Split(section, "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -258,8 +246,7 @@ func commandListedInSection(section, name string) bool {
 	return false
 }
 
-// commandsInSectionOrder returns help command names in the order they appear
-// (two-space indent rows). Used to lock within-group registration order.
+// commandsInSectionOrder returns help command names in the order they appear (two-space
 func commandsInSectionOrder(section string) []string {
 	var out []string
 	for _, line := range strings.Split(section, "\n") {
@@ -334,8 +321,6 @@ func TestFprintErrorTokenPurity(t *testing.T) {
 		t.Errorf("no ANSI when colour is off: %q", buf.String())
 	}
 
-	// A Plain non-fault diagnostic (an empty next queue) prints verbatim: no error:
-	// label and no colour, even when colour is allowed.
 	buf.Reset()
 	fprintError(&buf, &ExitError{Code: exitFailure, Err: errors.New("nothing ready"), Plain: true}, true)
 	if strings.Contains(buf.String(), "\x1b") || strings.Contains(buf.String(), "error:") {
@@ -377,9 +362,6 @@ func TestAbsPath(t *testing.T) {
 }
 
 func TestAbsPathResolvesSymlinks(t *testing.T) {
-	// A path through a symlinked component canonicalises to the real location, so
-	// it matches the spelling git returns for a repo root. The not-yet-existing
-	// tail ("sub") is rejoined onto the resolved ancestor.
 	realDir := t.TempDir()
 	link := filepath.Join(t.TempDir(), "link")
 	if err := os.Symlink(realDir, link); err != nil {
@@ -398,8 +380,7 @@ func TestAbsPathResolvesSymlinks(t *testing.T) {
 	}
 }
 
-// withoutNoColor unsets NO_COLOR for the duration of a test, restoring any prior
-// value afterwards. t.Setenv cannot express "absent", which this case needs.
+// withoutNoColor unsets NO_COLOR for the duration of a test, restoring any prior value
 func withoutNoColor(t *testing.T) {
 	t.Helper()
 	prev, had := os.LookupEnv("NO_COLOR")

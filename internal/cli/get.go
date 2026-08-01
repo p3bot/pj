@@ -54,9 +54,7 @@ func runGet(app *App, c *cobra.Command, idArg, scope string) error {
 	return nil
 }
 
-// ensureFileExists guards the get/meta/edit hand-off against a stale row whose file
-// has vanished: the row still resolves, but there is no path to open, so it is a
-// non-zero failure pointing at reindex/doctor rather than a bogus path.
+// ensureFileExists refuses a stale index row whose file has vanished.
 func ensureFileExists(p *index.Project) error {
 	if _, err := os.Stat(p.Path); err != nil {
 		if os.IsNotExist(err) {

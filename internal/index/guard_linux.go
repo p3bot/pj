@@ -7,9 +7,8 @@ import (
 	"syscall"
 )
 
-// nonLocalMagic maps the statfs f_type magic of filesystems where WAL is unsafe —
-// network or FUSE-backed, where the DB and its -wal/-shm can separate or lack a
-// real fsync — to a human label. A hit means "hard-warn, point at XDG_STATE_HOME".
+// nonLocalMagic maps statfs f_type magics where WAL is unsafe (network/FUSE can
+// separate the DB from -wal/-shm or lack a real fsync).
 var nonLocalMagic = map[int64]string{
 	0x6969:     "NFS",
 	0xFF534D42: "CIFS/SMB",
@@ -18,9 +17,7 @@ var nonLocalMagic = map[int64]string{
 	0x65735546: "FUSE",
 }
 
-// localDiskWarning returns a non-empty warning when dir is on a filesystem where
-// WAL is unsafe. It is best-effort: an unstatfs-able path or an unrecognised type
-// yields no warning (we do not block a store on an unknown-but-likely-local FS).
+// localDiskWarning is best-effort: unstatfs-able or unrecognised type yields no warning.
 func localDiskWarning(dir string) string {
 	var st syscall.Statfs_t
 	if err := syscall.Statfs(dir, &st); err != nil {

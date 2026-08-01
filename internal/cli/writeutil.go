@@ -13,24 +13,17 @@ import (
 	"github.com/start-cli/pj/internal/token"
 )
 
-// projectFileMode is the mode pj writes project markdown with — ordinary,
-// non-executable, honouring the atomic-write path's explicit-mode behaviour.
 const projectFileMode = 0o644
 
-// atomicWrite writes a project file atomically at the shared project file mode.
 func atomicWrite(path string, data []byte) error {
 	return atomicfile.Write(path, data, projectFileMode)
 }
 
-// single builds the one-scope reconcile target map the write verbs pass to
-// reconcileResult for their pre-write read.
 func single(scope, dir string) map[string]string {
 	return map[string]string{scope: dir}
 }
 
-// writtenPaths is the touched-path set a complete-state write hands to SyncPaths: the
-// post-write path always, plus a distinct removed old path (the terminal-boundary
-// move) so its now-absent row is deleted in the same write-through.
+// writtenPaths includes the removed old path so SyncPaths deletes its row.
 func writtenPaths(newPath, oldPath string) []string {
 	if oldPath == "" || oldPath == newPath {
 		return []string{newPath}
@@ -38,18 +31,12 @@ func writtenPaths(newPath, oldPath string) []string {
 	return []string{newPath, oldPath}
 }
 
-// schemaAutoCommit reports a reconciled scope's autoCommit setting. A nil schema
-// (an unusable config) reads as false, but the write verbs refuse an unusable config
-// before consulting it, so this only ever runs on a healthy schema.
+// schemaAutoCommit: nil schema is false; writers refuse unusable config first.
 func schemaAutoCommit(s *scopeconfig.Schema) bool {
 	return s != nil && s.AutoCommit
 }
 
-// maxValidOrder returns the greatest valid order key across rows — the scope-wide
-// append bound for create and reorder --last. It spans every status and both the dir
-// root and archive/, and skips parse_error rows and invalid keys. An empty string
-// means no valid key exists (an empty board), which the caller feeds to KeyBetween
-// as an open bound.
+// maxValidOrder: "" means empty board (open KeyBetween bound); skips invalid/quarantine.
 func maxValidOrder(rows []*index.Project) string {
 	best := ""
 	for _, p := range rows {
@@ -63,10 +50,7 @@ func maxValidOrder(rows []*index.Project) string {
 	return best
 }
 
-// readProjectFile reads and parses a healthy project file's frontmatter for a
-// mutator, returning the model and the body after the fence. A parse_error-
-// quarantined row is refused upstream, so a parse failure here is an unexpected
-// mid-write race surfaced as a hard error rather than a silent write.
+// readProjectFile: parse failure here is a mid-write race (quarantine refused upstream).
 func readProjectFile(path string) (*frontmatter.Model, []byte, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -83,9 +67,6 @@ func readProjectFile(path string) (*frontmatter.Model, []byte, error) {
 	return m, body, nil
 }
 
-// writeProjectFile serializes a mutated frontmatter model back over its body and
-// writes the whole file atomically. It is the single write primitive the mark,
-// reorder, claim, and meta verbs share for an in-place frontmatter rewrite.
 func writeProjectFile(path string, m *frontmatter.Model, body []byte) error {
 	interior, err := frontmatter.Serialize(m)
 	if err != nil {
@@ -94,12 +75,7 @@ func writeProjectFile(path string, m *frontmatter.Model, body []byte) error {
 	return atomicWrite(path, frontmatter.Compose(interior, body))
 }
 
-// resolveSingleRow resolves a well-formed id argument to exactly one project row in
-// scope, applying the id-count half of the id-taking-verb refuse contract: zero rows
-// is unknown-but-well-formed (generic non-zero, worded with noun, e.g. "project" or
-// "neighbour"), more than one is a duplicate_id collision refused for either side. It
-// layers no row-level policy — callers add their own parse_error/order checks on the
-// returned row. The malformed-id usage error is handled by the caller before this.
+// resolveSingleRow: 0 → unknown (noun-worded); >1 → duplicate_id; no row-level policy.
 func (e *engine) resolveSingleRow(scope, idArg string, form idForm, noun string) (*index.Project, error) {
 	var rows []*index.Project
 	var err error
@@ -120,12 +96,7 @@ func (e *engine) resolveSingleRow(scope, idArg string, form idForm, noun string)
 	return rows[0], nil
 }
 
-// resolveWriteRow resolves an id argument to the single project row a mutator will
-// write, applying the id-taking-verb refuse contract: an unknown-but-well-formed id
-// is generic non-zero, a duplicate_id collision is refused with no write to either
-// side, and a parse_error-quarantined project is refused (its frontmatter cannot be
-// safely rewritten). The malformed-id usage error is handled by the caller before
-// reconcile.
+// resolveWriteRow also refuses parse_error quarantine.
 func (e *engine) resolveWriteRow(scope, idArg string, form idForm) (*index.Project, error) {
 	p, err := e.resolveSingleRow(scope, idArg, form, "project")
 	if err != nil {
@@ -138,10 +109,7 @@ func (e *engine) resolveWriteRow(scope, idArg string, form idForm) (*index.Proje
 	return p, nil
 }
 
-// terminalLocation returns the path a project file belongs at for its terminal-ness:
-// under archive/ (created on demand) when terminal, at the dir root otherwise. The
-// basename is unchanged — a mark (or other terminal-boundary write) only relocates
-// the file, never renames it.
+// terminalLocation relocates only (basename unchanged).
 func terminalLocation(dir, base string, terminal bool) (string, error) {
 	if !terminal {
 		return filepath.Join(dir, base), nil

@@ -37,7 +37,6 @@ func TestAcquireConfigLockRoundTrip(t *testing.T) {
 	if err := lock.Release(); err != nil {
 		t.Fatalf("release: %v", err)
 	}
-	// A second acquire after release must succeed.
 	lock2, err := AcquireConfigLock(dir)
 	if err != nil {
 		t.Fatalf("re-acquire: %v", err)
@@ -45,7 +44,6 @@ func TestAcquireConfigLockRoundTrip(t *testing.T) {
 	if err := lock2.Release(); err != nil {
 		t.Fatalf("re-release: %v", err)
 	}
-	// Release is idempotent-safe on a nil lock.
 	var nilLock *Lock
 	if err := nilLock.Release(); err != nil {
 		t.Fatalf("nil release: %v", err)

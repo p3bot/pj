@@ -11,18 +11,12 @@ import (
 	"github.com/start-cli/pj/internal/title"
 )
 
-// conflictMarkers are the git merge-conflict marker prefixes. Inside the
-// frontmatter block they force a parse_error quarantine (untrusted metadata);
-// confined to the body they do not (the FM still parses and the project indexes).
+// conflictMarkers force parse_error quarantine when inside the frontmatter fence
+// (body-only markers leave FM indexing intact).
 var conflictMarkers = [][]byte{[]byte("<<<<<<<"), []byte("======="), []byte(">>>>>>>")}
 
-// parseFile turns one project file into a materialized row and its edges. It never
-// fails on bad content: a broken frontmatter fence, malformed YAML, or a conflict
-// marker inside the fence yields a parse_error quarantine row (id from the filename,
-// body still FTS-indexed) rather than an error. fullID and archived are decided by
-// the caller from the filename/location; mtime and size come from the stat already
-// taken. A read error on the file itself is returned as an error (a real I/O fault,
-// not bad data).
+// parseFile materializes one project file. Bad content yields a parse_error quarantine
+// row (id from filename, body FTS-indexed), not an error. Real I/O faults still error.
 func parseFile(path, scope, fullID string, archived bool, mtimeNS, size int64) (*index.Project, []index.Edge, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -46,9 +40,7 @@ func parseFile(path, scope, fullID string, archived bool, mtimeNS, size int64) (
 	return indexFromModel(base, model)
 }
 
-// quarantine finishes a parse_error row: no trusted frontmatter fields, but the raw
-// file (frontmatter + body) is fed to FTS so pj search can still surface it for
-// repair, and the id from the filename keeps it locatable.
+// quarantine finishes a parse_error row: no trusted FM fields; raw file goes to FTS.
 func quarantine(base *index.Project, raw []byte, msg string) *index.Project {
 	base.ParseError = true
 	base.ParseMsg = msg
@@ -57,9 +49,8 @@ func quarantine(base *index.Project, raw []byte, msg string) *index.Project {
 	return base
 }
 
-// indexFromModel fills a healthy row from parsed frontmatter and materializes its
-// edges. A depends/related entry that is not a legal full project id does not enter
-// edges and sets SchemaError so the hard schema_error condition rides affected reads.
+// indexFromModel fills a healthy row and materializes edges. Malformed depends/related
+// set SchemaError and are omitted from edges.
 func indexFromModel(base *index.Project, m *frontmatter.Model) (*index.Project, []index.Edge, error) {
 	base.Status = m.Status
 	base.OrderKey = m.Order
@@ -74,13 +65,8 @@ func indexFromModel(base *index.Project, m *frontmatter.Model) (*index.Project, 
 			base.Custom[f.Key] = f.Value
 		}
 	}
-	// The frontmatter id is authoritative for a healthy row; fall back to the
-	// filename-derived id only if frontmatter omits it (a schema fault doctor flags).
-	// A frontmatter id claiming a different scope than this file's directory is not
-	// adopted: the row's scope is fixed by location, so a foreign-scope id would leave
-	// scope and id-prefix disagreeing and no get/meta lookup could resolve the row.
-	// Keeping the filename-derived id preserves reachability; doctor (P5) reports the
-	// frontmatter/filename mismatch.
+	// Frontmatter id is authoritative when same-scope; foreign-scope ids are not
+	// adopted (would leave scope vs id-prefix disagreeing and break get/meta).
 	if id.IsFullProjectID(m.ID) && scopeOf(m.ID) == base.Scope {
 		base.ID = m.ID
 		base.ShortID = shortOf(m.ID)
@@ -91,9 +77,7 @@ func indexFromModel(base *index.Project, m *frontmatter.Model) (*index.Project, 
 	return base, edges, nil
 }
 
-// edgesFrom builds the depends/related edges for a row, skipping (and flagging) any
-// entry that is not a legal full project id. schemaErr is true when any entry in
-// either list was malformed.
+// edgesFrom skips (and flags) any depends/related entry that is not a legal full id.
 func edgesFrom(base *index.Project, m *frontmatter.Model) ([]index.Edge, bool) {
 	var edges []index.Edge
 	schemaErr := false
@@ -131,8 +115,6 @@ func containsConflictMarker(interior []byte) bool {
 	return false
 }
 
-// shortOf returns the short-id portion of a full id, or "" when the id is not a
-// legal full id.
 func shortOf(fullID string) string {
 	if !id.IsFullProjectID(fullID) {
 		return ""
@@ -140,7 +122,6 @@ func shortOf(fullID string) string {
 	return fullID[strings.IndexByte(fullID, '-')+1:]
 }
 
-// scopeOf returns the scope portion of a full id (already validated by the caller).
 func scopeOf(fullID string) string {
 	if i := strings.IndexByte(fullID, '-'); i >= 0 {
 		return fullID[:i]

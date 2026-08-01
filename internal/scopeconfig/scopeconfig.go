@@ -1,16 +1,7 @@
-// Package scopeconfig evaluates a scope's pj.cue into a validated Schema. It is
-// the scope-tier config engine: it reads <dir>/pj.cue only through the CUE Go
-// modules and exposes the single "config usable?" signal the rest of pj branches
-// on. A non-nil *ConfigError from Load means the scope is read-only/unusable —
-// its writes refuse and it rides config_unparseable — while its reads stay
-// available. Consumers never need to tell a compile failure apart from a schema
-// violation; both are the same unusable state.
-//
-// The Schema is modelled for later projects to consume without re-reading
-// pj.cue: P3 index materialization and list membership ask which statuses are
-// known/terminal, P6 merge typing asks a custom field's type, and the write
-// paths read AutoCommit. The evaluation is correct but uncached here — there is
-// no index yet to cache it in.
+// Package scopeconfig evaluates a scope's pj.cue into a validated Schema. A
+// non-nil *ConfigError from Load means the scope is unusable for writes and
+// rides config_unparseable; reads stay available. Compile failures and schema
+// violations are the same unusable state.
 package scopeconfig
 
 import (
@@ -42,30 +33,25 @@ var (
 	fieldNameRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`)
 )
 
-// Field is a declared custom frontmatter field. Values is non-nil only when the
-// declaration carries an enum (legal only for string/strings types).
+// Field is a declared custom frontmatter field. Values is non-nil only with an enum
+// (legal only for string/strings).
 type Field struct {
 	Type   string
 	Values []string
 }
 
-// Schema is a scope's fully-evaluated, validated pj.cue. Its presence means the
-// config is usable.
+// Schema is a scope's fully-evaluated, validated pj.cue. Presence means the config is usable.
 type Schema struct {
 	Name       string
 	AutoCommit bool
 	KnownTags  []string
-	// Statuses maps each declared custom status name to its category. Built-in
-	// statuses are not included here — they live in the status package.
+	// Statuses maps declared custom status names to categories (built-ins live in package status).
 	Statuses map[string]status.Category
-	// Fields maps each declared custom field name to its type and optional enum.
+	// Fields maps declared custom field names to type and optional enum.
 	Fields map[string]Field
 }
 
-// ConfigError marks a pj.cue that cannot be trusted: absent, uncompilable, or
-// compiled-but-schema-invalid. All three are the same unusable state downstream
-// and ride the config_unparseable token. Dir is the scope directory; Reason is
-// a human-readable explanation without the token prefix.
+// ConfigError marks a pj.cue that cannot be trusted (absent, uncompilable, or schema-invalid).
 type ConfigError struct {
 	Dir    string
 	Reason string
@@ -101,10 +87,7 @@ type rawField struct {
 	Values []string `json:"values"`
 }
 
-// Load reads and validates <dir>/pj.cue. It returns a *ConfigError for every
-// unusable state (absent, uncompilable, or schema-invalid) so a single check —
-// is the returned error a *ConfigError — tells a consumer the scope is
-// read-only. compile is the process-wide CUE context.
+// Load reads and validates <dir>/pj.cue. Every unusable state returns *ConfigError.
 func Load(ctx *cue.Context, dir string) (*Schema, error) {
 	p := filepath.Join(dir, "pj.cue")
 	data, err := os.ReadFile(p)
@@ -128,11 +111,8 @@ func Load(ctx *cue.Context, dir string) (*Schema, error) {
 	return validate(dir, v, &raw)
 }
 
-// ReadName extracts only the authoritative name from <dir>/pj.cue. It is the
-// drift precondition: name-drift compares this against the registry key, and it
-// must succeed even when the fuller schema is invalid, provided the file
-// compiles and carries a legal name. It returns an error when the file is
-// absent, uncompilable, or its name is missing or not a legal scope name.
+// ReadName extracts only the authoritative name, succeeding even when the fuller
+// schema is invalid (provided the file compiles and the name is legal). Used for name-drift.
 func ReadName(ctx *cue.Context, dir string) (string, error) {
 	p := filepath.Join(dir, "pj.cue")
 	data, err := os.ReadFile(p)
@@ -156,10 +136,7 @@ func ReadName(ctx *cue.Context, dir string) (string, error) {
 	return name, nil
 }
 
-// Evaluate validates an already-built pj.cue value into a Schema, returning a
-// *ConfigError for every unusable state. It is the shared tail of Load (which
-// compiles the single entry file) and LoadWithClosure (which builds via the CUE
-// loader so a multi-file package participates), so both paths validate identically.
+// Evaluate validates an already-built pj.cue value into a Schema (shared tail of Load and LoadWithClosure).
 func Evaluate(dir string, v cue.Value) (*Schema, error) {
 	if err := v.Err(); err != nil {
 		return nil, &ConfigError{Dir: dir, Reason: cueReason(err)}
@@ -235,8 +212,7 @@ func validateFields(dir string, v cue.Value, raw map[string]rawField) (map[strin
 		default:
 			return nil, &ConfigError{Dir: dir, Reason: fmt.Sprintf("field %q has type %q, want string|int|bool|strings", name, f.Type)}
 		}
-		// values presence is read from the CUE value: a nil-vs-empty slice
-		// heuristic cannot tell an absent enum from an explicit empty one.
+		// values presence from CUE: nil-vs-empty slice cannot tell absent from explicit empty.
 		hasEnum := v.LookupPath(cue.MakePath(cue.Str("fields"), cue.Str(name), cue.Str("values"))).Exists()
 		if hasEnum && f.Type != FieldString && f.Type != FieldStrings {
 			return nil, &ConfigError{Dir: dir, Reason: fmt.Sprintf("field %q has a values enum, legal only for string or strings (not %s)", name, f.Type)}
@@ -250,18 +226,11 @@ func validateFields(dir string, v cue.Value, raw map[string]rawField) (map[strin
 	return out, nil
 }
 
-// cueReason renders a CUE error as a ConfigError reason on a single line. A
-// reason is emitted as one config_unparseable stderr line (token + space +
-// reason), which agents match one-token-per-line; a stray newline in the CUE
-// error would split that line. CUE's Error() is single-line today, but that is
-// not contractual, so collapse any interior whitespace run — newline included —
-// to a single space to keep the guarantee in our code.
+// cueReason renders a CUE error as a single-line ConfigError reason (one token line).
 func cueReason(err error) string {
 	return strings.Join(strings.Fields(err.Error()), " ")
 }
 
-// customCategories projects the schema's custom statuses into the map the status
-// package predicates take.
 func (s *Schema) customCategories() map[string]status.Category {
 	return s.Statuses
 }
@@ -271,8 +240,7 @@ func (s *Schema) StatusKnown(name string) bool {
 	return status.IsKnown(name, s.customCategories())
 }
 
-// StatusTerminal reports whether name is terminal for this scope (built-in done
-// or cancelled, or a custom status whose category is done).
+// StatusTerminal reports whether name is terminal for this scope.
 func (s *Schema) StatusTerminal(name string) bool {
 	return status.IsTerminal(name, s.customCategories())
 }

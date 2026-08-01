@@ -1,22 +1,11 @@
 package index
 
-// SchemaVersion is the on-disk index schema version. Any change to the DDL below
-// bumps this constant; a mismatch on open triggers a full drop-and-rebuild rather
-// than an ALTER/migration (the store is derived from the files, never authority).
+// SchemaVersion is the on-disk schema version. A mismatch triggers full rebuild (no migrations).
 const SchemaVersion = 1
 
-// schemaSQL is the complete DDL for a fresh index. The store is rebuilt wholesale
-// on any version mismatch, so there are no migrations — this is the single source
-// of the shape. The physical unit is the file path: a project row is keyed by its
-// absolute path so two files claiming one id (a duplicate_id collision) are two
-// rows, and a file moved between the dir root and archive/ is a delete of the old
-// path plus an insert of the new. Rows are namespaced by scope so cross-scope
-// queries and the FTS corpus are machine-wide.
-//
-// The FTS corpus is a plain (non-external-content) FTS5 table whose rowid mirrors
-// projects.rowid, kept in sync by the write path. edges carries an extra from_path
-// column (not part of the logical shape) so a project's edges delete precisely
-// even under a duplicate id.
+// schemaSQL is the complete DDL for a fresh index. Path is the physical key so
+// duplicate ids are two rows and archive moves are delete+insert. FTS rowid mirrors
+// projects.rowid; edges.from_path lets edge delete stay precise under duplicate id.
 const schemaSQL = `
 CREATE TABLE meta (
     key   TEXT PRIMARY KEY,
@@ -73,10 +62,7 @@ CREATE TABLE config_cache (
 );
 `
 
-// SchemaText is the human-facing description pj query --schema prints. It states
-// up front that the schema is derived and not a stable API, then lists the tables
-// and their columns. Kept in lockstep with schemaSQL by hand — it is documentation,
-// not a contract, and pj query is debug/human-only.
+// SchemaText is the human-facing description for pj query --schema (not a stable API).
 const SchemaText = `pj index schema (version 1)
 
 NOT A STABLE API: the index is a derived cache, rebuilt on any schema_version

@@ -1,8 +1,5 @@
 // Package skill holds the agent skill contract printed by `pj skill`.
-//
-// skill.md is the sole source of the contract text: it is embedded into the
-// binary and emitted to stdout. Edit skill.md when a locked agent rule changes.
-// This package must not load any external design document.
+// skill.md is the sole embedded source; this package must not load any external design document.
 package skill
 
 import (
@@ -13,9 +10,7 @@ import (
 //go:embed skill.md
 var embedded string
 
-// requiredHeadings is the v1 locked TOC the embedded contract must contain, in
-// order. Tests assert skill.md matches this list; the runtime only prints the
-// file.
+// requiredHeadings is the v1 locked TOC the embedded contract must contain, in order.
 var requiredHeadings = []string{
 	"Core work loop",
 	"Capture",
@@ -47,8 +42,7 @@ func Text() string {
 	return s
 }
 
-// RequiredHeadings returns the v1 section titles the contract must include, in
-// order. Used by tests and callers that assert structure without parsing markdown.
+// RequiredHeadings returns the v1 section titles the contract must include, in order.
 func RequiredHeadings() []string {
 	out := make([]string, len(requiredHeadings))
 	copy(out, requiredHeadings)

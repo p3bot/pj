@@ -2,7 +2,5 @@
 
 package cli
 
-// supportedOS reports whether pj runs on this OS. Everything outside macOS and
-// Linux is unsupported: pj fails with a clear startup error rather than
-// half-running under semantics (flock, paths) it does not target.
+// supportedOS is false outside macOS/Linux (fail closed, no half-run).
 func supportedOS() bool { return false }

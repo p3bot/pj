@@ -10,7 +10,6 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 )
 
-// gitIn runs a git command with cmd.Dir=dir and returns trimmed stdout, failing on error.
 func gitIn(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", args...)
@@ -29,8 +28,6 @@ func configIdentity(t *testing.T, dir string) {
 	gitIn(t, dir, "config", "commit.gpgsign", "false")
 }
 
-// newBareRemote creates a bare remote seeded with one commit on a known branch, so every
-// clone gets a tracking branch (an upstream) from the start.
 func newBareRemote(t *testing.T) string {
 	t.Helper()
 	base := t.TempDir()
@@ -50,14 +47,11 @@ func newBareRemote(t *testing.T) string {
 	return remote
 }
 
-// machine is one clone of a shared remote with its own machine-local pj state — a
-// separate App (config + state dir), the model of a second computer.
 type machine struct {
 	app   *App
 	clone string
 }
 
-// cloneMachine clones remote into a fresh working tree with its own pj App.
 func cloneMachine(t *testing.T, remote string) *machine {
 	t.Helper()
 	base := t.TempDir()
@@ -68,12 +62,9 @@ func cloneMachine(t *testing.T, remote string) *machine {
 	return &machine{app: app, clone: clone}
 }
 
-// scopeDir is the on-disk dir the harness scope (wc) occupies in this clone.
 func (m *machine) scopeDir() string { return filepath.Join(m.clone, "wc") }
 
-// initScopeAutoCommit registers a fresh auto-commit scope named wc at <clone>/wc. The
-// sync harness is single-scope by construction; a shared-repo preflight case that needs a
-// divergent sibling builds it directly rather than through this helper.
+// initScopeAutoCommit registers a fresh auto-commit scope named wc at <clone>/wc. The sync
 func (m *machine) initScopeAutoCommit(t *testing.T) string {
 	t.Helper()
 	dir := m.scopeDir()
@@ -96,14 +87,11 @@ func (m *machine) importScope(t *testing.T) string {
 	return dir
 }
 
-// sync runs pj sync on this machine and returns stdout, stderr, and the handler error.
 func (m *machine) sync(t *testing.T, args ...string) (string, string, error) {
 	t.Helper()
 	return run(t, m.app, append([]string{"sync"}, args...)...)
 }
 
-// mark runs pj mark <id> <newStatus> on this machine (a local self-commit), the
-// model of an offline edit the next sync will push and the other machine will merge.
 func (m *machine) mark(t *testing.T, id, newStatus string) {
 	t.Helper()
 	if _, _, err := run(t, m.app, "mark", id, newStatus); err != nil {
@@ -111,13 +99,11 @@ func (m *machine) mark(t *testing.T, id, newStatus string) {
 	}
 }
 
-// fmStatus reads the status field from a project file's frontmatter.
 func fmStatus(t *testing.T, path string) string {
 	t.Helper()
 	return fmValue(t, path, "status")
 }
 
-// findProject locates a project's current on-disk path in a scope dir, root or archive/.
 func findProject(t *testing.T, dir, base string) (string, bool) {
 	t.Helper()
 	if p := filepath.Join(dir, base); fileExistsPath(p) {
@@ -129,10 +115,6 @@ func findProject(t *testing.T, dir, base string) (string, bool) {
 	return "", false
 }
 
-// mustSeedProject returns the current path of the baseline project twoMachines seeds into
-// both clones, wherever the run has since moved it (root or archive/), failing if it is
-// gone. Every caller wants that one project, so it names it rather than taking a basename
-// no caller varies.
 func mustSeedProject(t *testing.T, dir string) string {
 	t.Helper()
 	p, _ := findProject(t, dir, "wc-ab2c-alpha.md")
@@ -147,15 +129,11 @@ func fileExistsPath(p string) bool {
 	return err == nil
 }
 
-// setStatusLine rewrites the status: line of a project file in place — a direct edit that
-// the next sync snapshots (used to force a merge without the terminal-boundary move).
 func setStatusLine(t *testing.T, path, status string) {
 	t.Helper()
 	replaceLinePrefix(t, path, "status:", "status: "+status)
 }
 
-// editBody rewrites the seed project body line to newText (a direct body edit that the
-// next sync snapshots). The seed bodies all carry the "body line" marker.
 func editBody(t *testing.T, path, newText string) {
 	t.Helper()
 	data, err := os.ReadFile(path)
@@ -187,7 +165,6 @@ func replaceLinePrefix(t *testing.T, path, prefix, replacement string) {
 	}
 }
 
-// writeCue overwrites a scope's pj.cue with the given content (a direct config edit).
 func writeCue(t *testing.T, dir, content string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte(content), 0o644); err != nil {
@@ -195,15 +172,11 @@ func writeCue(t *testing.T, dir, content string) {
 	}
 }
 
-// topCommit returns the subject of the clone's HEAD commit.
 func topCommit(t *testing.T, clone string) string {
 	t.Helper()
 	return gitIn(t, clone, "log", "-1", "--format=%s")
 }
 
-// twoMachines sets up a shared remote with an auto-commit scope registered and pushed by
-// machine A, then a machine B clone that has imported the same scope. Both carry the same
-// baseline project, committed and pushed, so either can edit it offline.
 func twoMachines(t *testing.T) (a, b *machine, remote string) {
 	t.Helper()
 	remote = newBareRemote(t)
@@ -218,7 +191,6 @@ func twoMachines(t *testing.T) (a, b *machine, remote string) {
 	return a, b, remote
 }
 
-// remoteHas reports whether the remote's main branch tree contains a path.
 func remoteHas(t *testing.T, remote, repoRelPath string) bool {
 	t.Helper()
 	out := gitIn(t, remote, "ls-tree", "-r", "--name-only", "main")

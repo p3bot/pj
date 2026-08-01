@@ -1,9 +1,5 @@
-// Package cli wires pj's Cobra command tree, the exit-code contract, signal
-// handling, the OS guard, and the stdout/stderr output rules. Handlers return
-// errors (never call os.Exit); cmd/pj/main.go is the sole place that formats an
-// error and exits. SilenceUsage/SilenceErrors keep Cobra from printing on its
-// own, and every flag- or argument-parse failure is routed to exit 2 at the
-// source so the ExitError map stays the single source of exit codes.
+// Package cli is pj's Cobra command tree, exit codes, signals, and output rules.
+// Handlers return errors; cmd/pj/main.go is the sole place that formats and exits.
 package cli
 
 import (
@@ -17,24 +13,18 @@ import (
 	"github.com/start-cli/pj/internal/xdg"
 )
 
-// App carries the process-wide dependencies a command needs: the single CUE
-// context (instantiated once per process and amortised across every CUE load),
-// the resolved XDG config directory, and the XDG state directory that holds the
-// machine-local SQLite index.
+// App carries process-wide CUE context and XDG config/state directories.
 type App struct {
 	Ctx       *cue.Context
 	ConfigDir string
 	StateDir  string
 }
 
-// admin builds a scope administrator over the app's config directory.
 func (a *App) admin() *scopeadmin.Admin {
 	return scopeadmin.New(a.Ctx, a.ConfigDir)
 }
 
-// Execute builds the command tree and runs it. It guards the OS first, resolves
-// the XDG config directory, instantiates the CUE context once, and installs the
-// signal handler. It returns the handler error for main to format and map.
+// Execute builds the command tree and runs it.
 func Execute() error {
 	if !supportedOS() {
 		return &ExitError{Code: exitFailure, Err: fmt.Errorf("pj supports macOS and Linux only; this operating system is unsupported")}
@@ -56,8 +46,7 @@ func Execute() error {
 	return root.ExecuteContext(ctx)
 }
 
-// Root help groups (AddGroup order = section order). IDs are internal; Titles
-// are the exact strings Cobra prints in root help.
+// Root help group IDs/Titles (AddGroup order = section order).
 const (
 	groupWorkID     = "work"
 	groupWorkTitle  = "Work:"
@@ -67,9 +56,7 @@ const (
 	groupAdminTitle = "Admin:"
 )
 
-// newRootCmd builds a fresh command tree. A constructor (rather than package-level
-// command vars) keeps parsed flag state from leaking across invocations, which
-// matters for tests that execute the tree repeatedly.
+// newRootCmd builds a fresh tree so flag state cannot leak across test invocations.
 func newRootCmd(app *App) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "pj",
@@ -82,14 +69,12 @@ func newRootCmd(app *App) *cobra.Command {
 			return c.Help()
 		},
 	}
-	// Route Cobra's own flag-parse failures (unknown flag, bad value) to exit 2.
+	// Flag-parse failures → exit 2.
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
 		return &ExitError{Code: exitUsage, Err: err}
 	})
 
-	// Preserve AddCommand order so within-group help reads as the locked mini
-	// workflow (create → … → next), not pure alpha. Global Cobra switch; only
-	// affects Commands() order (help + iteration), not dispatch.
+	// Locked within-group order (mini workflow), not pure alpha.
 	cobra.EnableCommandSorting = false
 
 	root.AddGroup(
@@ -98,8 +83,6 @@ func newRootCmd(app *App) *cobra.Command {
 		&cobra.Group{ID: groupAdminID, Title: groupAdminTitle},
 	)
 
-	// Build children first, then assign root GroupIDs here so group taxonomy stays
-	// in one place and shared constructors stay parent-agnostic.
 	create := newCreateCmd(app)
 	get := newGetCmd(app)
 	edit := newEditCmd(app)
@@ -138,7 +121,6 @@ func newRootCmd(app *App) *cobra.Command {
 	doctor.GroupID = groupAdminID
 	skill.GroupID = groupAdminID
 
-	// Within-group order matches the membership lists (mini workflow, not pure alpha).
 	root.AddCommand(
 		create, get, edit, mark, reorder, next,
 		list, status, meta, deps, search, query, lens,
@@ -147,8 +129,6 @@ func newRootCmd(app *App) *cobra.Command {
 	return root
 }
 
-// usageArgs wraps a positional-args validator so an argument-count failure exits
-// 2 (usage) rather than falling through to the generic failure code.
 func usageArgs(v cobra.PositionalArgs) cobra.PositionalArgs {
 	return func(c *cobra.Command, args []string) error {
 		if err := v(c, args); err != nil {
@@ -158,12 +138,10 @@ func usageArgs(v cobra.PositionalArgs) cobra.PositionalArgs {
 	}
 }
 
-// stdoutln writes one line to the command's stdout (captured in tests).
 func stdoutln(c *cobra.Command, s string) {
 	fmt.Fprintln(c.OutOrStdout(), s)
 }
 
-// stderrln writes one line to the command's stderr (captured in tests).
 func stderrln(c *cobra.Command, s string) {
 	fmt.Fprintln(c.ErrOrStderr(), s)
 }

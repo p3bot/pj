@@ -77,9 +77,7 @@ func runNext(app *App, c *cobra.Command, scopeFlag string, noLens bool) error {
 	return emptyQueueError(sel.ApplyLens, sel.Lens, sel.Blocked, sel.ReadyOutsideLens)
 }
 
-// nextSelection is the outcome of one unclaimed next walk: first eligible project
-// under the lens, full depends-token set, and empty-queue stats. status and next
-// share this so eligibility and stderr tokens cannot fork.
+// nextSelection is shared by status and next so eligibility/tokens cannot fork.
 type nextSelection struct {
 	Chosen           *index.Project
 	Tokens           []string
@@ -89,10 +87,7 @@ type nextSelection struct {
 	Lens             []string
 }
 
-// selectNext walks every next-candidate under the gate and lens: accumulates
-// depends tokens for the whole walk, records the first eligible as Chosen, and
-// counts holds for empty-queue diagnostics. Callers own empty-queue policy
-// (next refuses; status emits next\t and exits 0).
+// selectNext: callers own empty-queue policy (next refuses; status emits next\t).
 func selectNext(gate *gate, rows []*index.Project, lens []string, noLens bool) nextSelection {
 	candidates := nextCandidates(rows)
 	sortProjects(candidates)
@@ -105,8 +100,7 @@ func selectNext(gate *gate, rows []*index.Project, lens []string, noLens bool) n
 		ds := gate.evalDepends(p)
 		tokens.add(ds.Tokens)
 		if !gate.nextEligible(p, ds) {
-			// A queue-blocking hold (unmet deps or a malformed edge) drives the
-			// empty-because-blocked diagnostic; a duplicate-id skip does not.
+			// Held drives blocked diagnostic; duplicate-id skip does not.
 			if ds.Held() {
 				blocked++
 			}
@@ -139,8 +133,6 @@ func (s nextSelection) writeDiagnostics(c *cobra.Command) {
 	}
 }
 
-// nextCandidates keeps only the projects that could be next before the depends gate
-// and lens: built-in todo, at the dir root, and not quarantined.
 func nextCandidates(rows []*index.Project) []*index.Project {
 	var out []*index.Project
 	for _, p := range rows {
@@ -151,10 +143,6 @@ func nextCandidates(rows []*index.Project) []*index.Project {
 	return out
 }
 
-// emptyQueueError builds the distinct empty-queue diagnostic: a lens-emptied ready
-// queue, a queue blocked on unmet deps, or a genuinely empty one. An empty queue is
-// a normal non-zero state, not a fault, so it rides as a Plain diagnostic (no error:
-// label on a TTY).
 func emptyQueueError(applyLens bool, lens []string, blocked, readyOutsideLens int) error {
 	switch {
 	case applyLens && readyOutsideLens > 0:
@@ -166,27 +154,15 @@ func emptyQueueError(applyLens bool, lens []string, blocked, readyOutsideLens in
 	}
 }
 
-// plainDiagnostic builds a non-zero, non-fault diagnostic: exit 1, message printed
-// verbatim without the error: label.
 func plainDiagnostic(format string, a ...any) error {
 	return &ExitError{Code: exitFailure, Err: fmt.Errorf(format, a...), Plain: true}
 }
 
-// lensBracket renders a tag list as [a, b] — the single rendering both the
-// empty-queue diagnostic and the stderr lens echo share, so the two can never
-// drift and both match the design's worked example.
 func lensBracket(lens []string) string {
 	return "[" + strings.Join(lens, ", ") + "]"
 }
 
-// reconcileClosure reconciles the ambient scope plus the transitive closure of the
-// scopes it depends on, so a cross-scope depends gate reads fresh local state. It
-// reconciles rows batch by batch — discovering deeper scopes from the edges each
-// batch materializes — accumulating the per-scope schemas and config/unreachable
-// warnings, then runs the post-reconcile aggregates (parse_error count, integrity
-// tokens) once over the whole reconciled set. Every scope is scanned exactly once,
-// and the aggregates stay single-pass (one parse_error count for the closure, not
-// one per batch). It returns the unified result and the reconciled scope names.
+// reconcileClosure refreshes ambient plus transitive depends scopes (single-pass aggregates).
 func (e *engine) reconcileClosure(c *cobra.Command, ambient, dir string) (*reconcile.Result, []string, error) {
 	merged, names, err := e.reconcileClosureResult(ambient, dir)
 	if err != nil {
@@ -196,11 +172,7 @@ func (e *engine) reconcileClosure(c *cobra.Command, ambient, dir string) (*recon
 	return merged, names, nil
 }
 
-// reconcileClosureResult is reconcileClosure without printing: it returns the merged
-// result and reconciled scope names so a write verb can inspect the ambient scope's
-// config-usability before deciding whether to ride the warnings. next --claim uses
-// it so a config_unparseable refuse is not printed twice (once by the closure, once
-// by the refuse). The read path keeps the printing wrapper above.
+// reconcileClosureResult omits printing so claim can refuse without double-echoing.
 func (e *engine) reconcileClosureResult(ambient, dir string) (*reconcile.Result, []string, error) {
 	targets := map[string]string{ambient: dir}
 	done := map[string]bool{}

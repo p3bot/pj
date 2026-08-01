@@ -107,8 +107,6 @@ func TestRepeatedPrependStrictlyDecreasing(t *testing.T) {
 }
 
 func TestSameIntegerDensifyGrowsFraction(t *testing.T) {
-	// Repeatedly insert just after "a0" and before its successor; the fraction
-	// must grow, stay strictly between, and never end in the min digit '0'.
 	left, right := "a0", "a1"
 	prevLen := 0
 	grew := false
@@ -130,7 +128,7 @@ func TestSameIntegerDensifyGrowsFraction(t *testing.T) {
 			grew = true
 		}
 		prevLen = len(mid)
-		right = mid // keep shrinking the gap against the same left
+		right = mid
 	}
 	if !grew {
 		t.Fatal("expected fraction length to grow while densifying a shrinking gap")
@@ -142,7 +140,7 @@ func TestIncrementIntegerCeilingExhausts(t *testing.T) {
 	if _, ok := incrementInteger(maxInt); ok {
 		t.Fatal("incrementInteger at maximum positive integer should report exhaustion")
 	}
-	// KeyBetween append past the ceiling does not error; it grows the fraction.
+	// Append past ceiling does not error; it grows the fraction.
 	got, err := KeyBetween(maxInt, "")
 	if err != nil {
 		t.Fatalf("append past ceiling should grow fraction, got err: %v", err)
@@ -166,15 +164,15 @@ func TestValid(t *testing.T) {
 		}
 	}
 	invalid := []string{
-		"",     // empty
-		"a",    // shorter than head length
-		"a1V0", // fraction ends in '0'
-		"09",   // digit head
-		"0a",   // digit head
-		"a!",   // non-alphabet char
-		"a1 ",  // space is not in the alphabet
-		"~0",   // head out of range
-		"b0",   // head 'b' needs two digits
+		"",
+		"a",
+		"a1V0",
+		"09",
+		"0a",
+		"a!",
+		"a1 ",
+		"~0",
+		"b0",
 	}
 	for _, k := range invalid {
 		if Valid(k) {
@@ -185,13 +183,11 @@ func TestValid(t *testing.T) {
 
 func TestByteOrderEqualsRankOrderAndRoundTrip(t *testing.T) {
 	produced, finalSorted := loadFixture(t)
-	// Every emitted key round-trips through validation.
 	for _, p := range produced {
 		if !Valid(p.Key) {
 			t.Fatalf("fixture key %q fails Valid", p.Key)
 		}
 	}
-	// The design's insertion order must match byte-wise sort order.
 	shuffled := append([]string(nil), finalSorted...)
 	sort.Slice(shuffled, func(i, j int) bool { return shuffled[i] < shuffled[j] })
 	for i := range finalSorted {
@@ -201,9 +197,8 @@ func TestByteOrderEqualsRankOrderAndRoundTrip(t *testing.T) {
 	}
 }
 
-// TestCrossCheckAgainstReference replays the exact deterministic operation
-// sequence the reference JS produced and asserts byte-identical keys, locking
-// this port to the Rocicorp construction.
+// TestCrossCheckAgainstReference replays the reference JS operation sequence and
+// asserts byte-identical keys, locking this port to the Rocicorp construction.
 func TestCrossCheckAgainstReference(t *testing.T) {
 	produced, finalSorted := loadFixture(t)
 

@@ -69,8 +69,6 @@ func TestDoctorRepairPlannedRidesSyncDisabled(t *testing.T) {
 	}
 }
 
-// The per-git-root preflight is repo-granular: a broken sibling makes the whole git-root
-// unsyncable, so doctor must name it even when only the healthy scope is being diagnosed.
 func TestDoctorFlagsUnparseableSiblingSharingGitRoot(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
@@ -82,13 +80,9 @@ func TestDoctorFlagsUnparseableSiblingSharingGitRoot(t *testing.T) {
 	if err := os.MkdirAll(sibling, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// A second scope in one repo needs its own code-root — nested is fine, identical is
-	// refused — which is exactly the shared-git-root topology this preflight exists for.
 	if _, _, err := run(t, app, "scope", "init", sibling, "--name", "sib", "--code-root", sibling, "--auto-commit"); err != nil {
 		t.Fatalf("init sibling: %v", err)
 	}
-	// Schema-invalid but compilable: the name still reads, so this is an unusable config
-	// rather than a drifted registration.
 	bad := "name: \"sib\"\nautoCommit: true\nfields: {x: {type: \"float\"}}\n"
 	if err := os.WriteFile(filepath.Join(sibling, "pj.cue"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
@@ -103,8 +97,6 @@ func TestDoctorFlagsUnparseableSiblingSharingGitRoot(t *testing.T) {
 	}
 }
 
-// A scope reached both as the diagnosed scope and as its own git-root sibling rides the
-// class once.
 func TestDoctorConfigUnparseableReportedOncePerScope(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
@@ -125,8 +117,6 @@ func TestDoctorConfigUnparseableReportedOncePerScope(t *testing.T) {
 	}
 }
 
-// An unparseable pj.cue makes autoCommit unknown, not false: the scope must not be
-// judged as repo-driven, and must still get every class that does not depend on it.
 func TestDoctorUnparseableConfigSkipsAutoCommitClasses(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
@@ -137,7 +127,6 @@ func TestDoctorUnparseableConfigSkipsAutoCommitClasses(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// A non-allowlisted file proves the non-autoCommit classes still run.
 	if err := os.WriteFile(filepath.Join(dir, "stray.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -160,9 +149,6 @@ func TestDoctorUnparseableConfigSkipsAutoCommitClasses(t *testing.T) {
 	}
 }
 
-// The mid-rebase status_conflict tail is gated on autoCommit, not repo topology: pj sync
-// runs only for an auto-commit scope, so a repo-driven scope in a mid-rebase host repo
-// gets the standalone residue guidance, and an unknown autoCommit gets neither tail.
 func TestDoctorStatusConflictModesGateOnAutoCommit(t *testing.T) {
 	requireGit(t)
 	cases := []struct {
@@ -222,11 +208,6 @@ func TestDoctorStatusConflictModesGateOnAutoCommit(t *testing.T) {
 	}
 }
 
-// The per-git-root preflight's autoCommit verdict. scope init/import refuse a mismatching
-// sibling up front, so the case doctor exists to catch is divergence introduced by editing
-// pj.cue after registration. A sibling whose config will not parse has no readable
-// autoCommit and must be left out of the verdict rather than counted as false — the
-// schemaAutoCommit(nil) trap.
 func TestDoctorAutoCommitMismatchVerdict(t *testing.T) {
 	requireGit(t)
 	cases := []struct {
@@ -280,10 +261,6 @@ func TestDoctorAutoCommitMismatchVerdict(t *testing.T) {
 	}
 }
 
-// One token per dir-not-usable mode: an unreachable dir makes pj.cue equally unreadable,
-// so a sibling whose dir is gone must not ride config_unparseable. It is excluded because
-// a dir that resolves to no git-root is not a sibling of this one — reachability is
-// answered by the root lookup, not by consulting its config.
 func TestDoctorUnreachableSiblingRidesNoConfigError(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
@@ -326,7 +303,6 @@ func TestDoctorMutatingRefusesMidRebase(t *testing.T) {
 	if _, _, err := run(t, app, "doctor", "--repair"); ExitCodeFromError(err) != exitFailure {
 		t.Errorf("mid-rebase --repair should refuse non-zero, got %v", err)
 	}
-	// Bare report still runs mid-rebase.
 	if _, _, err := run(t, app, "doctor"); err != nil {
 		t.Errorf("bare doctor must still run mid-rebase, got %v", err)
 	}

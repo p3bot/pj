@@ -1,18 +1,11 @@
-// Package rebasedriver resolves one conflicted project .md at a paused rebase. It is a
-// unit called per conflicted path by pj sync's fetch-and-integrate loop (P6b): it does
-// not run rebases, does not decide whether to continue one, and does not know how many
-// stops a rebase has. It enumerates and loads the path's git stages, re-evaluates the
-// scope schema from on-disk pj.cue, derives each side's per-file author date, calls the
-// pure frontmatter merge (internal/fmmerge) on the whole stage blobs, 3-way text-merges
-// the bodies separately, composes a clean file, and either stages the path or
-// deliberately leaves it unstaged for the caller to surface.
+// Package rebasedriver resolves one conflicted project .md at a paused rebase.
+// Per-path only: does not run rebases or decide whether to continue. Enumerates
+// stages, re-evaluates on-disk schema, calls pure frontmatter merge, 3-way merges
+// bodies, and either stages the path or leaves it unstaged.
 //
-// Two return channels are kept strictly apart. A data condition a human resolves
-// in-file — a body conflict, a status dispute, a delete/edit, or a fail-closed merge —
-// comes back as an Outcome with the path left unstaged and the details the class must
-// report. An operational fault — git gone, a corrupt object, a failed stage read — is an
-// ordinary error return, so P6b aborts the integrate on one and parks a single file on
-// the other. This package takes no lock: it runs inside a lock span P6b owns.
+// Data conditions (body conflict, status dispute, delete/edit, fail-closed merge)
+// return as Outcome with path unstaged. Operational faults return as error.
+// Takes no lock — runs inside a caller-owned lock span.
 package rebasedriver
 
 import (
@@ -34,21 +27,15 @@ import (
 	"github.com/start-cli/pj/internal/scopeconfig"
 )
 
-// fileMode is the ordinary, non-executable mode composed project files are written with.
 const fileMode = 0o644
 
-// SchemaLoader returns a scope's evaluated schema from its pj.cue as it stands on disk
-// at call time. The driver calls it per conflicted file so the field merge is always
-// typed from the current on-disk schema — never one captured before the fetch, which by
-// construction cannot know a fields/statuses declaration the incoming commit just added.
-// P6b supplies the reconcile-cache-backed loader (cheap when the import closure is
-// unchanged); it must never return a schema snapshot captured earlier in the run.
+// SchemaLoader returns a scope's evaluated schema from on-disk pj.cue at call time.
+// Called per conflicted file so merges see fields/statuses the incoming commit just added —
+// never a schema snapshot captured earlier in the run.
 type SchemaLoader func(scopeDir string) (*scopeconfig.Schema, error)
 
-// Driver resolves conflicted project files across one rebase. Its per-rebase state — the
-// short-ids it has minted so far for add/add renames — lives on the receiver, not a
-// per-call local, so a later conflicted file's occupied-id set sees the ids earlier
-// files minted and no extension collides with a project already present.
+// Driver resolves conflicted project files across one rebase.
+// Minted short-ids live on the receiver so later files see earlier add/add extensions.
 type Driver struct {
 	gitRoot string
 	load    SchemaLoader
@@ -60,11 +47,9 @@ func New(gitRoot string, load SchemaLoader) *Driver {
 	return &Driver{gitRoot: gitRoot, load: load, minted: map[string]struct{}{}}
 }
 
-// Conflict names one conflicted project .md and the two side revs P6b resolved for it.
-// OursRev is the stage :2 side (HEAD, the upstream tip); TheirsRev is the stage :3 side
-// (REBASE_HEAD, the commit being replayed). The mapping is inverted from the everyday
-// during-rebase reading, so the driver pairs each rev with its stage number, never with
-// "ours".
+// Conflict names one conflicted project .md and the two side revs.
+// OursRev is stage :2 (HEAD/upstream); TheirsRev is stage :3 (REBASE_HEAD).
+// Mapping is inverted from everyday during-rebase "ours"/"theirs".
 type Conflict struct {
 	Path      string // repo-relative path to the conflicted project .md
 	ScopeDir  string // absolute scope dir holding pj.cue
@@ -72,28 +57,25 @@ type Conflict struct {
 	TheirsRev string // stage :3 side rev
 }
 
-// Class is the resolution class of a conflicted file, which the caller branches on.
+// Class is the resolution class of a conflicted file.
 type Class int
 
 const (
 	// ClassClean is a fully merged, parseable file the driver staged.
 	ClassClean Class = iota
-	// ClassBodyConflict is clean field-merged frontmatter with git markers confined to
-	// the body; left unstaged.
+	// ClassBodyConflict is clean field-merged frontmatter with markers only in the body; unstaged.
 	ClassBodyConflict
-	// ClassStatusDispute is merge-base status plus status_conflict written; left unstaged.
+	// ClassStatusDispute is merge-base status plus status_conflict; unstaged.
 	ClassStatusDispute
-	// ClassDeleteEdit is a delete/edit handoff; nothing written, nothing staged.
+	// ClassDeleteEdit is a delete/edit handoff; nothing written or staged.
 	ClassDeleteEdit
 	// ClassRename is a same-id add/add resolved into two staged files.
 	ClassRename
-	// ClassFailClosed is a fail-closed U21 merge; left unstaged, key named.
+	// ClassFailClosed is a fail-closed merge; unstaged, key named.
 	ClassFailClosed
 )
 
-// Outcome is the driver's report for one conflicted file. Staged tells the caller
-// whether the rebase can continue over this path without human action; the class-keyed
-// fields carry what that class must report.
+// Outcome is the driver's report for one conflicted file.
 type Outcome struct {
 	Path           string
 	Class          Class
@@ -105,18 +87,15 @@ type Outcome struct {
 	FailClosed     *FailClosed // ClassFailClosed
 }
 
-// DeleteEdit reports which side deleted the file and the surviving side's post-edit
-// status, for the caller to surface. Deleted is the pure merge's side label (ours = the
-// stage :2 / upstream side; theirs = the stage :3 / replayed side).
+// DeleteEdit reports which side deleted and the surviving post-edit status.
+// Deleted uses the pure merge's side labels (ours = :2; theirs = :3).
 type DeleteEdit struct {
 	Deleted         fmmerge.Side
 	SurvivingStatus string
 }
 
-// Rename reports a repaired same-id add/add duplicate: the kept side stays at KeepPath
-// with OldID, the loser is written to NewPath with NewID. P6b records the pair and runs
-// the edge_verify: inbound-edge query for OldID at the right moment — the driver never
-// emits it, because that is index work over rows the contested path does not hold.
+// Rename reports a repaired same-id add/add: kept side at KeepPath with OldID,
+// loser at NewPath with NewID. Edge verification is caller's index work.
 type Rename struct {
 	OldID    string
 	NewID    string
@@ -124,17 +103,14 @@ type Rename struct {
 	NewPath  string
 }
 
-// FailClosed reports a fail-closed U21 merge as a human-resolvable pause: the offending
-// key (when one applies) and the reason, path left unstaged. It is distinct from the
-// error return, which is reserved for operational faults.
+// FailClosed reports a fail-closed merge as a human-resolvable pause (distinct from error return).
 type FailClosed struct {
 	Key    string
 	Reason string
 }
 
-// Resolve merges one conflicted project file and reports the outcome. The returned error
-// is reserved for operational faults; every human-resolvable data condition is an
-// Outcome with Staged=false.
+// Resolve merges one conflicted project file. Error is reserved for operational faults;
+// human-resolvable data conditions are Outcome with Staged=false.
 func (d *Driver) Resolve(ctx context.Context, c Conflict) (Outcome, error) {
 	stages, err := git.ConflictStages(ctx, d.gitRoot, c.Path)
 	if err != nil {
@@ -212,10 +188,8 @@ func (d *Driver) Resolve(ctx context.Context, c Conflict) (Outcome, error) {
 	}
 }
 
-// readStage loads one stage blob when present, or an absent Stage when not. It reads
-// only stages ConflictStages reported, so a non-zero exit here is a genuine fault
-// surfaced as an error — never reinterpreted as an absent stage, which would silently
-// reclassify a broken run as a deletion.
+// readStage loads one stage blob when present. Non-zero exit is a genuine fault —
+// never reinterpreted as absent (would silently reclassify as a deletion).
 func (d *Driver) readStage(ctx context.Context, present bool, stage int, path string) (fmmerge.Stage, error) {
 	if !present {
 		return fmmerge.Stage{}, nil
@@ -227,11 +201,9 @@ func (d *Driver) readStage(ctx context.Context, present bool, stage int, path st
 	return fmmerge.Stage{Present: true, Data: data}, nil
 }
 
-// compose builds the merged file from the stage blobs — never from the conflicted
-// working-tree file git left, whose whole-file text merge places hunks by line proximity
-// and can span the fence, leaving unparseable frontmatter. It writes the merge's clean
-// YAML frontmatter and the separately 3-way-merged body. A clean body is staged so the
-// rebase can continue; a body conflict or a status dispute is left unstaged.
+// compose builds the merged file from stage blobs — never the conflicted working-tree
+// file, whose whole-file text merge can span the fence and leave unparseable frontmatter.
+// Clean body is staged; body conflict or status dispute is left unstaged.
 func (d *Driver) compose(ctx context.Context, c Conflict, base, ours, theirs fmmerge.Stage, res fmmerge.Result, dispute bool) (Outcome, error) {
 	_, baseBody, _ := frontmatter.Split(base.Data)
 	_, oursBody, _ := frontmatter.Split(ours.Data)
@@ -268,12 +240,8 @@ func (d *Driver) compose(ctx context.Context, c Conflict, base, ours, theirs fmm
 	return out, nil
 }
 
-// applyRename repairs a same-id add/add: it composes both paths — the conflicted path is
-// the keep path, the new path is that directory plus the loser's new id and its frozen
-// slug — writes the kept side's clean blob and the loser's id-rewritten blob through P5's
-// rewrite durability contract, stages both, and reports the pair. It never calls P5's
-// disk-backed duplicate-id procedure, whose index rows and clean files are absent at this
-// moment; the shared loser pick already produced the answer, so the driver only writes it.
+// applyRename repairs same-id add/add: writes kept blob and id-rewritten loser, stages both.
+// Uses the shared loser pick already in res; does not re-run disk-backed duplicate-id repair.
 func (d *Driver) applyRename(ctx context.Context, c Conflict, ours, theirs fmmerge.Stage, scope string, res fmmerge.Result) (Outcome, error) {
 	keepBlob, loserBlob := ours.Data, theirs.Data
 	if res.Rename.Loser == fmmerge.SideOurs {
@@ -311,12 +279,9 @@ func (d *Driver) applyRename(ctx context.Context, c Conflict, ours, theirs fmmer
 	}, nil
 }
 
-// occupiedShortIDs derives the short-ids taken in a scope for the add/add extension: the
-// index-tracked project files under the scope dir (git ls-files) union the project files
-// on disk under it (dir root and archive/), plus every id the driver has minted so far
-// this rebase. No single snapshot serves it — a pre-fetch set is blind to incoming ids,
-// and a once-mid-rebase set is blind to ids minted on later conflicted files — so it is
-// re-derived per file and folds in the running minted set.
+// occupiedShortIDs derives short-ids taken in a scope for add/add extension:
+// tracked files under scope, on-disk files (root + archive/), plus minted this rebase.
+// Re-derived per file — a pre-fetch set is blind to incoming ids; a once-mid-rebase set is blind to later mints.
 func (d *Driver) occupiedShortIDs(ctx context.Context, scopeDir, scope string) (map[string]struct{}, error) {
 	occ := map[string]struct{}{}
 	tracked, err := git.ListFiles(ctx, d.gitRoot, scopeDir)
@@ -346,9 +311,8 @@ func (d *Driver) occupiedShortIDs(ctx context.Context, scopeDir, scope string) (
 	return occ, nil
 }
 
-// addShortID records a project basename's short-id in occ when the basename is a project
-// file for scope. The short-id is the second "-"-separated segment; scope names and
-// short-ids carry no hyphen, so the split is unambiguous and any remainder is the slug.
+// addShortID records a project basename's short-id when it is a project file for scope.
+// Short-id is the second "-" segment; scope names and short-ids carry no hyphen.
 func addShortID(occ map[string]struct{}, basename, scope string) {
 	stem := strings.TrimSuffix(basename, ".md")
 	if stem == basename {
@@ -361,8 +325,7 @@ func addShortID(occ map[string]struct{}, basename, scope string) {
 	occ[parts[1]] = struct{}{}
 }
 
-// rewriteID re-serialises a stage blob with its frontmatter id replaced, preserving the
-// body. It matches P5's loser rewrite so the two collision routes produce the same file.
+// rewriteID re-serialises a stage blob with frontmatter id replaced, preserving body.
 func rewriteID(blob []byte, newID string) ([]byte, error) {
 	interior, body, present := frontmatter.Split(blob)
 	if !present {

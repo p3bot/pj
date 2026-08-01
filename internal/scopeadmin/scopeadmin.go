@@ -1,18 +1,8 @@
-// Package scopeadmin orchestrates the scope-administration verbs — init, import,
-// rebind, forget, and list — over the machine-local registry. It owns the
-// registration checks (§17: name collision, code-root collision, dir
-// disjointness, autoCommit consistency per derived git-root) and runs each
-// mutating verb as one critical section under the machine-global flock: acquire,
-// load the registry, validate against that just-loaded state, write, release.
-// Holding the lock across load-validate-write is what makes the invariants
-// concurrency-safe against a second init/import that would otherwise pass a check
-// the first's write invalidates.
-//
-// All paths reach these functions already cleaned, absolute, and symlink-resolved
-// to their canonical location — the CLI canonicalises input at the edge — so this
-// package is free of ambient cwd state and its path comparisons (code-root
-// containment, collision, dir disjointness) hold even on symlinked trees, where
-// git's derived repo root would otherwise use a different spelling.
+// Package scopeadmin orchestrates the scope-administration verbs (init, import,
+// rebind, forget, list) over the machine-local registry. Mutating verbs run as
+// one critical section under the machine-global flock (load-validate-write) so
+// registration invariants stay concurrency-safe. Paths arrive already cleaned,
+// absolute, and symlink-resolved from the CLI edge.
 package scopeadmin
 
 import (
@@ -47,9 +37,8 @@ func New(ctx *cue.Context, configDir string) *Admin {
 	return &Admin{ctx: ctx, store: registry.NewStore(ctx, configDir), configDir: configDir}
 }
 
-// InitParams are the resolved inputs to pj scope init. Dir is absolute; CodeRoot
-// is absolute when CodeRootGiven. Exactly one of Name / AutoName is set (the CLI
-// enforces the usage rule and the --name alphabet before calling).
+// InitParams are the resolved inputs to pj scope init.
+// Exactly one of Name / AutoName is set (CLI enforces usage before calling).
 type InitParams struct {
 	Dir             string
 	Name            string
@@ -60,26 +49,22 @@ type InitParams struct {
 	AutoCommitGiven bool
 }
 
-// Init creates and registers a new scope: it authors a minimal valid pj.cue and
-// a .gitignore covering .pj.lock, applies the code-root default matrix, resolves
-// the name, runs the registration checks, and records the entry. It never
-// prompts and never runs git. It returns the registered scope dir.
+// Init creates and registers a new scope: authors pj.cue and .gitignore, applies
+// the code-root default matrix, runs registration checks, and records the entry.
+// Never prompts and never runs git. Returns the registered scope dir.
 func (a *Admin) Init(p InitParams) (string, error) {
 	if p.AutoName == (p.Name != "") {
 		return "", fmt.Errorf("exactly one of --name or --auto-name is required")
 	}
 
-	// Pre-write guard, separate from the registered-scope checks: init authors a
-	// fresh scope, so an existing pj.cue means adopt-not-author.
+	// Pre-write guard: existing pj.cue means adopt-not-author.
 	if _, err := os.Stat(filepath.Join(p.Dir, "pj.cue")); err == nil {
 		return "", fmt.Errorf("%s already contains a pj.cue — that scope already exists on disk; adopt it with pj scope import %s, or choose a different dir", p.Dir, p.Dir)
 	} else if !os.IsNotExist(err) {
 		return "", fmt.Errorf("stat %s: %w", filepath.Join(p.Dir, "pj.cue"), err)
 	}
 
-	// Derive the git-root without creating the dir so a failed init — a collision
-	// or a consensus conflict — leaves no directory behind. The dir is created
-	// only after every check passes, just before its files are written.
+	// Derive git-root without creating the dir so a failed init leaves nothing behind.
 	gitRoot, inRepo := gitroot.RepoRootForNew(p.Dir)
 	codeRoot, err := resolveCodeRoot(p.Dir, p.CodeRoot, p.CodeRootGiven, gitRoot, inRepo)
 	if err != nil {
@@ -135,27 +120,21 @@ func (a *Admin) Init(p InitParams) (string, error) {
 
 	reg.Scopes[name] = registry.Entry{Dir: p.Dir, Root: codeRoot}
 	if err := a.store.WriteRegistry(reg.Scopes); err != nil {
-		// The scope's files are written but registration failed: a complete,
-		// valid pj.cue now sits on disk, so the recovery is to adopt it rather
-		// than re-run init (which would refuse a dir that already holds a pj.cue).
+		// Files written but registration failed: recover via import, not re-init.
 		return "", fmt.Errorf("wrote the scope files at %s but failed to register it — adopt the on-disk scope with pj scope import %s: %w", p.Dir, p.Dir, err)
 	}
 	return p.Dir, nil
 }
 
-// ImportParams are the resolved inputs to pj scope import. Dir is absolute;
-// CodeRoot is absolute when CodeRootGiven. Name and autoCommit come from the
-// on-disk pj.cue, so import takes neither.
+// ImportParams are the resolved inputs to pj scope import.
+// Name and autoCommit come from on-disk pj.cue.
 type ImportParams struct {
 	Dir           string
 	CodeRoot      string
 	CodeRootGiven bool
 }
 
-// Import registers an existing on-disk scope, files in place. Name and autoCommit
-// come from its pj.cue; an unusable pj.cue is a hard fail (config_unparseable)
-// rather than admitting a scope whose schema is born read-only. It returns the
-// registered scope dir.
+// Import registers an existing on-disk scope. Unusable pj.cue is a hard fail.
 func (a *Admin) Import(p ImportParams) (string, error) {
 	schema, err := scopeconfig.Load(a.ctx, p.Dir)
 	if err != nil {
@@ -207,9 +186,8 @@ func (a *Admin) Import(p ImportParams) (string, error) {
 	return p.Dir, nil
 }
 
-// RebindParams are the resolved inputs to pj scope rebind. Dir is absolute and
-// always updates the entry's dir; Name selects the entry; CodeRoot updates root
-// only when CodeRootGiven.
+// RebindParams are the resolved inputs to pj scope rebind.
+// Dir always updates; CodeRoot updates root only when CodeRootGiven.
 type RebindParams struct {
 	Dir           string
 	Name          string
@@ -217,11 +195,9 @@ type RebindParams struct {
 	CodeRootGiven bool
 }
 
-// Rebind rewrites the machine-local registry paths for an already-registered
-// scope. It updates dir always and root only when --code-root is given (a dir-
-// only move leaves root untouched — it does not re-run the init defaults). It
-// validates the post-rebind paths, preserves the lens (same registry key), and
-// is idempotent. It is not name repair. changed reports whether anything moved.
+// Rebind rewrites machine-local registry paths for an already-registered scope.
+// Dir always; root only when --code-root given (dir-only move leaves root untouched).
+// Not name repair. changed reports whether anything moved.
 func (a *Admin) Rebind(p RebindParams) (dir string, changed bool, err error) {
 	lock, err := xdg.AcquireConfigLock(a.configDir)
 	if err != nil {
@@ -244,9 +220,7 @@ func (a *Admin) Rebind(p RebindParams) (dir string, changed bool, err error) {
 		newRoot = p.CodeRoot
 	}
 
-	// The new dir must open and hold a pj.cue whose name equals --name and the
-	// registry key, or we would half-bind a wrong tree. Rebind is not name repair,
-	// so a mismatch is refused rather than absorbed.
+	// New dir must hold a pj.cue whose name equals --name (rebind is not name repair).
 	pjName, err := scopeconfig.ReadName(a.ctx, p.Dir)
 	if err != nil {
 		return "", false, fmt.Errorf("cannot rebind %q to %s: %w", p.Name, p.Dir, err)
@@ -275,10 +249,8 @@ func (a *Admin) Rebind(p RebindParams) (dir string, changed bool, err error) {
 	return p.Dir, true, nil
 }
 
-// Forget unregisters a scope: it drops the scope's registry and lens entries and
-// never touches its files or repo. In P2 it drops registry and lens only —
-// dropping index rows is P3, once an index exists. A merely unreachable dir stays
-// registered until forget.
+// Forget unregisters a scope (registry and lens only; never touches files).
+// Unreachable dirs stay registered until forget.
 func (a *Admin) Forget(name string) error {
 	lock, err := xdg.AcquireConfigLock(a.configDir)
 	if err != nil {
@@ -328,17 +300,14 @@ const (
 	ModeUnknown    = "unknown"
 )
 
-// Listing is the result of pj scope list: the TSV rows (sorted by name) plus the
-// soft diagnostics that ride stderr without wrapping or interleaving the TSV.
+// Listing is the result of pj scope list: TSV rows plus soft stderr diagnostics.
 type Listing struct {
 	Rows        []ListRow
 	Diagnostics []string
 }
 
-// List enumerates every registered scope, sorted by name ascending. Name, Dir,
-// and Root are pure registry reads; Mode stats each dir and derives its git-root
-// so one bad scope never fails the listing. Drift, unreachable dirs, and
-// unparseable configs surface as soft diagnostics rather than errors.
+// List enumerates every registered scope sorted by name. One bad scope never fails
+// the listing; drift, unreachable dirs, and unparseable configs are soft diagnostics.
 func (a *Admin) List() (*Listing, error) {
 	reg, err := a.store.Load()
 	if err != nil {
@@ -364,14 +333,11 @@ func (a *Admin) List() (*Listing, error) {
 			continue
 		}
 
-		// Derive the git-root once and reuse it for both the mode label and the
-		// drift recovery suggestion, and compile pj.cue once on the healthy path.
+		// Reuse one git-root derivation and one pj.cue compile on the healthy path.
 		gitRoot, inRepo := gitroot.RepoRoot(entry.Dir)
 		schema, cfgErr := scopeconfig.Load(a.ctx, entry.Dir)
 
-		// The authoritative name is the compiled schema's on the healthy path; when
-		// the config is unusable, recover a legal name from ReadName so a config that
-		// compiles under a legal name but fails schema validation still drifts.
+		// Healthy path uses schema.Name; unusable config falls back to ReadName for drift.
 		driftName := ""
 		if cfgErr == nil {
 			driftName = schema.Name
@@ -403,11 +369,8 @@ func (a *Admin) List() (*Listing, error) {
 	return out, nil
 }
 
-// DeriveMode maps a known-schema autoCommit and git-root presence to the closed
-// mode label used by scope list and the status dashboard. autoCommit true is
-// always pj-driven (including planned no-repo layouts). Unknown schemas are the
-// caller's problem: scope list emits ModeUnknown; status uses plain-files plus
-// config_unparseable: on stderr rather than inventing a fourth label.
+// DeriveMode maps autoCommit and git-root presence to the closed mode label.
+// autoCommit true is always pj-driven (including no-repo layouts).
 func DeriveMode(autoCommit, inRepo bool) string {
 	if autoCommit {
 		return ModePjDriven
@@ -418,9 +381,8 @@ func DeriveMode(autoCommit, inRepo bool) string {
 	return ModePlainFiles
 }
 
-// resolveCodeRoot applies the init/import code-root default matrix. An explicit
-// code-root inside a git repo must resolve within that same repo; a path outside
-// it is a hard error teaching the fix.
+// resolveCodeRoot applies the init/import code-root default matrix.
+// An explicit code-root inside a git repo must resolve within that same repo.
 func resolveCodeRoot(dir, codeRoot string, given bool, gitRoot string, inRepo bool) (string, error) {
 	if given {
 		if inRepo && !pathutil.UnderOrEqual(codeRoot, gitRoot) {
@@ -434,8 +396,7 @@ func resolveCodeRoot(dir, codeRoot string, given bool, gitRoot string, inRepo bo
 	return dir, nil
 }
 
-// ensureGitignore makes sure <dir>/.gitignore ignores the .pj.lock file, creating
-// or appending as needed without disturbing existing entries.
+// ensureGitignore makes sure <dir>/.gitignore ignores .pj.lock without disturbing other entries.
 func ensureGitignore(dir string) error {
 	p := filepath.Join(dir, ".gitignore")
 	existing, err := os.ReadFile(p)

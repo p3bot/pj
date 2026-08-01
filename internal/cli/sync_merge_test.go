@@ -7,9 +7,7 @@ import (
 	"testing"
 )
 
-// A both-sides terminal status change produces status_conflict in the file (clean YAML,
-// base status), pj sync refuses --continue while the key is present, and after the human
-// resolves it in-file the next sync completes and pushes.
+// A both-sides terminal status change produces status_conflict in the file (clean YAML, base status)
 func TestSyncBothSidesTerminalStatusDispute(t *testing.T) {
 	requireGit(t)
 	a, b, remote := twoMachines(t)
@@ -48,7 +46,6 @@ func TestSyncBothSidesTerminalStatusDispute(t *testing.T) {
 		t.Errorf("the persistent dispute should still be reported, got %q", errOut)
 	}
 
-	// The human resolves in-file: pick a status, delete status_conflict.
 	resolveStatusConflict(t, path, "done")
 	if _, _, err := b.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("post-resolution sync should complete: %v", err)
@@ -58,8 +55,6 @@ func TestSyncBothSidesTerminalStatusDispute(t *testing.T) {
 	}
 }
 
-// resolveStatusConflict rewrites a project file's frontmatter to a single chosen status
-// with the status_conflict key removed — the in-file resolution a human performs.
 func resolveStatusConflict(t *testing.T, path, finalStatus string) {
 	t.Helper()
 	data, err := os.ReadFile(path)
@@ -91,9 +86,6 @@ func readFile(t *testing.T, path string) string {
 	return string(data)
 }
 
-// A pj.cue conflict pauses the rebase before that scope's conflicted project .md are
-// field-merged (fail-closed); after the human resolves pj.cue in-file, the next sync
-// field-merges those .md through the driver, stages them, and completes.
 func TestSyncCueConflictPausesThenResumeMergesMD(t *testing.T) {
 	requireGit(t)
 	a, b, remote := twoMachines(t)
@@ -120,7 +112,6 @@ func TestSyncCueConflictPausesThenResumeMergesMD(t *testing.T) {
 		t.Errorf("the project .md must be left unmerged (markers in frontmatter) while pj.cue is conflicted:\n%s", readFile(t, pB))
 	}
 
-	// The human resolves pj.cue in-file (both fields kept), then re-syncs.
 	writeCue(t, dirB, "name: \"wc\"\nautoCommit: true\nfields: {a: {type: \"string\"}, b: {type: \"string\"}}\n")
 	if _, _, err := b.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("post-resolution sync should field-merge the .md and complete: %v", err)
@@ -137,19 +128,10 @@ func TestSyncCueConflictPausesThenResumeMergesMD(t *testing.T) {
 	_ = remote
 }
 
-// A conflicted .gitignore pauses on its own account but grants no schema authority: the
-// scope's project .md are still field-merged at that same stop, and the scope is not put
-// into the config_unparseable state on the wire when its pj.cue is perfectly readable.
-// Folding .gitignore in with pj.cue would fail-close the .md and cost a second round trip.
 func TestSyncGitignoreConflictDoesNotBlockProjectMerges(t *testing.T) {
 	requireGit(t)
 	a, b, _ := twoMachines(t)
 
-	// Both files are edited in place and left dirty, so each machine's sync sweeps them into
-	// one snapshot commit. That is what puts .gitignore and the project .md at the *same*
-	// rebase stop — the only arrangement where the gating actually bites. Going through
-	// pj mark instead would self-commit the .md separately and split them across two
-	// stops, where a .gitignore conflict could never have blocked the merge anyway.
 	appendLine(t, filepath.Join(a.scopeDir(), ".gitignore"), "a-only/")
 	setStatusLine(t, mustSeedProject(t, a.scopeDir()), "in-progress")
 	if _, _, err := a.sync(t, "--scope", "wc"); err != nil {
@@ -174,7 +156,6 @@ func TestSyncGitignoreConflictDoesNotBlockProjectMerges(t *testing.T) {
 		t.Errorf("the project .md must still be field-merged — .gitignore gates nothing:\n%s", readFile(t, pB))
 	}
 
-	// Resolving the one genuinely conflicted file completes the stop in a single re-run.
 	if err := os.WriteFile(filepath.Join(b.scopeDir(), ".gitignore"), []byte(".pj.lock\na-only/\nb-only/\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -186,9 +167,6 @@ func TestSyncGitignoreConflictDoesNotBlockProjectMerges(t *testing.T) {
 	}
 }
 
-// A hand-deleted .gitignore meeting a concurrent edit pauses with the delete/edit line
-// (not the markers line) on the first pause and every unactioned re-run; removing the file
-// then completes the rebase with the deletion recorded.
 func TestSyncGitignoreDeleteEditUnactionedThenRemove(t *testing.T) {
 	requireGit(t)
 	a, b, remote := twoMachines(t)
@@ -220,7 +198,6 @@ func TestSyncGitignoreDeleteEditUnactionedThenRemove(t *testing.T) {
 		t.Errorf("unactioned re-run must not resurrect .gitignore on the remote")
 	}
 
-	// Human removes the survivor → deletion wins.
 	if err := os.Remove(filepath.Join(b.scopeDir(), ".gitignore")); err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +209,6 @@ func TestSyncGitignoreDeleteEditUnactionedThenRemove(t *testing.T) {
 	}
 }
 
-// A .gitignore delete/edit the human modifies stages as their resolution and completes.
 func TestSyncGitignoreDeleteEditModifiedResumes(t *testing.T) {
 	requireGit(t)
 	a, b, remote := twoMachines(t)
@@ -294,15 +270,10 @@ func TestSyncGitignoreDeleteEditGitAddResumes(t *testing.T) {
 	}
 }
 
-// An unactioned pj.cue delete/edit at a stop that also has an unmerged project .md under
-// that scope keeps the project file unmerged on the next pj sync (schema fail-closed) —
-// it must not field-merge under the worktree survivor.
 func TestSyncCueDeleteEditKeepsProjectFailClosed(t *testing.T) {
 	requireGit(t)
 	a, b, _ := twoMachines(t)
 
-	// A's hand commit deletes pj.cue and edits the project (pj sync would refuse a
-	// root whose schema will not evaluate, so the deletion arrives only by hand commit).
 	dirA := a.scopeDir()
 	if err := os.Remove(filepath.Join(dirA, "pj.cue")); err != nil {
 		t.Fatal(err)
@@ -312,8 +283,6 @@ func TestSyncCueDeleteEditKeepsProjectFailClosed(t *testing.T) {
 	gitIn(t, a.clone, "commit", "-m", "hand: delete pj.cue and edit project")
 	gitIn(t, a.clone, "push")
 
-	// B modifies pj.cue (so the delete meets an edit) and the project differently —
-	// both conflict at the same stop when B syncs.
 	dirB := b.scopeDir()
 	writeCue(t, dirB, "name: \"wc\"\nautoCommit: true\nfields: {b: {type: \"string\"}}\n")
 	pB := mustSeedProject(t, dirB)
@@ -330,8 +299,6 @@ func TestSyncCueDeleteEditKeepsProjectFailClosed(t *testing.T) {
 		t.Errorf("project .md must stay unmerged while pj.cue is an open delete/edit:\n%s", readFile(t, pB))
 	}
 
-	// Unactioned re-run: still fail-closed on the project — never field-merge under the
-	// worktree survivor while the schema deletion stands open.
 	_, secondOut, err := b.sync(t, "--scope", "wc")
 	if ExitCodeFromError(err) != exitFailure {
 		t.Fatalf("unactioned pj.cue re-run must stay paused, got %v (stderr %q)", err, secondOut)
@@ -347,9 +314,6 @@ func TestSyncCueDeleteEditKeepsProjectFailClosed(t *testing.T) {
 }
 
 // assertConfigDeleteEditHandoff checks a config-file delete/edit line: path, reader-term
-// side naming, and the ways out (three for .gitignore; edit/git-add only for pj.cue).
-// Way-out checks use path-qualified or "edit it" phrases so narrative "edited it" cannot
-// satisfy them alone.
 func assertConfigDeleteEditHandoff(t *testing.T, errOut, path string, threeWays bool) {
 	t.Helper()
 	if !strings.Contains(errOut, "delete/edit") {
@@ -384,8 +348,6 @@ func assertConfigDeleteEditHandoff(t *testing.T, errOut, path string, threeWays 
 	}
 }
 
-// appendLine adds a line at the end of a file — two machines appending different lines to
-// the same file conflict on the trailing hunk.
 func appendLine(t *testing.T, path, line string) {
 	t.Helper()
 	data, err := os.ReadFile(path)
@@ -397,15 +359,11 @@ func appendLine(t *testing.T, path, line string) {
 	}
 }
 
-// A same-id add/add arriving through the rebase ends with both files kept (one renamed),
-// edge_verify emitted for inbound edges to the collided id in this invocation, and the
-// rebase continued — never a field-merge, never a human handoff.
 func TestSyncAddAddRenameEmitsEdgeVerify(t *testing.T) {
 	requireGit(t)
 	remote := newBareRemote(t)
 	a := cloneMachine(t, remote)
 	dirA := a.initScopeAutoCommit(t)
-	// A referrer that depends on the id the two adds will collide on.
 	addProject(t, dirA, "wc-zz99", "ref", "todo", "a0", "# Ref\n", false, "depends: [wc-ab2c]\n")
 	if _, _, err := a.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("A seed sync: %v", err)
@@ -413,8 +371,6 @@ func TestSyncAddAddRenameEmitsEdgeVerify(t *testing.T) {
 	b := cloneMachine(t, remote)
 	dirB := b.importScope(t)
 
-	// Both machines create a project with the same id AND slug (so the paths coincide) but
-	// different content — a genuine add/add collision, not two edits to one project.
 	addProject(t, dirA, "wc-ab2c", "alpha", "todo", "a1", "# A body\n", false, "")
 	if _, _, err := a.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("A add sync: %v", err)
@@ -430,7 +386,6 @@ func TestSyncAddAddRenameEmitsEdgeVerify(t *testing.T) {
 	if !strings.Contains(out+errOut, "edge_verify:") || !strings.Contains(out+errOut, "wc-zz99") {
 		t.Errorf("edge_verify should surface the inbound edge from wc-zz99, got %q / %q", out, errOut)
 	}
-	// Both files survive on the remote: the kept id plus a renamed loser.
 	names := gitIn(t, remote, "ls-tree", "-r", "--name-only", "main")
 	n := strings.Count(names, "wc/wc-ab2c")
 	if n < 2 {
@@ -439,8 +394,6 @@ func TestSyncAddAddRenameEmitsEdgeVerify(t *testing.T) {
 	_ = dirB
 }
 
-// The sync integrity step repairs a duplicate id that arrives through the rebase and was
-// absent before the fetch — over the merged tree, with no separate pj doctor run.
 func TestSyncIntegrityRepairsDuplicateFromRebase(t *testing.T) {
 	requireGit(t)
 	remote := newBareRemote(t)
@@ -452,8 +405,6 @@ func TestSyncIntegrityRepairsDuplicateFromRebase(t *testing.T) {
 	b := cloneMachine(t, remote)
 	dirB := b.importScope(t)
 
-	// Same id, different slug → different paths, so they land as two files (no path
-	// conflict) and the duplicate only exists after the merge.
 	addProject(t, dirA, "wc-cd3e", "beta", "todo", "a1", "# Beta\n", false, "")
 	if _, _, err := a.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("A add sync: %v", err)
@@ -472,13 +423,10 @@ func TestSyncIntegrityRepairsDuplicateFromRebase(t *testing.T) {
 	_ = dirB
 }
 
-// pj sync --all visits every git-root: a sync_disabled root is reported and the run exits
-// non-zero, but a healthy root still syncs and pushes — one stale repo strands no other.
 func TestSyncAllIsolatesFailingRoot(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
 
-	// A healthy auto-commit root with an upstream.
 	remote := newBareRemote(t)
 	base := t.TempDir()
 	wcClone := filepath.Join(base, "clone")
@@ -493,7 +441,6 @@ func TestSyncAllIsolatesFailingRoot(t *testing.T) {
 	}
 	addProject(t, wcDir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
 
-	// A second auto-commit root with NO upstream: sync_disabled.
 	xyRepo := t.TempDir()
 	gitIn(t, xyRepo, "init", "-b", "main")
 	configIdentity(t, xyRepo)

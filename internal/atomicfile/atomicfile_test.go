@@ -7,7 +7,6 @@ import (
 )
 
 func TestWriteCreatesFileAndDir(t *testing.T) {
-	// The parent directory does not exist yet; Write must create it.
 	path := filepath.Join(t.TempDir(), "sub", "file.txt")
 	if err := Write(path, []byte("hello\n"), 0o644); err != nil {
 		t.Fatalf("Write: %v", err)
@@ -44,7 +43,6 @@ func TestWriteOverwritesAtomically(t *testing.T) {
 	if string(got) != "second" {
 		t.Errorf("overwrite content = %q want %q", got, "second")
 	}
-	// No temp files linger after a successful write.
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -55,8 +53,7 @@ func TestWriteOverwritesAtomically(t *testing.T) {
 }
 
 func TestWriteExplicitPermIgnoresUmask(t *testing.T) {
-	// CreateTemp yields 0600; the explicit Chmod must widen it to the requested
-	// mode regardless of the process umask.
+	// CreateTemp defaults to 0600; explicit Chmod must apply the requested mode.
 	path := filepath.Join(t.TempDir(), "wide")
 	if err := Write(path, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)

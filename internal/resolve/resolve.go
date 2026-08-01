@@ -1,16 +1,8 @@
-// Package resolve implements ambient scope resolution: the shared mechanism the
-// later ambient project verbs consume. No P2 verb resolves ambiently (pj scope
-// list enumerates every scope and takes no --scope), so this package ships with
-// unit-test coverage rather than a driving command.
-//
-// Precedence is --scope > PJ_SCOPE > longest-prefix code-root, all against the
-// registry only — never a filesystem probe for an unregistered pj.cue. An
-// explicit override naming an unregistered scope fails closed with an
-// unknown-scope error rather than falling through to the code-root tier; a
-// deliberate target that misses is a mistake, not a request to auto-resolve.
-// A resolved scope whose registry key disagrees with its on-disk pj.cue name is
-// name-drift: unusable until deliberate re-registration, hard-erroring on every
-// using path.
+// Package resolve implements ambient scope resolution. Precedence is
+// --scope > PJ_SCOPE > longest-prefix code-root, against the registry only —
+// never a filesystem probe for an unregistered pj.cue. An explicit override
+// naming an unregistered scope fails closed; a resolved scope whose registry
+// key disagrees with on-disk pj.cue name is name-drift.
 package resolve
 
 import (
@@ -25,8 +17,7 @@ import (
 	"github.com/start-cli/pj/internal/token"
 )
 
-// How a scope was chosen — the closed labels for the status dashboard's
-// `resolved` field and any other caller that needs the winning tier.
+// How a scope was chosen — closed labels for the status dashboard's `resolved` field.
 const (
 	SourceFlag = "flag" // --scope
 	SourceEnv  = "env"  // PJ_SCOPE
@@ -40,27 +31,20 @@ type Resolved struct {
 	Source string // SourceFlag, SourceEnv, or SourceCwd
 }
 
-// Options carries the ambient inputs, read once at the CLI edge and passed in so
-// resolution is a pure function of the registry plus these values.
+// Options carries ambient inputs, read once at the CLI edge so resolution is pure.
 type Options struct {
 	// ScopeFlag is the --scope override (highest precedence). Empty when unset.
 	ScopeFlag string
 	// EnvScope is the PJ_SCOPE override. Empty when unset.
 	EnvScope string
-	// Cwd is the current working directory for longest-prefix code-root matching.
-	// It must be canonical — absolute and symlink-resolved — to match the stored
-	// roots (the CLI canonicalises it at the edge); a symlinked cwd would not
-	// prefix a git-resolved root.
+	// Cwd must be canonical (absolute, symlink-resolved) to match stored roots.
 	Cwd string
 }
 
 // ErrNoScope is returned when no override is set and no code-root matches cwd.
-// It fails registry-only: no tree probe for an unregistered scope. Scope-
-// requiring commands surface guidance; discovery commands run without a scope.
 var ErrNoScope = errors.New("no ambient scope: pass --scope <name>, set PJ_SCOPE, or run inside a registered code-root (see pj scope init/import)")
 
-// UnknownScopeError is returned when an explicit --scope/PJ_SCOPE override names
-// a scope with no registry entry. It never falls through to the code-root tier.
+// UnknownScopeError is returned when an explicit override names an unregistered scope.
 type UnknownScopeError struct {
 	Name string
 }
@@ -69,9 +53,7 @@ func (e *UnknownScopeError) Error() string {
 	return fmt.Sprintf("unknown scope: %q is not registered (see pj scope import)", e.Name)
 }
 
-// DriftError is returned for a resolved scope whose registry key disagrees with
-// its on-disk pj.cue name. Its message carries the name_drift token and the
-// exact forget+import recovery.
+// DriftError is returned when a resolved scope's registry key disagrees with on-disk pj.cue name.
 type DriftError struct {
 	Key    string
 	PjName string
@@ -81,9 +63,7 @@ type DriftError struct {
 
 func (e *DriftError) Error() string { return e.line }
 
-// Resolve resolves the ambient scope by the precedence chain. An override that
-// names an unregistered scope returns *UnknownScopeError; a resolved scope in
-// name-drift returns *DriftError; no match with no override returns ErrNoScope.
+// Resolve resolves the ambient scope by the precedence chain.
 func Resolve(ctx *cue.Context, reg *registry.Registry, opts Options) (*Resolved, error) {
 	if opts.ScopeFlag != "" {
 		entry, ok := reg.Scopes[opts.ScopeFlag]
@@ -107,9 +87,7 @@ func Resolve(ctx *cue.Context, reg *registry.Registry, opts Options) (*Resolved,
 	return resolvedOrDrift(ctx, name, entry, SourceCwd)
 }
 
-// longestPrefix returns the registered scope whose code-root is the longest
-// prefix of cwd. Nested code-roots resolve deterministically to the most
-// specific.
+// longestPrefix returns the registered scope whose code-root is the longest prefix of cwd.
 func longestPrefix(reg *registry.Registry, cwd string) (string, registry.Entry, bool) {
 	var bestName string
 	var bestEntry registry.Entry
@@ -125,10 +103,8 @@ func longestPrefix(reg *registry.Registry, cwd string) (string, registry.Entry, 
 	return bestName, bestEntry, true
 }
 
-// resolvedOrDrift returns the scope unless its on-disk pj.cue name disagrees with
-// the registry key. When the pj.cue name cannot be read (absent/unparseable), the
-// scope still resolves — reads stay available and the write path enforces the
-// config_unparseable gate; drift is specifically a name mismatch.
+// resolvedOrDrift returns the scope unless on-disk name disagrees with the registry key.
+// Unreadable pj.cue still resolves (reads stay available; write path gates config).
 func resolvedOrDrift(ctx *cue.Context, name string, entry registry.Entry, source string) (*Resolved, error) {
 	pjName, err := scopeconfig.ReadName(ctx, entry.Dir)
 	if err == nil && pjName != name {
@@ -142,11 +118,8 @@ func resolvedOrDrift(ctx *cue.Context, name string, entry registry.Entry, source
 	return &Resolved{Name: name, Entry: entry, Source: source}, nil
 }
 
-// DriftLine formats the stderr line for a name-drift condition: the name_drift
-// token, both names, the dir, and the exact forget+import recovery. codeRoot is
-// appended as --code-root only when non-empty (a non-default binding to
-// reproduce). It is shared by the resolver's hard error and pj scope list's soft
-// diagnostic so the recovery wording never forks.
+// DriftLine formats the name_drift stderr line with forget+import recovery.
+// Shared by the resolver and scope list so recovery wording never forks.
 func DriftLine(key, pjName, dir, codeRoot string) string {
 	rec := fmt.Sprintf("pj scope forget %s && pj scope import %s", key, dir)
 	if codeRoot != "" {
@@ -155,19 +128,13 @@ func DriftLine(key, pjName, dir, codeRoot string) string {
 	return token.Line(token.NameDrift, fmt.Sprintf("registry key %q but pj.cue name is %q at %s — run: %s", key, pjName, dir, rec))
 }
 
-// SuggestCodeRoot returns the code-root to include in a recovery suggestion, or
-// "" when root is the default for dir (git-root inside a repo, else dir), so the
-// suggested re-import reproduces the exact binding without a redundant flag. It
-// derives the git-root itself; callers that already hold one use
-// SuggestCodeRootWith to avoid a second derivation.
+// SuggestCodeRoot returns the code-root for a recovery suggestion, or "" when root is the default for dir.
 func SuggestCodeRoot(dir, root string) string {
 	gitRoot, inRepo := gitroot.RepoRoot(dir)
 	return SuggestCodeRootWith(dir, root, gitRoot, inRepo)
 }
 
-// SuggestCodeRootWith is SuggestCodeRoot over a pre-derived git-root. The default
-// code-root is the git-root when the dir is inside a repo, else the dir itself; a
-// root equal to that default needs no explicit --code-root in the suggestion.
+// SuggestCodeRootWith is SuggestCodeRoot over a pre-derived git-root.
 func SuggestCodeRootWith(dir, root, gitRoot string, inRepo bool) string {
 	def := dir
 	if inRepo {

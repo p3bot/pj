@@ -10,25 +10,16 @@ import (
 	sqlite "modernc.org/sqlite"
 )
 
-// ErrSearchQuery marks a malformed full-text search query: the MATCH expression
-// could not be parsed by FTS5 (an unbalanced quote, a bare operator). It is the one
-// user-input error Search can produce — its SQL is static and its only variable
-// input is the bound MATCH term — so callers map it to a clean message while every
-// other failure stays infrastructure.
+// ErrSearchQuery marks a malformed FTS5 MATCH (the only user-input error Search produces).
 var ErrSearchQuery = errors.New("malformed full-text search query")
 
-// sqliteError is SQLite's generic SQLITE_ERROR result code (a frozen public ABI
-// value). Within Search — static SQL, one bound MATCH param — it can only mean the
-// query expression was malformed; real faults (BUSY, CORRUPT, IOERR) use other codes.
+// sqliteError is SQLITE_ERROR; within Search (static SQL, one MATCH param) it means a bad query.
 const sqliteError = 1
 
-// projectColumns is the fixed column list every project scan reads, in the order
-// scanProject expects. Body is never selected — it is not stored as a column.
+// projectColumns is the fixed list scanProject expects; Body is never selected.
 const projectColumns = `path, scope, id, short_id, status, order_key, title, summary, created,
     tags, custom, status_conflict, archived, parse_error, parse_msg, schema_error, mtime_ns, size`
 
-// scanProject reads one project row from a *sql.Rows / *sql.Row positioned on a
-// projectColumns select.
 func scanProject(sc interface{ Scan(...any) error }) (*Project, error) {
 	var (
 		p                      Project
@@ -56,8 +47,7 @@ func scanProject(sc interface{ Scan(...any) error }) (*Project, error) {
 	return &p, nil
 }
 
-// AllProjects returns every project row machine-wide. Callers that need a cross-
-// scope id map (the depends gate, deps resolution) build it from this.
+// AllProjects returns every project row machine-wide.
 func (d *DB) AllProjects() ([]*Project, error) {
 	return d.queryProjects(`SELECT ` + projectColumns + ` FROM projects`)
 }
@@ -67,19 +57,17 @@ func (d *DB) ScopeProjects(scope string) ([]*Project, error) {
 	return d.queryProjects(`SELECT `+projectColumns+` FROM projects WHERE scope = ?`, scope)
 }
 
-// ProjectsByID returns every row in a scope whose full id matches — usually one,
-// but two or more under a duplicate_id collision (the caller refuses those).
+// ProjectsByID returns rows in a scope with the given full id (may be >1 under collision).
 func (d *DB) ProjectsByID(scope, id string) ([]*Project, error) {
 	return d.queryProjects(`SELECT `+projectColumns+` FROM projects WHERE scope = ? AND id = ?`, scope, id)
 }
 
-// ProjectsByShortID returns every row in a scope whose short id matches.
+// ProjectsByShortID returns rows in a scope with the given short id.
 func (d *DB) ProjectsByShortID(scope, shortID string) ([]*Project, error) {
 	return d.queryProjects(`SELECT `+projectColumns+` FROM projects WHERE scope = ? AND short_id = ?`, scope, shortID)
 }
 
-// ProjectsByFullID returns every row machine-wide whose full id matches, across
-// any scope (a full id addresses any registered scope).
+// ProjectsByFullID returns every row machine-wide with the given full id.
 func (d *DB) ProjectsByFullID(id string) ([]*Project, error) {
 	return d.queryProjects(`SELECT `+projectColumns+` FROM projects WHERE id = ?`, id)
 }
@@ -101,17 +89,13 @@ func (d *DB) queryProjects(q string, args ...any) ([]*Project, error) {
 	return out, rows.Err()
 }
 
-// SearchHit is one FTS result: the project row plus its corpus-relative bm25 score
-// (smaller is a better match, SQLite's convention).
+// SearchHit is one FTS result with its bm25 score (smaller is better).
 type SearchHit struct {
 	Project *Project
 	Score   float64
 }
 
-// Search runs an FTS5 MATCH over titles and bodies, ranked bm25 best-first and
-// tie-broken by full id ascending. An empty scope searches machine-wide; a
-// non-empty scope bounds to that scope. It returns the matched project rows,
-// including archived terminals and parse_error quarantine rows.
+// Search runs FTS5 MATCH over titles and bodies (bm25, id tie-break). Empty scope is machine-wide.
 func (d *DB) Search(scope, match string) ([]SearchHit, error) {
 	q := `SELECT ` + prefixed("p.", projectColumns) + `, bm25(fts) AS score
           FROM fts JOIN projects p ON p.rowid = fts.rowid
@@ -142,9 +126,7 @@ func (d *DB) Search(scope, match string) ([]SearchHit, error) {
 	return out, rows.Err()
 }
 
-// isQuerySyntaxErr reports whether err is a malformed-query error from FTS5. Search's
-// SQL is static and its only variable input is the bound MATCH term, so a generic
-// SQLITE_ERROR here is a query-parse failure, not an infrastructure fault.
+// isQuerySyntaxErr reports FTS5 malformed-query errors (SQLITE_ERROR under Search's static SQL).
 func isQuerySyntaxErr(err error) bool {
 	var se *sqlite.Error
 	return errors.As(err, &se) && se.Code() == sqliteError
@@ -178,23 +160,18 @@ func scanSearchHit(rows *sql.Rows) (SearchHit, error) {
 	return SearchHit{Project: &p, Score: score}, nil
 }
 
-// AllEdges returns every edge machine-wide. deps and traversal build their
-// adjacency from this.
+// AllEdges returns every edge machine-wide.
 func (d *DB) AllEdges() ([]Edge, error) {
 	return d.queryEdges(`SELECT from_path, from_id, from_scope, to_id, to_scope, kind FROM edges`)
 }
 
-// EdgesByTarget returns every edge machine-wide pointing at toID — the inbound edges
-// (depends and related, in-scope and cross-scope) a collision or scope rename must
-// surface as edge_verify at operation time. Results are ordered for a stable report.
+// EdgesByTarget returns every edge pointing at toID (ordered for stable reports).
 func (d *DB) EdgesByTarget(toID string) ([]Edge, error) {
 	return d.queryEdges(`SELECT from_path, from_id, from_scope, to_id, to_scope, kind
 	                     FROM edges WHERE to_id = ? ORDER BY from_id, kind`, toID)
 }
 
-// EdgesToScope returns every edge machine-wide whose target lies in toScope — the
-// cross-scope inbound edges a scope rename surfaces as edge_verify (the in-scope ones
-// are rewritten). Results are ordered for a stable report.
+// EdgesToScope returns every edge whose target lies in toScope (ordered for stable reports).
 func (d *DB) EdgesToScope(toScope string) ([]Edge, error) {
 	return d.queryEdges(`SELECT from_path, from_id, from_scope, to_id, to_scope, kind
 	                     FROM edges WHERE to_scope = ? ORDER BY from_scope, from_id, kind`, toScope)
@@ -224,9 +201,7 @@ func unmarshalStrings(s string, dst *[]string) error {
 	return json.Unmarshal([]byte(s), dst)
 }
 
-// prefixed rewrites a comma-separated column list to prefix each bare column with
-// alias (e.g. "p."), leaving the multi-line formatting intact. It keeps the one
-// projectColumns definition authoritative for joined selects.
+// prefixed rewrites a comma-separated column list so each bare column gets alias (keeps projectColumns authoritative).
 func prefixed(alias, cols string) string {
 	parts := strings.Split(cols, ",")
 	for i, c := range parts {

@@ -13,12 +13,7 @@ import (
 	"github.com/start-cli/pj/internal/status"
 )
 
-// statusKeys is the locked stdout key order for `pj status`. Emit exactly these
-// keys, one key\tvalue line each, every time ambient resolve succeeds. Keys are
-// left-justified in a column of width statusKeyWidth (longest key) so values
-// share a visual column under fixed-width terminal tab stops; the separator
-// remains a single tab. Parse by splitting on the first tab and trimming
-// trailing spaces from the key field.
+// statusKeys is the locked stdout key order for pj status (pad + single tab).
 var statusKeys = []string{
 	"scope",
 	"dir",
@@ -42,8 +37,7 @@ var statusKeys = []string{
 	"uncommitted",
 }
 
-// statusKeyWidth is the display width of the key column: the longest locked key.
-// Computed once so emission and tests share the same pad.
+// statusKeyWidth is the longest locked key (shared with tests).
 var statusKeyWidth = maxStatusKeyWidth()
 
 func maxStatusKeyWidth() int {
@@ -126,7 +120,7 @@ func runStatus(app *App, c *cobra.Command, scopeFlag string) error {
 		return err
 	}
 
-	// Same closure + gate path as pj next so cross-scope depends eligibility stays fresh.
+	// Same closure + gate as pj next for cross-scope depends freshness.
 	res, targets, err := e.reconcileClosure(c, scope, dir)
 	if err != nil {
 		return err
@@ -164,7 +158,7 @@ func runStatus(app *App, c *cobra.Command, scopeFlag string) error {
 		if p.ParseError {
 			continue
 		}
-		// Terminal tallies: full-scope including archive/, ignore lens.
+		// Terminal tallies ignore lens and include archive/.
 		switch p.Status {
 		case status.Done:
 			done++
@@ -197,8 +191,7 @@ func runStatus(app *App, c *cobra.Command, scopeFlag string) error {
 	sortProjects(claimed)
 	sortProjects(blockedIDs)
 
-	// Same full next walk as unclaimed pj next (tokens + eligibility); empty next
-	// is still a pulse value, not emptyQueueError.
+	// Same next walk as unclaimed pj next; empty next is still a pulse value.
 	sel := selectNext(gate, rows, lens, false)
 	nextID := ""
 	if sel.Chosen != nil {
@@ -241,9 +234,7 @@ func runStatus(app *App, c *cobra.Command, scopeFlag string) error {
 	return nil
 }
 
-// workingBoardMember is the base set for non-terminal status counts, claimed,
-// blocked_ids, and total's outer filter: non-quarantined, not under archive/, and
-// passes the active lens (empty lens / untagged projects are visible).
+// workingBoardMember: non-quarantined, non-archive, passes lens (untagged visible).
 func workingBoardMember(p *index.Project, lens []string) bool {
 	if p.ParseError || p.Archived {
 		return false
@@ -251,9 +242,7 @@ func workingBoardMember(p *index.Project, lens []string) bool {
 	return passesLens(p, lens)
 }
 
-// statusMode maps schema usability + autoCommit + git-root to the three-label set.
-// Unknown schema → plain-files (never unknown or repo-driven); config_unparseable
-// already rides from reconcile.
+// statusMode: unusable schema → plain-files (never guess repo-driven).
 func statusMode(schema *scopeconfig.Schema, configUnusable bool, hasRoot bool) string {
 	if configUnusable || schema == nil {
 		return scopeadmin.ModePlainFiles
@@ -261,9 +250,6 @@ func statusMode(schema *scopeconfig.Schema, configUnusable bool, hasRoot bool) s
 	return scopeadmin.DeriveMode(schema.AutoCommit, hasRoot)
 }
 
-// countSameScopeDangling counts depends edges from ambient-scope projects whose
-// target is same-scope and has no project row in this scope — edge-count, not
-// distinct targets (matches doctor's per-edge depends_dangling findings).
 func countSameScopeDangling(e *engine, scope string) (int, error) {
 	edges, err := e.db.AllEdges()
 	if err != nil {
@@ -292,8 +278,7 @@ func countSameScopeDangling(e *engine, scope string) (int, error) {
 	return n, nil
 }
 
-// ambientIntegrity returns "ok" or "issues" for the ambient scope alone: any
-// parse_error row, duplicate_id, equal_order, or archive layout drift flips to issues.
+// ambientIntegrity: parse_error/duplicate/equal_order/archive drift → issues.
 func ambientIntegrity(e *engine, scope string, schema *scopeconfig.Schema) (string, error) {
 	scopes := []string{scope}
 	n, err := e.db.ParseErrorCount(scopes)

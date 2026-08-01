@@ -18,7 +18,7 @@ func TestKeyStableAndHex(t *testing.T) {
 	if Key("/repo/one") == Key("/repo/two") {
 		t.Error("distinct paths must key differently")
 	}
-	// Cleaning is applied: an uncleaned path keys the same as its clean form.
+	// Cleaning is applied: uncleaned path keys the same as its clean form.
 	if Key("/repo/one/") != Key("/repo/one") {
 		t.Error("Key must clean the path before hashing")
 	}
@@ -45,7 +45,6 @@ func TestCommitLockCreatesDirAndSerialises(t *testing.T) {
 	if err := lock.Release(); err != nil {
 		t.Fatal(err)
 	}
-	// A second acquire after release succeeds.
 	lock2, err := AcquireCommitLock(state, repo)
 	if err != nil {
 		t.Fatal(err)
@@ -70,7 +69,6 @@ func TestReadLastPushError(t *testing.T) {
 	if !ok || detail != "push rejected" {
 		t.Errorf("marker = %q ok=%v want trimmed detail", detail, ok)
 	}
-	// An empty marker reads as absent.
 	if err := os.WriteFile(filepath.Join(dir, "last-push-error"), []byte("   \n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +81,6 @@ func TestWriteAndClearLastPushError(t *testing.T) {
 	state := t.TempDir()
 	repo := "/repo/two"
 
-	// Write creates the dir and is round-tripped by Read.
 	if err := WriteLastPushError(state, repo, "  remote rejected: non-fast-forward\n"); err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +89,6 @@ func TestWriteAndClearLastPushError(t *testing.T) {
 		t.Errorf("round-trip = %q ok=%v", detail, ok)
 	}
 
-	// Clear removes it; a second clear is idempotent.
 	if err := ClearLastPushError(state, repo); err != nil {
 		t.Fatal(err)
 	}

@@ -10,8 +10,7 @@ import (
 	"github.com/start-cli/pj/internal/git"
 )
 
-// requireGit skips a test when the git binary is unavailable — the git-backed modes
-// cannot be exercised without it, but pj's pure-file behaviour is tested separately.
+// requireGit skips a test when the git binary is unavailable — the git-backed modes cannot
 func requireGit(t *testing.T) {
 	t.Helper()
 	if !git.Available() {
@@ -19,7 +18,6 @@ func requireGit(t *testing.T) {
 	}
 }
 
-// runGit runs a git command in dir, failing the test on error.
 func runGit(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", args...)
@@ -29,7 +27,6 @@ func runGit(t *testing.T, dir string, args ...string) {
 	}
 }
 
-// gitLog returns the repo's one-line commit subjects, newest first.
 func gitLog(t *testing.T, repo string) []string {
 	t.Helper()
 	cmd := exec.Command("git", "log", "--format=%s")
@@ -42,8 +39,6 @@ func gitLog(t *testing.T, repo string) []string {
 }
 
 // initGitScope creates a git repo, registers a scope dir inside it with the given
-// autoCommit, and returns (scopeDir, repoRoot). Commit signing is disabled locally so
-// a signing global config cannot make self-commit flaky.
 func initGitScope(t *testing.T, app *App, name string, autoCommit bool) (string, string) {
 	t.Helper()
 	repo := t.TempDir()
@@ -65,7 +60,6 @@ func initGitScope(t *testing.T, app *App, name string, autoCommit bool) (string,
 	return dir, repo
 }
 
-// createID runs create and returns the printed path and the derived full id.
 func createID(t *testing.T, app *App, scope string, args ...string) (string, string) {
 	t.Helper()
 	out, _, err := run(t, app, append([]string{"create"}, append(args, "--scope", scope)...)...)
@@ -124,7 +118,6 @@ func TestCreateScaffoldPlainFiles(t *testing.T) {
 	if !strings.HasSuffix(body, "# Network redesign\n") {
 		t.Errorf("body must be a single H1 from the title: %q", body)
 	}
-	// The frozen slug rides the filename.
 	if !strings.HasSuffix(path, id+"-network-redesign.md") {
 		t.Errorf("filename slug not frozen from title: %q", path)
 	}
@@ -195,7 +188,6 @@ func TestMarkTerminalBoundaryMovePlainFiles(t *testing.T) {
 	if _, err := os.Stat(movedPath); err != nil {
 		t.Errorf("moved file must exist under archive/: %v", err)
 	}
-	// The old root location is gone.
 	if _, err := os.Stat(filepath.Join(dir, filepath.Base(movedPath))); !os.IsNotExist(err) {
 		t.Errorf("old root path must be removed after the terminal move")
 	}
@@ -203,7 +195,6 @@ func TestMarkTerminalBoundaryMovePlainFiles(t *testing.T) {
 		t.Errorf("status not rewritten: %q", got)
 	}
 
-	// Reopening moves it back to the dir root.
 	out, _, err = run(t, app, "mark", id, "todo")
 	if err != nil {
 		t.Fatalf("reopen: %v", err)
@@ -227,7 +218,6 @@ func TestMarkRefusals(t *testing.T) {
 	if _, _, err := run(t, app, "mark", "bad!", "done", "--scope", "wc"); ExitCodeFromError(err) != exitUsage {
 		t.Errorf("malformed id should exit 2, got %v", err)
 	}
-	// Well-formed unknown id → generic non-zero.
 	if _, _, err := run(t, app, "mark", "wc-zzzz", "done"); ExitCodeFromError(err) != exitFailure {
 		t.Errorf("unknown well-formed id should exit 1, got %v", err)
 	}
@@ -353,7 +343,6 @@ func TestClaimWritesInProgress(t *testing.T) {
 	if !strings.HasSuffix(strings.TrimSpace(out2), "wc-de34-two.md") {
 		t.Errorf("second claim should take de34, got %q", out2)
 	}
-	// Now the queue is empty: non-zero, no path.
 	out3, _, err := run(t, app, "next", "--claim", "--scope", "wc")
 	if err == nil || out3 != "" {
 		t.Errorf("empty claim queue should be non-zero with no path: out=%q err=%v", out3, err)
@@ -363,7 +352,6 @@ func TestClaimWritesInProgress(t *testing.T) {
 func TestClaimSkipsParseErrorCandidate(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	// The first-by-order candidate is quarantined; claim skips it and takes the next.
 	bad := "---\nid: wc-ab2c\nstatus: [x\n---\n# broke\n"
 	if err := os.WriteFile(filepath.Join(dir, "wc-ab2c-broke.md"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
@@ -385,8 +373,6 @@ func TestWriteVerbsRefuseUnparseableConfig(t *testing.T) {
 	_, id := createID(t, app, "wc", "Work")
 	addProject(t, dir, "wc-nb01", "n", "todo", "a5", "# N\n", false, "")
 
-	// A schema-invalid but compilable config: the name reads (scope resolves), but the
-	// schema fails, so writes refuse while reads stay available.
 	bad := "name: \"wc\"\nautoCommit: false\nfields: {x: {type: \"float\"}}\n"
 	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
@@ -408,16 +394,11 @@ func TestWriteVerbsRefuseUnparseableConfig(t *testing.T) {
 		}
 	}
 
-	// Reads of the same scope stay available.
 	if _, _, err := run(t, app, "list", "--scope", "wc"); err != nil {
 		t.Errorf("reads must stay available under an unusable config: %v", err)
 	}
 }
 
-// The complete-state write verbs must ride the same reconcile integrity warnings a
-// read (or next --claim) surfaces — a mutation is exactly when the pj doctor nudge
-// matters. A quarantined sibling makes the scope carry a parse_error count; create,
-// mark, and reorder on a healthy row must each echo it on stderr.
 func TestWriteVerbsSurfaceIntegrityWarnings(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
@@ -464,8 +445,6 @@ func TestAutoCommitSelfCommitLifecycle(t *testing.T) {
 	if len(log) != 2 || log[0] != "pj: "+id+" -> done" || log[1] != "pj: "+id+" -> todo" {
 		t.Fatalf("unexpected commit log: %v", log)
 	}
-	// The done commit records the move: the archive path is present, the old root path
-	// is gone in the committed tree.
 	moved := strings.TrimSpace(out)
 	rel, _ := filepath.Rel(repo, moved)
 	tree := gitTree(t, repo)
@@ -516,7 +495,6 @@ func TestClaimSelfCommitsInProgress(t *testing.T) {
 	if got := fmValue(t, strings.TrimSpace(out), "status"); got != "in-progress" {
 		t.Errorf("claim must set in-progress, got %q", got)
 	}
-	// The claim self-commits its own change with the fixed in-progress message.
 	log := gitLog(t, repo)
 	if len(log) != 1 || log[0] != "pj: wc-ab2c -> in-progress" {
 		t.Fatalf("claim should self-commit one in-progress commit, got %v", log)
@@ -546,8 +524,6 @@ func TestAutoCommitTerminalCreateNeverCommits(t *testing.T) {
 
 func TestAutoCommitPlannedRidesSyncDisabled(t *testing.T) {
 	app := newApp(t)
-	// An auto-commit scope with no git-root (planned repo): writes land, self-commit is
-	// skipped with sync_disabled.
 	dir := filepath.Join(t.TempDir(), "wc")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
@@ -598,7 +574,6 @@ func TestMidRebaseRefusesWrites(t *testing.T) {
 	dir, repo := initGitScope(t, app, "wc", true)
 	_, id := createID(t, app, "wc", "Work")
 
-	// Simulate a paused rebase.
 	if err := os.MkdirAll(filepath.Join(repo, ".git", "rebase-merge"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -611,7 +586,6 @@ func TestMidRebaseRefusesWrites(t *testing.T) {
 	if _, _, err := run(t, app, "meta", "set", id, "summary", "x"); ExitCodeFromError(err) != exitFailure {
 		t.Errorf("mid-rebase meta set should refuse non-zero, got %v", err)
 	}
-	// Reads stay allowed mid-rebase.
 	if _, _, err := run(t, app, "get", id); err != nil {
 		t.Errorf("reads must stay allowed mid-rebase, got %v", err)
 	}

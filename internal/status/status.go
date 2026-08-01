@@ -1,30 +1,21 @@
-// Package status defines the eight built-in project statuses, the closed
-// category set that view and gating rules key on, and the terminal predicate
-// shared by depends satisfaction, default-list exclusion, and merge dispute.
-//
-// It performs no I/O. Custom statuses are declared in a scope's pj.cue; P2
-// parses those into the Category type defined here and passes the resulting
-// name->category mapping to the predicates below. This package never loads CUE.
+// Package status defines built-in project statuses, the closed Category set, and
+// terminal/list/next predicates. Custom statuses come from the caller's
+// name→category map; this package does no I/O or CUE.
 package status
 
-// Category is the closed set of behaviours a status can have. Every custom
-// status declares exactly one; the built-in statuses map to one internally.
+// Category is the closed set of behaviours a status can have.
 type Category string
 
 const (
-	// CategoryActive statuses are shown in the default list but are neither
-	// next-eligible nor terminal.
+	// CategoryActive statuses appear in the default list; neither next-eligible nor terminal.
 	CategoryActive Category = "active"
-	// CategoryBacklog statuses are hidden from the default list (needs --all)
-	// and are not terminal.
+	// CategoryBacklog statuses are hidden from the default list and not terminal.
 	CategoryBacklog Category = "backlog"
-	// CategoryDone statuses are hidden from the default list and are terminal
-	// (they satisfy a depends gate).
+	// CategoryDone statuses are hidden from the default list and terminal (satisfy depends).
 	CategoryDone Category = "done"
 )
 
-// The eight built-in status names. They are immutable and may not be redeclared
-// as custom statuses.
+// Built-in status names (immutable; may not be redeclared as custom statuses).
 const (
 	Draft      = "draft"
 	Backlog    = "backlog"
@@ -36,8 +27,7 @@ const (
 	Cancelled  = "cancelled"
 )
 
-// builtin captures the closed per-status behaviour matrix. Terminal is derived
-// from Category == CategoryDone. Only Todo is ever next-eligible.
+// Only Todo is ever next-eligible among built-ins.
 type builtin struct {
 	category      Category
 	inDefaultList bool
@@ -55,7 +45,6 @@ var builtins = map[string]builtin{
 	Cancelled:  {category: CategoryDone, inDefaultList: false, nextEligible: false},
 }
 
-// builtinOrder is the canonical status ordering, matching the design table.
 var builtinOrder = []string{Draft, Backlog, Todo, Review, InProgress, Blocked, Done, Cancelled}
 
 // Builtins returns the eight built-in status names in canonical order.
@@ -76,9 +65,7 @@ func ValidCategory(c Category) bool {
 	return c == CategoryActive || c == CategoryBacklog || c == CategoryDone
 }
 
-// CategoryOf returns the category of a status. Built-ins resolve from the
-// internal matrix; other names resolve from custom, the scope's declared
-// name->category mapping. ok is false for an unknown status.
+// CategoryOf returns the category of a built-in or custom status. ok is false for unknown.
 func CategoryOf(name string, custom map[string]Category) (Category, bool) {
 	if b, ok := builtins[name]; ok {
 		return b.category, true
@@ -95,25 +82,20 @@ func IsKnown(name string, custom map[string]Category) bool {
 	return ok
 }
 
-// IsTerminal reports whether a status satisfies a depends gate and counts as
-// terminal for merge dispute: built-in done or cancelled, or any custom status
-// whose category is done. An unknown status is not terminal.
+// IsTerminal reports whether a status satisfies a depends gate (category done). Unknown is not terminal.
 func IsTerminal(name string, custom map[string]Category) bool {
 	c, ok := CategoryOf(name, custom)
 	return ok && c == CategoryDone
 }
 
-// IsNextEligible reports whether a status can appear in pj next. Only built-in
-// todo qualifies; custom statuses never do, regardless of category. The caller
-// still applies the depends-all-terminal gate on top of this.
+// IsNextEligible reports whether a status can appear in pj next. Only built-in todo qualifies.
 func IsNextEligible(name string) bool {
 	b, ok := builtins[name]
 	return ok && b.nextEligible
 }
 
-// InDefaultList reports whether a status appears in the default pj list (no
-// --all). Built-ins follow the design table; customs follow their category
-// (active shown, backlog and done hidden). An unknown status is not shown.
+// InDefaultList reports whether a status appears in the default list (no --all).
+// Customs: active shown, backlog and done hidden. Unknown is not shown.
 func InDefaultList(name string, custom map[string]Category) bool {
 	if b, ok := builtins[name]; ok {
 		return b.inDefaultList

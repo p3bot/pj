@@ -8,9 +8,8 @@ import (
 	"syscall"
 )
 
-// nonLocalFSType lists the macOS f_fstypename values where WAL is unsafe. macOS
-// reports the filesystem by name rather than a magic number, so the check is a
-// name match against the network/remote families.
+// nonLocalFSType maps macOS f_fstypename values where WAL is unsafe (name match;
+// macOS reports FS by name, not magic).
 var nonLocalFSType = map[string]string{
 	"nfs":     "NFS",
 	"smbfs":   "SMB",
@@ -20,9 +19,7 @@ var nonLocalFSType = map[string]string{
 	"macfuse": "FUSE",
 }
 
-// localDiskWarning returns a non-empty warning when dir is on a filesystem where
-// WAL is unsafe. Best-effort: an unstatfs-able path or an unrecognised type yields
-// no warning.
+// localDiskWarning is best-effort: unstatfs-able or unrecognised type yields no warning.
 func localDiskWarning(dir string) string {
 	var st syscall.Statfs_t
 	if err := syscall.Statfs(dir, &st); err != nil {

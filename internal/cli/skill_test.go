@@ -29,7 +29,6 @@ func TestSkillPrintsContractNoScope(t *testing.T) {
 			t.Errorf("missing section %q", h)
 		}
 	}
-	// No tree write: config and state dirs stay empty of skill artefacts.
 	if entries, _ := os.ReadDir(app.ConfigDir); len(entries) != 0 {
 		t.Errorf("skill must not write config dir, found %v", names(entries))
 	}
@@ -56,8 +55,6 @@ func TestSkillInstallFamilyHardRefuse(t *testing.T) {
 			if out != "" {
 				t.Errorf("stdout must be empty on refuse, got %q", out)
 			}
-			// Cobra returns the error; main's PrintError is what agents read. A Plain
-			// refuse must print the message verbatim (no error: label, no ANSI).
 			var stderr bytes.Buffer
 			fprintError(&stderr, err, true)
 			if got := strings.TrimRight(stderr.String(), "\n"); got != wantMsg {
@@ -66,8 +63,6 @@ func TestSkillInstallFamilyHardRefuse(t *testing.T) {
 			if strings.Contains(stderr.String(), "error:") || strings.Contains(stderr.String(), "\x1b") {
 				t.Errorf("Plain refuse must not carry label or ANSI: %q", stderr.String())
 			}
-			// Execute path is SilenceErrors: nothing on the command err writer.
-			// Production agents read PrintError (checked above), not Cobra's err.
 			if errOut != "" {
 				t.Errorf("refuse must write nothing to command stderr, got %q", errOut)
 			}
@@ -95,7 +90,7 @@ func TestSkillInstallFamilyInHelp(t *testing.T) {
 }
 
 func TestScopeInitWritesNoAgentsMD(t *testing.T) {
-	// Discovery: pj scope init never writes an AGENTS.md block (P2; hold under P7).
+	// scope init must not write AGENTS.md (discovery is skill-driven, not init).
 	app := newApp(t)
 	dir := filepath.Join(t.TempDir(), "home")
 	if _, _, err := run(t, app, "scope", "init", dir, "--name", "home"); err != nil {
@@ -112,7 +107,6 @@ func TestScopeInitWritesNoAgentsMD(t *testing.T) {
 	for _, e := range entries {
 		switch e.Name() {
 		case "pj.cue", ".gitignore":
-			// expected
 		default:
 			t.Errorf("unexpected init artefact %q", e.Name())
 		}
@@ -120,7 +114,7 @@ func TestScopeInitWritesNoAgentsMD(t *testing.T) {
 }
 
 func TestSkillDoctorTokensMatchCatalogue(t *testing.T) {
-	// Closed token strings in the skill must match P5's authoritative catalogue.
+	// Skill body must embed every closed stderr token from token.All().
 	out, _, err := run(t, newApp(t), "skill")
 	if err != nil {
 		t.Fatal(err)

@@ -14,8 +14,6 @@ import (
 	"github.com/start-cli/pj/internal/scopeconfig"
 )
 
-// --- git fixture primitives ---
-
 func requireGit(t *testing.T) {
 	t.Helper()
 	if !git.Available() {
@@ -78,7 +76,7 @@ func commitAll(t *testing.T, repo, msg, date string) string {
 	return gitCapture(t, repo, "rev-parse", "HEAD")
 }
 
-// startRebase runs `git rebase onto` non-interactively and reports whether it paused.
+// startRebase runs git rebase onto non-interactively and reports whether it paused.
 func startRebase(t *testing.T, repo, onto string) bool {
 	t.Helper()
 	cmd := exec.Command("git", "rebase", onto)
@@ -102,11 +100,8 @@ func pjcue(extra string) string {
 
 func proj(fm, body string) string { return "---\n" + fm + "---\n" + body }
 
-// setup builds a paused rebase over a single scope. cueBase is written on both branches
-// unless cueMain differs. Each of base/main/feature is a whole project-file content for
-// projRel (empty = the file is absent on that branch). It returns the fixture with the
-// scope dir, the conflicted rel path, and the two side revs (main = ours/:2, feature =
-// theirs/:3).
+// setup builds a paused rebase over a single scope.
+// main = ours/:2, feature = theirs/:3. Empty content means the file is absent on that branch.
 type fixture struct {
 	repo, scopeDir, projRel, oursRev, theirsRev string
 }
@@ -146,7 +141,7 @@ func setup(t *testing.T, cueBase, cueMain, base, main, feature, mainDate string)
 	return fixture{repo: repo, scopeDir: scopeDir, projRel: projRel, oursRev: mainTip, theirsRev: featureTip}
 }
 
-// applyBranch writes content, or removes the file when content is empty (a deletion).
+// applyBranch writes content, or removes the file when content is empty.
 func applyBranch(t *testing.T, path, content string) {
 	t.Helper()
 	if content == "" {
@@ -189,18 +184,16 @@ func parseFile(t *testing.T, path string) *frontmatter.Model {
 	return m
 }
 
-// --- tests ---
-
-// Both sides change frontmatter and the bodies merge cleanly: the driver stages a fully
-// clean, parseable file — where the working-tree file git left would not parse.
+// Both sides change frontmatter and bodies merge cleanly: stage a parseable file
+// where git's working-tree file would not parse.
 func TestCleanTwoSidedFrontmatterStaged(t *testing.T) {
 	requireGit(t)
 	fmBase := "id: wc-ab2c\nstatus: todo\norder: \"a0\"\nsummary: BASE\ncreated: 2026-01-01T00:00:00Z\n"
 	fmMain := "id: wc-ab2c\nstatus: todo\norder: \"a0\"\nsummary: MAIN\ncreated: 2026-01-01T00:00:00Z\n"
 	fmFeat := "id: wc-ab2c\nstatus: todo\norder: \"a0\"\nsummary: FEAT\ncreated: 2026-01-01T00:00:00Z\n"
 	body := "L1\nL2\nL3\nL4\nL5\nL6\nL7\n"
-	mainBody := "M1\nL2\nL3\nL4\nL5\nL6\nL7\n" // first line
-	featBody := "L1\nL2\nL3\nL4\nL5\nL6\nF7\n" // last line
+	mainBody := "M1\nL2\nL3\nL4\nL5\nL6\nL7\n"
+	featBody := "L1\nL2\nL3\nL4\nL5\nL6\nF7\n"
 
 	f := setup(t,
 		pjcue(""), "",
@@ -208,7 +201,7 @@ func TestCleanTwoSidedFrontmatterStaged(t *testing.T) {
 		"2026-06-01T00:00:00Z")
 
 	projPath := filepath.Join(f.repo, f.projRel)
-	// The working-tree file git left does not parse cleanly (markers in the frontmatter).
+	// Precondition: git's working-tree file should not have parseable frontmatter.
 	rawLeft, _ := os.ReadFile(projPath)
 	if interior, _, present := frontmatter.Split(rawLeft); present {
 		if _, err := frontmatter.Parse(interior); err == nil {
@@ -233,12 +226,11 @@ func TestCleanTwoSidedFrontmatterStaged(t *testing.T) {
 	}
 }
 
-// A body-only conflict: clean field-merged frontmatter, markers only in the body, left
-// unstaged, reported as a body-conflict handoff.
+// Body-only conflict: clean frontmatter, markers only in body, left unstaged.
 func TestBodyConflictUnstaged(t *testing.T) {
 	requireGit(t)
 	fmBase := "id: wc-ab2c\nstatus: todo\norder: \"a0\"\n"
-	fmMain := "id: wc-ab2c\nstatus: done\norder: \"a0\"\n" // one-side status change
+	fmMain := "id: wc-ab2c\nstatus: done\norder: \"a0\"\n"
 	base := proj(fmBase, "a\nCOMMON\nc\n")
 	main := proj(fmMain, "a\nMAIN\nc\n")
 	feat := proj(fmBase, "a\nFEAT\nc\n")
@@ -261,15 +253,12 @@ func TestBodyConflictUnstaged(t *testing.T) {
 	}
 }
 
-// Delete/edit: the upstream side (:2 / ours) deletes, the replayed side edits. The driver
-// reports the deleting side — proving the :2=ours mapping — stages nothing, and returns
-// the surviving status.
+// Delete/edit: upstream (:2/ours) deletes, replayed side edits — proves :2=ours mapping.
 func TestDeleteEditHandoffMapping(t *testing.T) {
 	requireGit(t)
 	base := proj("id: wc-ab2c\nstatus: todo\norder: \"a0\"\n", "body\n")
 	feat := proj("id: wc-ab2c\nstatus: done\norder: \"a0\"\n", "edited\n")
 
-	// main (ours/:2) deletes; feature (theirs/:3) edits.
 	f := setup(t, pjcue(""), "", base, "", feat,
 		"2026-02-01T00:00:00Z")
 
@@ -290,8 +279,7 @@ func TestDeleteEditHandoffMapping(t *testing.T) {
 	}
 }
 
-// A U21 fail-closed merge (both-sides immutable disagreement) comes back as a fail-closed
-// handoff naming the key, unstaged, distinct from an operational error.
+// Fail-closed merge comes back as fail-closed handoff naming the key, not an operational error.
 func TestFailClosedImmutableDisagreement(t *testing.T) {
 	requireGit(t)
 	base := proj("id: wc-ab2c\nstatus: todo\norder: \"a0\"\n", "b\n")
@@ -310,12 +298,10 @@ func TestFailClosedImmutableDisagreement(t *testing.T) {
 	}
 }
 
-// A same-id add/add is resolved by renaming one side: two files written and staged, the
-// rename pair returned — never a field-merge.
+// Same-id add/add renames one side into two staged files — never a field-merge.
 func TestAddAddRenameTwoFiles(t *testing.T) {
 	requireGit(t)
-	// Both branches add the same path with the same id; main is older (kept), feature
-	// newer (renamed).
+	// main older (kept), feature newer (renamed).
 	mainFile := proj("id: wc-ab2c\nstatus: todo\norder: \"a0\"\ncreated: 2026-01-01T00:00:00Z\n", "MAIN body\n")
 	featFile := proj("id: wc-ab2c\nstatus: todo\norder: \"a0\"\ncreated: 2026-06-01T00:00:00Z\n", "FEAT body\n")
 
@@ -337,7 +323,6 @@ func TestAddAddRenameTwoFiles(t *testing.T) {
 	if newM.ID != out.Rename.NewID {
 		t.Errorf("renamed file id = %q, want %q", newM.ID, out.Rename.NewID)
 	}
-	// The kept side is main (older); the renamed loser carries feature's body.
 	keepRaw, _ := os.ReadFile(filepath.Join(f.repo, out.Rename.KeepPath))
 	newRaw, _ := os.ReadFile(filepath.Join(f.repo, out.Rename.NewPath))
 	if !strings.Contains(string(keepRaw), "MAIN body") {
@@ -348,8 +333,7 @@ func TestAddAddRenameTwoFiles(t *testing.T) {
 	}
 }
 
-// Per-file author dates, not branch-tip dates: a newer unrelated commit on one branch
-// must not decide another project's fields.
+// Per-file author dates, not branch-tip dates, decide LWW for another project's fields.
 func TestPerFileAuthorDateNotBranchTip(t *testing.T) {
 	requireGit(t)
 	repo := newRepo(t)
@@ -362,16 +346,15 @@ func TestPerFileAuthorDateNotBranchTip(t *testing.T) {
 	commitAll(t, repo, "base", "2026-01-01T00:00:00Z")
 	mainBranch := gitCapture(t, repo, "rev-parse", "--abbrev-ref", "HEAD")
 
-	// feature: edit A's summary at D2 (the later of the two A-edits).
+	// feature: edit A's summary at D2 (later of the two A-edits).
 	gitRun(t, repo, nil, "checkout", "-b", "feature")
 	writeF(t, aPath, proj("id: wc-ab2c\nstatus: todo\norder: \"a0\"\nsummary: FEAT\ncreated: 2026-01-01T00:00:00Z\n", "x\n"))
 	featTip := commitAll(t, repo, "feature A edit", "2026-05-01T00:00:00Z")
 
-	// main: edit A's summary at D1 (earlier than feature's A edit) ...
+	// main: edit A at D1, then unrelated B edit at D3 (branch tip).
 	gitRun(t, repo, nil, "checkout", mainBranch)
 	writeF(t, aPath, proj("id: wc-ab2c\nstatus: todo\norder: \"a0\"\nsummary: MAIN\ncreated: 2026-01-01T00:00:00Z\n", "x\n"))
 	commitAll(t, repo, "main A edit", "2026-03-01T00:00:00Z")
-	// ... then an unrelated later commit touching only B at D3 (the branch tip).
 	writeF(t, bPath, proj("id: wc-cd3e\nstatus: done\norder: \"a0\"\n", "y\n"))
 	mainTip := commitAll(t, repo, "main B edit", "2026-09-01T00:00:00Z")
 
@@ -388,23 +371,20 @@ func TestPerFileAuthorDateNotBranchTip(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := parseFile(t, aPath)
-	// Per-file: ours(A)=D1 < theirs(A)=D2 → theirs wins → FEAT. Branch-tip would give
-	// ours=D3 > theirs=D2 → MAIN, the wrong answer.
+	// Per-file: theirs(A)=D2 > ours(A)=D1 → FEAT. Branch-tip would give MAIN (wrong).
 	if m.Summary != "FEAT" {
 		t.Errorf("summary = %q, want FEAT (per-file date, not branch tip)", m.Summary)
 	}
 	_ = out
 }
 
-// The driver types the merge from the on-disk schema at driver time: a key only the
-// incoming pj.cue declares as strings is set-merged, not LWW'd.
+// Driver types the merge from on-disk schema: a key only incoming pj.cue declares as strings set-merges.
 func TestSchemaFromOnDiskStrings(t *testing.T) {
 	requireGit(t)
 	fmBase := "id: wc-ab2c\nstatus: todo\norder: \"a0\"\nreviewers: [alice]\n"
 	fmMain := "id: wc-ab2c\nstatus: todo\norder: \"a0\"\nreviewers: [alice, bob]\n"
 	fmFeat := "id: wc-ab2c\nstatus: todo\norder: \"a0\"\nreviewers: [alice, carol]\n"
-	// Only main's pj.cue declares reviewers as a strings field; it auto-merges into the
-	// on-disk pj.cue the driver evaluates.
+	// Only main's pj.cue declares reviewers as strings; it lands in the on-disk schema.
 	cueMain := pjcue("fields: reviewers: type: \"strings\"\n")
 
 	f := setup(t, pjcue(""), cueMain,
@@ -431,8 +411,7 @@ func TestSchemaFromOnDiskStrings(t *testing.T) {
 	}
 }
 
-// Across two add/add conflicts in one rebase, the id minted for the first is in the
-// occupied set the second uses, so the extensions never collide.
+// Across two add/add conflicts, the first mint is in the occupied set the second uses.
 func TestOccupiedAccumulatesAcrossAddAdds(t *testing.T) {
 	requireGit(t)
 	repo := newRepo(t)
@@ -481,8 +460,7 @@ func TestOccupiedAccumulatesAcrossAddAdds(t *testing.T) {
 	}
 }
 
-// An operational fault (unreadable scope schema) is an ordinary error, distinct from a
-// fail-closed data condition; the driver stages nothing.
+// Operational fault (unreadable schema) is an ordinary error, distinct from fail-closed.
 func TestOperationalErrorDistinctFromFailClosed(t *testing.T) {
 	requireGit(t)
 	base := proj("id: wc-ab2c\nstatus: todo\norder: \"a0\"\n", "b\n")
@@ -492,7 +470,7 @@ func TestOperationalErrorDistinctFromFailClosed(t *testing.T) {
 		"2026-02-01T00:00:00Z")
 
 	d := New(f.repo, func(string) (*scopeconfig.Schema, error) {
-		return nil, os.ErrPermission // simulate an unreadable schema
+		return nil, os.ErrPermission
 	})
 	_, err := d.Resolve(context.Background(), f.conflict())
 	if err == nil {

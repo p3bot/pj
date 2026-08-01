@@ -12,21 +12,13 @@ import (
 	"github.com/start-cli/pj/internal/token"
 )
 
-// dirtyProject is one dirty allowlisted path with the porcelain status code that decides
-// its single-path commit message class and the scope that owns it.
 type dirtyProject struct {
 	path  string
 	code  string
 	scope string
 }
 
-// snapshot is step 1: scoped to each participating auto-commit dir (never the whole
-// tree, never a co-located non-auto-commit scope's dir), stage every dirty path matching
-// the closed allowlist and make one commit for the whole snapshot. A deleted allowlisted
-// path is staged as a deletion so the tree converges with disk — sync mirrors what the
-// human left, it never authors or polices deletions. Non-allowlist residue is warned and
-// left uncommitted. The whole step runs under sync's held git-root lock, so it commits
-// through the self-commit core, not the acquiring wrapper.
+// snapshot: CommitPathsCore under held lock; non-allowlist warned, not committed.
 func (e *engine) snapshot(c *cobra.Command, t syncTarget, rep *syncReport) error {
 	ctx := c.Context()
 	var staged []dirtyProject
@@ -70,17 +62,11 @@ func (e *engine) snapshot(c *cobra.Command, t syncTarget, rep *syncReport) error
 	})
 }
 
-// skipSnapshotPath reports whether a dirty path is the per-scope lock file, which is
-// gitignored and never committed — skipped defensively even if it somehow surfaces.
 func skipSnapshotPath(path string) bool {
 	return filepath.Base(path) == scopeLockName
 }
 
-// snapshotMessage is one summary for the whole snapshot — pj: sync <n> path(s) — except
-// when the snapshot is exactly one path, which takes that path's class-specific form,
-// matching what the write verbs already produce for a single file. Never one commit per
-// path: the single snapshot commit keeps the other machine's rebase from replaying a
-// pile of tiny commits.
+// snapshotMessage: one commit for the whole snapshot (avoids tiny-commit replay piles).
 func snapshotMessage(staged []dirtyProject) string {
 	if len(staged) != 1 {
 		return fmt.Sprintf("pj: sync %d path(s)", len(staged))
@@ -107,9 +93,6 @@ func snapshotMessage(staged []dirtyProject) string {
 	}
 }
 
-// parseProjectBasename splits a project basename <scope>-<short>[-<slug>].md into its
-// full id and slug. Scope names and short-ids carry no hyphen, so the id is exactly the
-// first two segments and any remainder is the slug.
 func parseProjectBasename(base string) (fullID, slug string) {
 	stem := strings.TrimSuffix(base, ".md")
 	parts := strings.SplitN(stem, "-", 3)

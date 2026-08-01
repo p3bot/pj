@@ -7,17 +7,14 @@ import (
 	"fmt"
 )
 
-// RowStat is the minimal per-file record reconcile needs to decide whether a file
-// changed since it was last indexed, without materializing the whole row.
+// RowStat is the minimal per-file record for reconcile's change detection.
 type RowStat struct {
 	ID      string
 	MtimeNS int64
 	Size    int64
 }
 
-// ScopeRows returns the (mtime, size, id) of every indexed file in a scope, keyed
-// by absolute path. Reconcile diffs this against the current on-disk stat set to
-// find changed, new, and vanished files.
+// ScopeRows returns (mtime, size, id) of every indexed file in a scope, keyed by path.
 func (d *DB) ScopeRows(scope string) (map[string]RowStat, error) {
 	rows, err := d.sql.Query(`SELECT path, id, mtime_ns, size FROM projects WHERE scope = ?`, scope)
 	if err != nil {
@@ -36,22 +33,14 @@ func (d *DB) ScopeRows(scope string) (map[string]RowStat, error) {
 	return out, rows.Err()
 }
 
-// UpsertProject writes one project row (keyed by path) and refreshes its FTS
-// entry with NO edges — it is the edge-less form of the write-through unit,
-// equivalent to UpsertProjectWithEdges(p, nil). A caller that has depends/related
-// edges to record MUST use UpsertProjectWithEdges instead: this form clears the
-// file's existing edges and writes none back, so routing an edge-bearing project
-// through here would silently drop its edges until the next reconcile.
+// UpsertProject writes one project row and refreshes FTS with no edges.
+// Callers with depends/related must use UpsertProjectWithEdges or edges are cleared.
 func (d *DB) UpsertProject(p *Project) error {
 	return d.UpsertProjectWithEdges(p, nil)
 }
 
-// upsertProjectTx performs the project/edges/fts write inside an existing
-// transaction, so one file's row, edges, and search text never disagree. That
-// per-file agreement is the whole atomicity unit: reconcile calls one
-// UpsertProject* per changed file, each its own transaction, and does not wrap a
-// scope's files together — the index is derived and rebuildable, so a crash mid-
-// scope self-heals on the next reconcile rather than needing scope-wide atomicity.
+// upsertProjectTx writes project/edges/fts inside a transaction. Atomicity is per-file
+// only: the store is rebuildable, so a crash mid-scope self-heals on the next reconcile.
 func upsertProjectTx(tx *sql.Tx, p *Project) error {
 	tagsJSON, err := marshalStrings(p.Tags)
 	if err != nil {
@@ -101,8 +90,7 @@ ON CONFLICT(path) DO UPDATE SET
 	return nil
 }
 
-// UpsertProjectWithEdges upserts a project and its full edge list in one
-// transaction. Reconcile computes edges alongside the row, so they land together.
+// UpsertProjectWithEdges upserts a project and its full edge list in one transaction.
 func (d *DB) UpsertProjectWithEdges(p *Project, edges []Edge) error {
 	tx, err := d.sql.Begin()
 	if err != nil {
@@ -122,8 +110,7 @@ func (d *DB) UpsertProjectWithEdges(p *Project, edges []Edge) error {
 	return tx.Commit()
 }
 
-// DeleteByPath removes the row, its edges, and its FTS entry for a file that has
-// vanished from disk.
+// DeleteByPath removes the row, edges, and FTS entry for a vanished file.
 func (d *DB) DeleteByPath(path string) error {
 	tx, err := d.sql.Begin()
 	if err != nil {
@@ -151,9 +138,7 @@ func (d *DB) DeleteByPath(path string) error {
 	return tx.Commit()
 }
 
-// DeleteScope drops every trace of a scope: its project rows (and their FTS/edges),
-// its reconcile timestamp, and its cached config. It is how a forgotten scope's
-// rows are pruned on the next reconcile.
+// DeleteScope drops every trace of a scope (rows, FTS, edges, timestamps, config cache).
 func (d *DB) DeleteScope(scope string) error {
 	tx, err := d.sql.Begin()
 	if err != nil {
@@ -179,8 +164,7 @@ func (d *DB) DeleteScope(scope string) error {
 	return tx.Commit()
 }
 
-// IndexedScopes returns the set of scopes that currently have rows, so reconcile
-// can prune any that are no longer registered.
+// IndexedScopes returns scopes that currently have index rows, meta, or cache entries.
 func (d *DB) IndexedScopes() (map[string]bool, error) {
 	rows, err := d.sql.Query(`SELECT DISTINCT scope FROM projects
                               UNION SELECT scope FROM scope_meta
@@ -200,8 +184,7 @@ func (d *DB) IndexedScopes() (map[string]bool, error) {
 	return out, rows.Err()
 }
 
-// LastIndex returns the scope's last reconcile timestamp (unix nanoseconds), or 0
-// when the scope was never reconciled.
+// LastIndex returns the scope's last reconcile timestamp (unix ns), or 0 if never reconciled.
 func (d *DB) LastIndex(scope string) (int64, error) {
 	var ns int64
 	err := d.sql.QueryRow(`SELECT last_index FROM scope_meta WHERE scope = ?`, scope).Scan(&ns)
@@ -218,10 +201,7 @@ func (d *DB) SetLastIndex(scope string, ns int64) error {
 	return err
 }
 
-// ConfigCacheEntry is a cached pj.cue evaluation: the serialized closure stats it
-// is valid for, the serialized schema (empty when the config was unusable), and the
-// config error reason (empty when usable). Caching the negative avoids re-evaluating
-// a config that is still broken and unchanged.
+// ConfigCacheEntry is a cached pj.cue evaluation (negative results cached too).
 type ConfigCacheEntry struct {
 	ClosureJSON string
 	SchemaJSON  string

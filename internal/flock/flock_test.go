@@ -19,7 +19,6 @@ func TestAcquireReleaseRoundTrip(t *testing.T) {
 	if err := lock.Release(); err != nil {
 		t.Fatal(err)
 	}
-	// Release is idempotent on an already-released lock.
 	if err := lock.Release(); err != nil {
 		t.Errorf("second Release must be a no-op, got %v", err)
 	}
@@ -34,7 +33,6 @@ func TestExclusiveSerialisesHolders(t *testing.T) {
 
 	got := make(chan struct{})
 	go func() {
-		// This blocks until the first holder releases.
 		second, err := Acquire(path)
 		if err == nil {
 			_ = second.Release()

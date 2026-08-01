@@ -6,23 +6,15 @@ import (
 	"strings"
 )
 
-// QueryResult is the tabular result of a read-only pj query: the column names and
-// the rows, each cell rendered to a string for TSV-style printing.
+// QueryResult is the tabular result of a read-only pj query (cells as strings for TSV).
 type QueryResult struct {
 	Columns []string
 	Rows    [][]string
 }
 
-// RunReadOnlyQuery executes an ad-hoc SQL statement after proving it is read-only.
-// A write, DDL, or a multi-statement batch containing any of those is rejected
-// before execution — the index is derived and mutating it cannot change the files,
-// so durable change is the file path / pj doctor --repair, not this DB.
-//
-// The static leadingKeyword classifier is the friendly first line of defence, but
-// it cannot see a write smuggled behind a CTE (WITH … DELETE) or a function-form
-// pragma, so the statement runs on a connection pinned to PRAGMA query_only = ON:
-// SQLite then refuses any write regardless of syntax. That runtime guard is the
-// authority; the classifier only shapes the error message.
+// RunReadOnlyQuery executes ad-hoc SQL after proving it is read-only. The static
+// classifier is a friendly first pass; PRAGMA query_only is the authority (CTE-hidden
+// writes, function-form pragmas).
 func (d *DB) RunReadOnlyQuery(sqlText string) (*QueryResult, error) {
 	if err := ensureReadOnly(sqlText); err != nil {
 		return nil, err
@@ -37,8 +29,7 @@ func (d *DB) RunReadOnlyQuery(sqlText string) (*QueryResult, error) {
 	if _, err := conn.ExecContext(ctx, `PRAGMA query_only = ON`); err != nil {
 		return nil, fmt.Errorf("arm read-only guard: %w", err)
 	}
-	// Reset before the connection returns to the pool so later writers are not
-	// silently frozen out.
+	// Reset before the connection returns to the pool so later writers are not frozen out.
 	defer func() { _, _ = conn.ExecContext(ctx, `PRAGMA query_only = OFF`) }()
 
 	rows, err := conn.QueryContext(ctx, sqlText)
@@ -70,8 +61,7 @@ func (d *DB) RunReadOnlyQuery(sqlText string) (*QueryResult, error) {
 	return res, rows.Err()
 }
 
-// writeVerbs are the leading keywords that mutate the store or its schema. A
-// statement (or any statement in a batch) beginning with one is refused.
+// writeVerbs are leading keywords that mutate the store or schema.
 var writeVerbs = map[string]bool{
 	"INSERT": true, "UPDATE": true, "DELETE": true, "REPLACE": true,
 	"DROP": true, "ALTER": true, "CREATE": true, "TRUNCATE": true,
@@ -79,9 +69,7 @@ var writeVerbs = map[string]bool{
 	"BEGIN": true, "COMMIT": true, "SAVEPOINT": true, "RELEASE": true,
 }
 
-// ensureReadOnly refuses anything that is not a plain SELECT / read-only EXPLAIN /
-// read-only PRAGMA. It splits on ';' so a batch smuggling a write after a SELECT is
-// caught, and treats a bare PRAGMA assignment (PRAGMA x = y) as a write.
+// ensureReadOnly admits SELECT/WITH/VALUES, EXPLAIN, and non-assignment PRAGMA; splits on ';'.
 func ensureReadOnly(sqlText string) error {
 	statements := splitStatements(sqlText)
 	if len(statements) == 0 {
@@ -91,9 +79,7 @@ func ensureReadOnly(sqlText string) error {
 		lead := leadingKeyword(stmt)
 		switch lead {
 		case "SELECT", "WITH", "VALUES":
-			// read-only
 		case "EXPLAIN":
-			// EXPLAIN [QUERY PLAN] <read-only stmt> — inspect only, never mutates.
 		case "PRAGMA":
 			if strings.ContainsRune(stmt, '=') {
 				return readOnlyRefusal("a PRAGMA that sets a value")
@@ -112,14 +98,8 @@ func readOnlyRefusal(what string) error {
 	return fmt.Errorf("pj query is read-only: refusing %s — the index is a derived cache; durable change is the project files or pj doctor --repair, not the DB", what)
 }
 
-// splitStatements breaks a batch into statements on ';', dropping empty ones. It
-// is literal-aware: a ';' inside a single-quoted string ('a;b') or a double-quoted
-// identifier ("a;b") is not a separator, so a legitimate read-only query that
-// merely contains ';' (WHERE title LIKE '%;%') is one statement, not a spurious
-// batch that fails the read-only check. SQLite's doubled-quote escape (a quote
-// written twice inside a quoted region) is handled by the toggle: two adjacent
-// quotes flip the state off then on, netting out to still-inside, so an escaped
-// quote never opens a phantom separator window.
+// splitStatements is literal-aware: ';' inside '…' or "…" is not a separator;
+// doubled quotes net out so escapes never open a phantom separator.
 func splitStatements(sqlText string) []string {
 	var out []string
 	var b strings.Builder
@@ -147,8 +127,6 @@ func splitStatements(sqlText string) []string {
 	return out
 }
 
-// leadingKeyword returns the uppercased first SQL keyword of a statement, skipping
-// leading whitespace and SQL line/block comments.
 func leadingKeyword(stmt string) string {
 	s := stripLeading(stmt)
 	i := 0
@@ -158,8 +136,6 @@ func leadingKeyword(stmt string) string {
 	return strings.ToUpper(s[:i])
 }
 
-// stripLeading removes leading whitespace and comments so the first real token can
-// be read.
 func stripLeading(s string) string {
 	for {
 		s = strings.TrimLeft(s, " \t\r\n")
