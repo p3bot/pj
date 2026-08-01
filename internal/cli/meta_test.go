@@ -547,8 +547,8 @@ func TestMetaWrongClassAndImmutable(t *testing.T) {
 		}
 	}
 	_, _, err := run(t, app, "meta", "set", "wc-ab2c", "status", "todo")
-	if !strings.Contains(err.Error(), "pj status") {
-		t.Errorf("status immutable should point at pj status: %v", err)
+	if !strings.Contains(err.Error(), "pj mark") {
+		t.Errorf("status immutable should point at pj mark: %v", err)
 	}
 	_, _, err = run(t, app, "meta", "set", "wc-ab2c", "order", "a1")
 	if !strings.Contains(err.Error(), "pj reorder") {

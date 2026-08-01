@@ -72,9 +72,9 @@ const (
 // matters for tests that execute the tree repeatedly.
 func newRootCmd(app *App) *cobra.Command {
 	root := &cobra.Command{
-		Use:   "pj",
-		Short: "Agent project management CLI",
-		Long: "pj tracks feature work as plain markdown files, one project per file.",
+		Use:           "pj",
+		Short:         "Agent project management CLI",
+		Long:          "pj tracks feature work as plain markdown files, one project per file.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          usageArgs(cobra.NoArgs),
@@ -103,10 +103,11 @@ func newRootCmd(app *App) *cobra.Command {
 	create := newCreateCmd(app)
 	get := newGetCmd(app)
 	edit := newEditCmd(app)
-	status := newStatusCmd(app)
+	mark := newMarkCmd(app)
 	reorder := newReorderCmd(app)
 	next := newNextCmd(app)
 	list := newListCmd(app)
+	status := newStatusCmd(app)
 	meta := newMetaCmd(app)
 	deps := newDepsCmd(app)
 	search := newSearchCmd(app)
@@ -120,11 +121,12 @@ func newRootCmd(app *App) *cobra.Command {
 	create.GroupID = groupWorkID
 	get.GroupID = groupWorkID
 	edit.GroupID = groupWorkID
-	status.GroupID = groupWorkID
+	mark.GroupID = groupWorkID
 	reorder.GroupID = groupWorkID
 	next.GroupID = groupWorkID
 
 	list.GroupID = groupBoardID
+	status.GroupID = groupBoardID
 	meta.GroupID = groupBoardID
 	deps.GroupID = groupBoardID
 	search.GroupID = groupBoardID
@@ -138,8 +140,8 @@ func newRootCmd(app *App) *cobra.Command {
 
 	// Within-group order matches the membership lists (mini workflow, not pure alpha).
 	root.AddCommand(
-		create, get, edit, status, reorder, next,
-		list, meta, deps, search, query, lens,
+		create, get, edit, mark, reorder, next,
+		list, status, meta, deps, search, query, lens,
 		scope, sync, doctor, skill,
 	)
 	return root

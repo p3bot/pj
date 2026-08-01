@@ -207,7 +207,7 @@ func (e *engine) siblingScopeNames(root string) []string {
 // the git-root sync.lock, and returns a release closure that drops them in reverse. The
 // order is fixed: the write verbs take the scope lock first and the git-root lock inside
 // it, so taking the git-root lock first here would deadlock sync against a concurrent
-// pj status. The participants are already sorted by name.
+// pj mark. The participants are already sorted by name.
 func (e *engine) acquireSyncLocks(t syncTarget) (func(), error) {
 	var locks []*flock.Lock
 	release := func() {

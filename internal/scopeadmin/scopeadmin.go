@@ -397,14 +397,18 @@ func (a *Admin) List() (*Listing, error) {
 			continue
 		}
 
-		row.Mode = deriveMode(schema.AutoCommit, inRepo)
+		row.Mode = DeriveMode(schema.AutoCommit, inRepo)
 		out.Rows = append(out.Rows, row)
 	}
 	return out, nil
 }
 
-// deriveMode maps autoCommit and git-root presence to the closed mode label.
-func deriveMode(autoCommit, inRepo bool) string {
+// DeriveMode maps a known-schema autoCommit and git-root presence to the closed
+// mode label used by scope list and the status dashboard. autoCommit true is
+// always pj-driven (including planned no-repo layouts). Unknown schemas are the
+// caller's problem: scope list emits ModeUnknown; status uses plain-files plus
+// config_unparseable: on stderr rather than inventing a fourth label.
+func DeriveMode(autoCommit, inRepo bool) string {
 	if autoCommit {
 		return ModePjDriven
 	}

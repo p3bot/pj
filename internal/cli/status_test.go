@@ -1,0 +1,601 @@
+package cli
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func parsePulse(out string) map[string]string {
+	m := map[string]string{}
+	for _, line := range lines(out) {
+		key, val, ok := strings.Cut(line, "\t")
+		if !ok {
+			continue
+		}
+		m[key] = val
+	}
+	return m
+}
+
+func pulseKeys(out string) []string {
+	var keys []string
+	for _, line := range lines(out) {
+		key, _, ok := strings.Cut(line, "\t")
+		if ok {
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
+func TestStatusDashboardKeyOrderAndCounts(t *testing.T) {
+	app := newApp(t)
+	dir := initScope(t, app, "wc")
+	// Every built-in status represented.
+	addProject(t, dir, "wc-aa22", "todo", "todo", "a1", "# T\n", false, "")
+	addProject(t, dir, "wc-ab23", "review", "review", "a2", "# R\n", false, "")
+	addProject(t, dir, "wc-ac24", "ip", "in-progress", "a3", "# I\n", false, "")
+	addProject(t, dir, "wc-ad25", "blocked", "blocked", "a4", "# B\n", false, "")
+	addProject(t, dir, "wc-ae26", "draft", "draft", "a5", "# D\n", false, "")
+	addProject(t, dir, "wc-af27", "backlog", "backlog", "a6", "# L\n", false, "")
+	addProject(t, dir, "wc-ag28", "done", "done", "a7", "# Done\n", true, "")
+	addProject(t, dir, "wc-ah29", "cancel", "cancelled", "a8", "# X\n", true, "")
+
+	out, errOut, err := run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status: %v stderr=%q", err, errOut)
+	}
+	if keys := pulseKeys(out); !slicesEqual(keys, statusKeys) {
+		t.Fatalf("key order = %v, want %v\nout=%q", keys, statusKeys, out)
+	}
+	// No closed tokens on stdout.
+	for _, tok := range []string{"duplicate_id:", "parse_error:", "uncommitted:", "lens:"} {
+		if strings.Contains(out, tok) {
+			t.Errorf("stdout must not carry token %q: %q", tok, out)
+		}
+	}
+
+	p := parsePulse(out)
+	if p["scope"] != "wc" {
+		t.Errorf("scope = %q", p["scope"])
+	}
+	if p["dir"] != dir {
+		t.Errorf("dir = %q want %q", p["dir"], dir)
+	}
+	if p["resolved"] != "flag" {
+		t.Errorf("resolved = %q want flag", p["resolved"])
+	}
+	if p["mode"] != "plain-files" {
+		t.Errorf("mode = %q want plain-files", p["mode"])
+	}
+	if p["lens"] != "" {
+		t.Errorf("lens should be empty, got %q", p["lens"])
+	}
+	// total = bare list: todo+review+in-progress+blocked+draft = 5 (not backlog)
+	if p["total"] != "5" {
+		t.Errorf("total = %q want 5", p["total"])
+	}
+	if p["todo"] != "1" || p["review"] != "1" || p["in-progress"] != "1" ||
+		p["blocked"] != "1" || p["draft"] != "1" || p["backlog"] != "1" {
+		t.Errorf("working-board counts wrong: todo=%s review=%s in-progress=%s blocked=%s draft=%s backlog=%s",
+			p["todo"], p["review"], p["in-progress"], p["blocked"], p["draft"], p["backlog"])
+	}
+	if p["done"] != "1" || p["cancelled"] != "1" {
+		t.Errorf("terminal tallies wrong: done=%s cancelled=%s", p["done"], p["cancelled"])
+	}
+	if p["next"] != "wc-aa22" {
+		t.Errorf("next = %q want wc-aa22", p["next"])
+	}
+	if p["claimed"] != "wc-ac24" {
+		t.Errorf("claimed = %q want wc-ac24", p["claimed"])
+	}
+	if p["blocked_ids"] != "wc-ad25" {
+		t.Errorf("blocked_ids = %q want wc-ad25", p["blocked_ids"])
+	}
+	if p["dangling"] != "0" {
+		t.Errorf("dangling = %q want 0", p["dangling"])
+	}
+	if p["integrity"] != "ok" {
+		t.Errorf("integrity = %q want ok", p["integrity"])
+	}
+	if p["uncommitted"] != "0" {
+		t.Errorf("uncommitted = %q want 0", p["uncommitted"])
+	}
+
+	// Bare list membership matches total.
+	listOut, _, err := run(t, app, "list", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if got := len(lines(listOut)); got != 5 {
+		t.Errorf("bare list rows = %d want 5 (must match total)", got)
+	}
+}
+
+func TestStatusEmptyNextExitsZero(t *testing.T) {
+	app := newApp(t)
+	dir := initScope(t, app, "wc")
+	// Only a blocked project — nothing next-eligible.
+	addProject(t, dir, "wc-aa22", "b", "blocked", "a0", "# B\n", false, "")
+
+	out, _, err := run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status with empty next must exit 0: %v", err)
+	}
+	if keys := pulseKeys(out); !slicesEqual(keys, statusKeys) {
+		t.Fatalf("must still emit full key block, got %v", keys)
+	}
+	p := parsePulse(out)
+	if p["next"] != "" {
+		t.Errorf("next should be empty, got %q", p["next"])
+	}
+	// Bare next is non-zero with a plain diagnostic.
+	nextOut, _, nextErr := run(t, app, "next", "--scope", "wc")
+	if nextErr == nil || nextOut != "" {
+		t.Fatalf("bare next should fail empty-queue, out=%q err=%v", nextOut, nextErr)
+	}
+}
+
+func TestStatusPositionalsAreUsage(t *testing.T) {
+	app := newApp(t)
+	initScope(t, app, "wc")
+	// Dashboard accepts no positionals — the old mutator shape must not succeed.
+	_, _, err := run(t, app, "status", "wc-aa22", "blocked")
+	if ExitCodeFromError(err) != exitUsage {
+		t.Errorf("status with positionals should exit 2, got %v", err)
+	}
+}
+
+func TestStatusLensFiltersWorkingBoard(t *testing.T) {
+	app := newApp(t)
+	dir := initScope(t, app, "wc")
+	addProject(t, dir, "wc-aa22", "fe", "todo", "a0", "# FE\n", false, "tags: [frontend]\n")
+	addProject(t, dir, "wc-ab23", "be", "todo", "a1", "# BE\n", false, "tags: [backend]\n")
+	addProject(t, dir, "wc-ac24", "ip", "in-progress", "a2", "# IP\n", false, "tags: [backend]\n")
+	addProject(t, dir, "wc-ad25", "bl", "blocked", "a3", "# BL\n", false, "tags: [frontend]\n")
+	addProject(t, dir, "wc-ae26", "done", "done", "a4", "# D\n", true, "tags: [backend]\n")
+
+	if _, _, err := run(t, app, "lens", "frontend", "--scope", "wc"); err != nil {
+		t.Fatalf("lens: %v", err)
+	}
+	out, errOut, err := run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if !strings.Contains(errOut, "lens:") {
+		t.Errorf("active lens should echo on stderr, got %q", errOut)
+	}
+	p := parsePulse(out)
+	if p["lens"] != "frontend" {
+		t.Errorf("lens field = %q", p["lens"])
+	}
+	// Working board under frontend: wc-aa22 (todo+tag), wc-ad25 (blocked+tag).
+	// backend-tagged rows are filtered. total = those in default list = 2.
+	if p["todo"] != "1" || p["blocked"] != "1" || p["in-progress"] != "0" {
+		t.Errorf("lens counts: todo=%s blocked=%s in-progress=%s", p["todo"], p["blocked"], p["in-progress"])
+	}
+	if p["total"] != "2" {
+		t.Errorf("total under lens = %q want 2", p["total"])
+	}
+	if p["next"] != "wc-aa22" {
+		t.Errorf("next under lens = %q want wc-aa22", p["next"])
+	}
+	if p["claimed"] != "" {
+		t.Errorf("claimed should be empty under lens (backend in-progress filtered), got %q", p["claimed"])
+	}
+	if p["blocked_ids"] != "wc-ad25" {
+		t.Errorf("blocked_ids = %q", p["blocked_ids"])
+	}
+	// Terminal tallies ignore lens.
+	if p["done"] != "1" {
+		t.Errorf("done should ignore lens, got %q", p["done"])
+	}
+
+	nextOut, _, err := run(t, app, "next", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("next: %v", err)
+	}
+	if !strings.Contains(nextOut, "wc-aa22") {
+		t.Errorf("pj next should match status next, got %q", nextOut)
+	}
+}
+
+func TestStatusNextUsesReconcileClosure(t *testing.T) {
+	app := newApp(t)
+	up := initScope(t, app, "up")
+	wc := initScope(t, app, "wc")
+	// Ambient wc depends on up; only after up is terminal is wc next-eligible.
+	addProject(t, up, "up-aa22", "core", "done", "a0", "# Core\n", true, "")
+	addProject(t, wc, "wc-bb22", "feat", "todo", "a0", "# Feature\n", false, "depends: [up-aa22]\n")
+
+	out, _, err := run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	p := parsePulse(out)
+	if p["next"] != "wc-bb22" {
+		t.Errorf("next via closure = %q want wc-bb22", p["next"])
+	}
+	nextOut, _, err := run(t, app, "next", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("next: %v", err)
+	}
+	if !strings.Contains(nextOut, "wc-bb22") {
+		t.Errorf("pj next should agree, got %q", nextOut)
+	}
+}
+
+func TestStatusNextTokensMatchBareNext(t *testing.T) {
+	app := newApp(t)
+	dir := initScope(t, app, "wc")
+	// First candidate is ready; second still holds on a missing depend — full walk
+	// must still emit depends_dangling for the later candidate.
+	addProject(t, dir, "wc-aa22", "ready", "todo", "a0", "# Ready\n", false, "")
+	addProject(t, dir, "wc-ab23", "held", "todo", "a1", "# Held\n", false, "depends: [wc-zz99]\n")
+
+	_, statusErr, err := run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	_, nextErr, err := run(t, app, "next", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("next: %v", err)
+	}
+	if !strings.Contains(statusErr, "depends_dangling:") {
+		t.Errorf("status must walk past the chosen next and emit later tokens, stderr=%q", statusErr)
+	}
+	if !strings.Contains(nextErr, "depends_dangling:") {
+		t.Errorf("next baseline missing depends_dangling, stderr=%q", nextErr)
+	}
+	// Token line set should match (order preserved by first-seen walk).
+	statusToks := tokenLines(statusErr)
+	nextToks := tokenLines(nextErr)
+	if !slicesEqual(statusToks, nextToks) {
+		t.Errorf("status tokens %v != next tokens %v", statusToks, nextToks)
+	}
+}
+
+// tokenLines keeps closed-token stderr lines (prefix ends with ':') in order.
+func tokenLines(errOut string) []string {
+	var out []string
+	for _, line := range lines(errOut) {
+		if i := strings.IndexByte(line, ':'); i > 0 && !strings.Contains(line[:i], " ") {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
+func TestStatusDanglingEdgeCount(t *testing.T) {
+	app := newApp(t)
+	dir := initScope(t, app, "wc")
+	// Two projects each depend on the same missing same-scope id → edge count 2.
+	addProject(t, dir, "wc-aa22", "a", "todo", "a0", "# A\n", false, "depends: [wc-zz99]\n")
+	addProject(t, dir, "wc-ab23", "b", "todo", "a1", "# B\n", false, "depends: [wc-zz99]\n")
+	// Cross-scope missing is not dangling.
+	addProject(t, dir, "wc-ac24", "c", "todo", "a2", "# C\n", false, "depends: [other-xx00]\n")
+
+	out, _, err := run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	p := parsePulse(out)
+	if p["dangling"] != "2" {
+		t.Errorf("dangling = %q want 2", p["dangling"])
+	}
+}
+
+func TestStatusIntegrityAmbientOnly(t *testing.T) {
+	app := newApp(t)
+	dir := initScope(t, app, "wc")
+	other := initScope(t, app, "ot")
+	addProject(t, dir, "wc-aa22", "ok", "todo", "a0", "# Ok\n", false, "depends: [ot-bb22]\n")
+	// Depended-on scope has a duplicate_id integrity issue.
+	addProject(t, other, "ot-bb22", "one", "done", "a0", "# One\n", true, "")
+	addProject(t, other, "ot-bb22", "two", "done", "a1", "# Two\n", true, "")
+
+	out, _, err := run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	p := parsePulse(out)
+	if p["integrity"] != "ok" {
+		t.Errorf("depended-on duplicate must not flip ambient integrity, got %q", p["integrity"])
+	}
+
+	// Ambient duplicate flips to issues.
+	addProject(t, dir, "wc-aa22", "dup", "todo", "a2", "# Dup\n", false, "")
+	out, _, err = run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status after ambient dup: %v", err)
+	}
+	p = parsePulse(out)
+	if p["integrity"] != "issues" {
+		t.Errorf("ambient duplicate_id should flip integrity to issues, got %q", p["integrity"])
+	}
+}
+
+func TestStatusIntegrityHardClasses(t *testing.T) {
+	app := newApp(t)
+	dir := initScope(t, app, "wc")
+
+	// parse_error row present → issues.
+	bad := "---\nid: wc-aa22\nstatus: [unterminated\n---\n# broke\n"
+	if err := os.WriteFile(filepath.Join(dir, "wc-aa22-x.md"), []byte(bad), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, _, err := run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if parsePulse(out)["integrity"] != "issues" {
+		t.Errorf("parse_error should flip integrity, got %q", parsePulse(out)["integrity"])
+	}
+	if err := os.Remove(filepath.Join(dir, "wc-aa22-x.md")); err != nil {
+		t.Fatal(err)
+	}
+
+	// equal_order → issues.
+	addProject(t, dir, "wc-ab23", "a", "todo", "a0", "# A\n", false, "")
+	addProject(t, dir, "wc-ac24", "b", "todo", "a0", "# B\n", false, "")
+	out, _, err = run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status equal_order: %v", err)
+	}
+	if parsePulse(out)["integrity"] != "issues" {
+		t.Errorf("equal_order should flip integrity, got %q", parsePulse(out)["integrity"])
+	}
+	if err := os.Remove(filepath.Join(dir, "wc-ab23-a.md")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(dir, "wc-ac24-b.md")); err != nil {
+		t.Fatal(err)
+	}
+
+	// archive_terminal_at_root: done still at dir root → issues.
+	addProject(t, dir, "wc-ad25", "done", "done", "a1", "# Done\n", false, "")
+	out, _, err = run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status archive drift: %v", err)
+	}
+	if parsePulse(out)["integrity"] != "issues" {
+		t.Errorf("archive_terminal_at_root should flip integrity, got %q", parsePulse(out)["integrity"])
+	}
+	if err := os.Remove(filepath.Join(dir, "wc-ad25-done.md")); err != nil {
+		t.Fatal(err)
+	}
+
+	// archive_non_terminal: non-terminal under archive/ → issues.
+	addProject(t, dir, "wc-ae26", "todo", "todo", "a2", "# Todo\n", true, "")
+	out, _, err = run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status archive_non_terminal: %v", err)
+	}
+	if parsePulse(out)["integrity"] != "issues" {
+		t.Errorf("archive_non_terminal should flip integrity, got %q", parsePulse(out)["integrity"])
+	}
+}
+
+func TestStatusIntegrityIgnoresSoftSchemaWarn(t *testing.T) {
+	app := newApp(t)
+	dir := initScope(t, app, "wc")
+	// Self-related is a soft doctor schema_warn class, not a post-reconcile integrity class.
+	addProject(t, dir, "wc-aa22", "t", "todo", "a0", "# T\n", false, "related: [wc-aa22]\n")
+
+	out, _, err := run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if parsePulse(out)["integrity"] != "ok" {
+		t.Errorf("soft schema_warn class alone must leave integrity ok, got %q", parsePulse(out)["integrity"])
+	}
+	// Same fixture: doctor must surface schema_warn so the soft class is real, not assumed.
+	t.Setenv("PJ_SCOPE", "wc")
+	docOut, _, err := run(t, app, "doctor")
+	if err != nil {
+		t.Fatalf("doctor: %v", err)
+	}
+	if !strings.Contains(docOut, "schema_warn:") {
+		t.Fatalf("fixture must produce doctor schema_warn, got %q", docOut)
+	}
+}
+
+func TestStatusCustomActiveInTotal(t *testing.T) {
+	app := newApp(t)
+	dir := initScope(t, app, "wc")
+	cue := "name: \"wc\"\nautoCommit: false\nstatuses: {\n  polishing: {category: \"active\"}\n}\n"
+	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte(cue), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	addProject(t, dir, "wc-aa22", "p", "polishing", "a0", "# P\n", false, "")
+	addProject(t, dir, "wc-ab23", "b", "backlog", "a1", "# B\n", false, "")
+
+	out, _, err := run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	p := parsePulse(out)
+	// Custom active is default-list (counts in total); backlog is not.
+	if p["total"] != "1" {
+		t.Errorf("total with custom active = %q want 1", p["total"])
+	}
+	listOut, _, err := run(t, app, "list", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if got := len(lines(listOut)); got != 1 {
+		t.Errorf("bare list rows = %d want 1", got)
+	}
+}
+
+func TestStatusClaimedSorted(t *testing.T) {
+	app := newApp(t)
+	dir := initScope(t, app, "wc")
+	// Higher order first on disk; claimed must sort (order, id).
+	addProject(t, dir, "wc-zz99", "late", "in-progress", "a2", "# Late\n", false, "")
+	addProject(t, dir, "wc-aa22", "early", "in-progress", "a0", "# Early\n", false, "")
+	addProject(t, dir, "wc-ab23", "mid", "in-progress", "a1", "# Mid\n", false, "")
+
+	out, _, err := run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if got := parsePulse(out)["claimed"]; got != "wc-aa22 wc-ab23 wc-zz99" {
+		t.Errorf("claimed sort = %q want order then id", got)
+	}
+}
+
+func TestStatusLensEmptiedNextExitsZero(t *testing.T) {
+	app := newApp(t)
+	dir := initScope(t, app, "wc")
+	// Only backend-tagged todos; frontend lens empties the ready queue.
+	addProject(t, dir, "wc-aa22", "be", "todo", "a0", "# BE\n", false, "tags: [backend]\n")
+	if _, _, err := run(t, app, "lens", "frontend", "--scope", "wc"); err != nil {
+		t.Fatalf("lens: %v", err)
+	}
+
+	out, _, err := run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status lens-empty next must exit 0: %v", err)
+	}
+	if keys := pulseKeys(out); !slicesEqual(keys, statusKeys) {
+		t.Fatalf("full key block required, got %v", keys)
+	}
+	if parsePulse(out)["next"] != "" {
+		t.Errorf("next under emptied lens should be empty, got %q", parsePulse(out)["next"])
+	}
+	if _, _, nextErr := run(t, app, "next", "--scope", "wc"); nextErr == nil {
+		t.Error("bare next should fail when lens empties the queue")
+	}
+}
+
+func TestStatusModeUnparseableIsPlainFiles(t *testing.T) {
+	app := newApp(t)
+	dir := initScope(t, app, "wc")
+	addProject(t, dir, "wc-aa22", "t", "todo", "a0", "# T\n", false, "")
+	// Schema-invalid but name still reads: config_unparseable rides, mode stays plain-files.
+	bad := "name: \"wc\"\nautoCommit: false\nfields: {x: {type: \"float\"}}\n"
+	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte(bad), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, errOut, err := run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status under unusable config should still pulse: %v", err)
+	}
+	p := parsePulse(out)
+	if p["mode"] != "plain-files" {
+		t.Errorf("unparseable schema mode = %q want plain-files", p["mode"])
+	}
+	if p["uncommitted"] != "0" {
+		t.Errorf("unparseable must not surface uncommitted, got %q", p["uncommitted"])
+	}
+	if !strings.Contains(errOut, "config_unparseable:") {
+		t.Errorf("expected config_unparseable on stderr, got %q", errOut)
+	}
+}
+
+func TestStatusModePjDrivenUncommittedZero(t *testing.T) {
+	requireGit(t)
+	app := newApp(t)
+	dir, _ := initGitScope(t, app, "wc", true)
+	addProject(t, dir, "wc-aa22", "t", "todo", "a0", "# T\n", false, "")
+	// Dirty allowlisted file: pj-driven still reports uncommitted 0.
+	if err := os.WriteFile(filepath.Join(dir, "pj.cue"),
+		[]byte("name: \"wc\"\nautoCommit: true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, _, err := run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	p := parsePulse(out)
+	if p["mode"] != "pj-driven" {
+		t.Errorf("mode = %q want pj-driven", p["mode"])
+	}
+	if p["uncommitted"] != "0" {
+		t.Errorf("pj-driven uncommitted must be 0, got %q", p["uncommitted"])
+	}
+}
+
+// Planned auto-commit layout: autoCommit true with no git-root stays pj-driven
+// (same as scope list / sync_disabled writes), never plain-files or repo-driven.
+func TestStatusModePjDrivenPlanned(t *testing.T) {
+	app := newApp(t)
+	dir := filepath.Join(t.TempDir(), "wc")
+	if _, _, err := run(t, app, "scope", "init", dir, "--name", "wc", "--auto-commit"); err != nil {
+		t.Fatalf("init planned auto-commit: %v", err)
+	}
+	addProject(t, dir, "wc-aa22", "t", "todo", "a0", "# T\n", false, "")
+
+	out, _, err := run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	p := parsePulse(out)
+	if p["mode"] != "pj-driven" {
+		t.Errorf("planned auto-commit mode = %q want pj-driven", p["mode"])
+	}
+	if p["uncommitted"] != "0" {
+		t.Errorf("planned pj-driven uncommitted must be 0, got %q", p["uncommitted"])
+	}
+}
+
+func TestStatusModeRepoDrivenDirtyCount(t *testing.T) {
+	requireGit(t)
+	app := newApp(t)
+	dir, _ := initGitScope(t, app, "rd", false)
+	addProject(t, dir, "rd-aa22", "t", "todo", "a0", "# T\n", false, "")
+
+	out, _, err := run(t, app, "status", "--scope", "rd")
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	p := parsePulse(out)
+	if p["mode"] != "repo-driven" {
+		t.Errorf("mode = %q want repo-driven", p["mode"])
+	}
+	// Scope has uncommitted project file + possibly pj.cue — allowlisted dirt ≥ 1.
+	if p["uncommitted"] == "0" {
+		t.Errorf("repo-driven dirty board should report uncommitted > 0, got %q", p["uncommitted"])
+	}
+}
+
+func TestStatusResolvedSources(t *testing.T) {
+	app := newApp(t)
+	dir := initScope(t, app, "wc")
+	addProject(t, dir, "wc-aa22", "t", "todo", "a0", "# T\n", false, "")
+
+	// --scope → flag
+	out, _, err := run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsePulse(out)["resolved"] != "flag" {
+		t.Errorf("want flag, got %q", parsePulse(out)["resolved"])
+	}
+
+	// PJ_SCOPE → env
+	t.Setenv("PJ_SCOPE", "wc")
+	out, _, err = run(t, app, "status")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsePulse(out)["resolved"] != "env" {
+		t.Errorf("want env, got %q", parsePulse(out)["resolved"])
+	}
+
+	// cwd longest-prefix (plain-files code-root is the scope dir itself).
+	t.Setenv("PJ_SCOPE", "")
+	t.Chdir(dir)
+	out, _, err = run(t, app, "status")
+	if err != nil {
+		t.Fatalf("status via cwd: %v", err)
+	}
+	if parsePulse(out)["resolved"] != "cwd" {
+		t.Errorf("want cwd, got %q", parsePulse(out)["resolved"])
+	}
+}

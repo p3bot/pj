@@ -14,12 +14,12 @@ func TestSyncBothSidesTerminalStatusDispute(t *testing.T) {
 	requireGit(t)
 	a, b, remote := twoMachines(t)
 
-	a.status(t, "wc-ab2c", "done")
+	a.mark(t, "wc-ab2c", "done")
 	if _, _, err := a.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("A sync done: %v", err)
 	}
 
-	b.status(t, "wc-ab2c", "cancelled")
+	b.mark(t, "wc-ab2c", "cancelled")
 	_, errOut, err := b.sync(t, "--scope", "wc")
 	if ExitCodeFromError(err) != exitFailure {
 		t.Fatalf("both-sides terminal dispute must pause non-zero, got %v (stderr %q)", err, errOut)
@@ -148,7 +148,7 @@ func TestSyncGitignoreConflictDoesNotBlockProjectMerges(t *testing.T) {
 	// Both files are edited in place and left dirty, so each machine's sync sweeps them into
 	// one snapshot commit. That is what puts .gitignore and the project .md at the *same*
 	// rebase stop — the only arrangement where the gating actually bites. Going through
-	// pj status instead would self-commit the .md separately and split them across two
+	// pj mark instead would self-commit the .md separately and split them across two
 	// stops, where a .gitignore conflict could never have blocked the merge anyway.
 	appendLine(t, filepath.Join(a.scopeDir(), ".gitignore"), "a-only/")
 	setStatusLine(t, mustSeedProject(t, a.scopeDir()), "in-progress")

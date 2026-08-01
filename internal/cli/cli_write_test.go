@@ -176,17 +176,17 @@ func TestCreateTerminalUnderArchive(t *testing.T) {
 	}
 }
 
-func TestStatusTerminalBoundaryMovePlainFiles(t *testing.T) {
+func TestMarkTerminalBoundaryMovePlainFiles(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
 	_, id := createID(t, app, "wc", "Work")
 
-	if _, _, err := run(t, app, "status", id, "todo"); err != nil {
-		t.Fatalf("status todo: %v", err)
+	if _, _, err := run(t, app, "mark", id, "todo"); err != nil {
+		t.Fatalf("mark todo: %v", err)
 	}
-	out, _, err := run(t, app, "status", id, "done")
+	out, _, err := run(t, app, "mark", id, "done")
 	if err != nil {
-		t.Fatalf("status done: %v", err)
+		t.Fatalf("mark done: %v", err)
 	}
 	movedPath := strings.TrimSpace(out)
 	if filepath.Dir(movedPath) != filepath.Join(dir, "archive") {
@@ -204,7 +204,7 @@ func TestStatusTerminalBoundaryMovePlainFiles(t *testing.T) {
 	}
 
 	// Reopening moves it back to the dir root.
-	out, _, err = run(t, app, "status", id, "todo")
+	out, _, err = run(t, app, "mark", id, "todo")
 	if err != nil {
 		t.Fatalf("reopen: %v", err)
 	}
@@ -214,21 +214,21 @@ func TestStatusTerminalBoundaryMovePlainFiles(t *testing.T) {
 	}
 }
 
-func TestStatusRefusals(t *testing.T) {
+func TestMarkRefusals(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
 	_, id := createID(t, app, "wc", "Work")
 
 	// Unknown status → exit 2.
-	if _, _, err := run(t, app, "status", id, "nope"); ExitCodeFromError(err) != exitUsage {
+	if _, _, err := run(t, app, "mark", id, "nope"); ExitCodeFromError(err) != exitUsage {
 		t.Errorf("unknown status should exit 2, got %v", err)
 	}
 	// Malformed id → exit 2.
-	if _, _, err := run(t, app, "status", "bad!", "done", "--scope", "wc"); ExitCodeFromError(err) != exitUsage {
+	if _, _, err := run(t, app, "mark", "bad!", "done", "--scope", "wc"); ExitCodeFromError(err) != exitUsage {
 		t.Errorf("malformed id should exit 2, got %v", err)
 	}
 	// Well-formed unknown id → generic non-zero.
-	if _, _, err := run(t, app, "status", "wc-zzzz", "done"); ExitCodeFromError(err) != exitFailure {
+	if _, _, err := run(t, app, "mark", "wc-zzzz", "done"); ExitCodeFromError(err) != exitFailure {
 		t.Errorf("unknown well-formed id should exit 1, got %v", err)
 	}
 	// parse_error quarantine → refuse, no write.
@@ -236,9 +236,9 @@ func TestStatusRefusals(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "wc-abcd-x.md"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, errOut, err := run(t, app, "status", "wc-abcd", "done")
+	_, errOut, err := run(t, app, "mark", "wc-abcd", "done")
 	if ExitCodeFromError(err) != exitFailure {
-		t.Errorf("parse_error status should be non-zero, got %v", err)
+		t.Errorf("parse_error mark should be non-zero, got %v", err)
 	}
 	if !strings.Contains(err.Error()+errOut, "parse_error:") {
 		t.Errorf("expected parse_error token, got err=%v stderr=%q", err, errOut)
@@ -250,7 +250,7 @@ func TestStatusRefusals(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, _, err := run(t, app, "status", id, "done"); ExitCodeFromError(err) != exitFailure {
+	if _, _, err := run(t, app, "mark", id, "done"); ExitCodeFromError(err) != exitFailure {
 		t.Errorf("duplicate id should refuse non-zero, got %v", err)
 	}
 }
@@ -394,7 +394,7 @@ func TestWriteVerbsRefuseUnparseableConfig(t *testing.T) {
 
 	checks := [][]string{
 		{"create", "New", "--scope", "wc"},
-		{"status", id, "done"},
+		{"mark", id, "done"},
 		{"reorder", id, "--first"},
 		{"next", "--claim", "--scope", "wc"},
 	}
@@ -417,7 +417,7 @@ func TestWriteVerbsRefuseUnparseableConfig(t *testing.T) {
 // The complete-state write verbs must ride the same reconcile integrity warnings a
 // read (or next --claim) surfaces — a mutation is exactly when the pj doctor nudge
 // matters. A quarantined sibling makes the scope carry a parse_error count; create,
-// status, and reorder on a healthy row must each echo it on stderr.
+// mark, and reorder on a healthy row must each echo it on stderr.
 func TestWriteVerbsSurfaceIntegrityWarnings(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
@@ -429,7 +429,7 @@ func TestWriteVerbsSurfaceIntegrityWarnings(t *testing.T) {
 
 	cases := [][]string{
 		{"create", "New thing", "--scope", "wc"},
-		{"status", "wc-de34", "review"},
+		{"mark", "wc-de34", "review"},
 		{"reorder", "wc-de34", "--first"},
 	}
 	for _, args := range cases {
@@ -453,12 +453,12 @@ func TestAutoCommitSelfCommitLifecycle(t *testing.T) {
 	if n := len(gitLog(t, repo)); n != 0 {
 		t.Fatalf("create must not self-commit, got %d commits", n)
 	}
-	if _, _, err := run(t, app, "status", id, "todo"); err != nil {
-		t.Fatalf("status todo: %v", err)
+	if _, _, err := run(t, app, "mark", id, "todo"); err != nil {
+		t.Fatalf("mark todo: %v", err)
 	}
-	out, _, err := run(t, app, "status", id, "done")
+	out, _, err := run(t, app, "mark", id, "done")
 	if err != nil {
-		t.Fatalf("status done: %v", err)
+		t.Fatalf("mark done: %v", err)
 	}
 	log := gitLog(t, repo)
 	if len(log) != 2 || log[0] != "pj: "+id+" -> done" || log[1] != "pj: "+id+" -> todo" {
@@ -556,9 +556,9 @@ func TestAutoCommitPlannedRidesSyncDisabled(t *testing.T) {
 		t.Fatalf("init planned auto-commit: %v", err)
 	}
 	_, id := createID(t, app, "wc", "Work")
-	_, errOut, err := run(t, app, "status", id, "todo")
+	_, errOut, err := run(t, app, "mark", id, "todo")
 	if err != nil {
-		t.Fatalf("planned status should still land: %v", err)
+		t.Fatalf("planned mark should still land: %v", err)
 	}
 	if !strings.Contains(errOut, "sync_disabled:") {
 		t.Errorf("planned auto-commit write should ride sync_disabled, got %q", errOut)
@@ -571,9 +571,9 @@ func TestRepoDrivenUncommitted(t *testing.T) {
 	dir, _ := initGitScope(t, app, "rd", false)
 
 	_, id := createID(t, app, "rd", "Host thing")
-	_, errOut, err := run(t, app, "status", id, "todo")
+	_, errOut, err := run(t, app, "mark", id, "todo")
 	if err != nil {
-		t.Fatalf("repo-driven status: %v", err)
+		t.Fatalf("repo-driven mark: %v", err)
 	}
 	if !strings.Contains(errOut, "uncommitted:") {
 		t.Errorf("repo-driven write should ride uncommitted, got %q", errOut)
@@ -586,7 +586,7 @@ func TestRepoDrivenUncommitted(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "residue.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, errOut2, _ := run(t, app, "status", id, "review")
+	_, errOut2, _ := run(t, app, "mark", id, "review")
 	if strings.Contains(errOut2, "residue.txt") {
 		t.Errorf("residue must not be flagged as uncommitted, got %q", errOut2)
 	}
@@ -602,8 +602,8 @@ func TestMidRebaseRefusesWrites(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(repo, ".git", "rebase-merge"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := run(t, app, "status", id, "todo"); ExitCodeFromError(err) != exitFailure {
-		t.Errorf("mid-rebase status should refuse non-zero, got %v", err)
+	if _, _, err := run(t, app, "mark", id, "todo"); ExitCodeFromError(err) != exitFailure {
+		t.Errorf("mid-rebase mark should refuse non-zero, got %v", err)
 	}
 	if _, _, err := run(t, app, "create", "New", "--scope", "wc"); ExitCodeFromError(err) != exitFailure {
 		t.Errorf("mid-rebase create should refuse non-zero, got %v", err)

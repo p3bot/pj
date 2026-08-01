@@ -360,7 +360,7 @@ func TestSyncReadOnlyMachinePullsAndSkipsPush(t *testing.T) {
 	}
 }
 
-// The lock span releases on the success path: a pj status on the same scope after sync
+// The lock span releases on the success path: a pj mark on the same scope after sync
 // acquires the very locks sync held and completes, rather than deadlocking on a leaked
 // scope or git-root lock. The multi-sync tests already prove release on the paused path.
 func TestSyncReleasesLocksForSubsequentWrite(t *testing.T) {
@@ -371,8 +371,8 @@ func TestSyncReleasesLocksForSubsequentWrite(t *testing.T) {
 	}
 	// A write verb takes the scope lock then the git-root lock — the same span sync held.
 	// If sync leaked either, this blocks forever; it returning is the release proof.
-	if _, _, err := run(t, b.app, "status", "wc-ab2c", "in-progress"); err != nil {
-		t.Fatalf("status after sync must acquire the released locks and complete: %v", err)
+	if _, _, err := run(t, b.app, "mark", "wc-ab2c", "in-progress"); err != nil {
+		t.Fatalf("mark after sync must acquire the released locks and complete: %v", err)
 	}
 }
 

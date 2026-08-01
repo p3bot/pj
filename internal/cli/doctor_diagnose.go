@@ -533,17 +533,8 @@ func (d *diagnoser) repoHealth(scope, dir string, schema *scopeconfig.Schema) er
 			}
 		}
 	case hasRoot: // repo-driven: autoCommit false inside git
-		dirty, err := git.DirtyPaths(d.c.Context(), root, dir)
-		if err == nil {
-			n := 0
-			for _, p := range dirty {
-				if isAllowlistedScopeFile(p, dir) {
-					n++
-				}
-			}
-			if n > 0 {
-				d.add(token.Line(token.Uncommitted, fmt.Sprintf("%s: %d allowlisted path(s) under %s uncommitted — commit with the host repo", scope, n, dir)))
-			}
+		if n := countAllowlistedDirty(d.c.Context(), dir, root, hasRoot); n > 0 {
+			d.add(token.Line(token.Uncommitted, fmt.Sprintf("%s: %d allowlisted path(s) under %s uncommitted — commit with the host repo", scope, n, dir)))
 		}
 	}
 	return nil

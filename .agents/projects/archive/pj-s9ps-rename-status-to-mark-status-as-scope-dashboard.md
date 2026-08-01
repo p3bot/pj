@@ -1,6 +1,6 @@
 ---
 id: pj-s9ps
-status: todo
+status: done
 order: "aC"
 created: "2026-07-30T22:08:28+10:00"
 summary: Rename status mutator to mark; repurpose status as a key/value scope pulse for agents

@@ -198,8 +198,8 @@ func TestRootHelpGroups(t *testing.T) {
 			admin := helpSection(out, groupAdminTitle)
 
 			// Membership and within-group order (mini workflow, not pure alpha).
-			wantWork := []string{"create", "get", "edit", "status", "reorder", "next"}
-			wantBoard := []string{"list", "meta", "deps", "search", "query", "lens"}
+			wantWork := []string{"create", "get", "edit", "mark", "reorder", "next"}
+			wantBoard := []string{"list", "status", "meta", "deps", "search", "query", "lens"}
 			wantAdmin := []string{"scope", "sync", "doctor", "skill"}
 			if got := commandsInSectionOrder(work); !slicesEqual(got, wantWork) {
 				t.Errorf("Work order = %v, want %v\n%s", got, wantWork, work)

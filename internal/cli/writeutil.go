@@ -3,12 +3,14 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/start-cli/pj/internal/atomicfile"
 	"github.com/start-cli/pj/internal/frontmatter"
 	"github.com/start-cli/pj/internal/index"
 	"github.com/start-cli/pj/internal/order"
 	"github.com/start-cli/pj/internal/scopeconfig"
+	"github.com/start-cli/pj/internal/token"
 )
 
 // projectFileMode is the mode pj writes project markdown with — ordinary,
@@ -82,7 +84,7 @@ func readProjectFile(path string) (*frontmatter.Model, []byte, error) {
 }
 
 // writeProjectFile serializes a mutated frontmatter model back over its body and
-// writes the whole file atomically. It is the single write primitive the status,
+// writes the whole file atomically. It is the single write primitive the mark,
 // reorder, claim, and meta verbs share for an in-place frontmatter rewrite.
 func writeProjectFile(path string, m *frontmatter.Model, body []byte) error {
 	interior, err := frontmatter.Serialize(m)
@@ -90,4 +92,63 @@ func writeProjectFile(path string, m *frontmatter.Model, body []byte) error {
 		return err
 	}
 	return atomicWrite(path, frontmatter.Compose(interior, body))
+}
+
+// resolveSingleRow resolves a well-formed id argument to exactly one project row in
+// scope, applying the id-count half of the id-taking-verb refuse contract: zero rows
+// is unknown-but-well-formed (generic non-zero, worded with noun, e.g. "project" or
+// "neighbour"), more than one is a duplicate_id collision refused for either side. It
+// layers no row-level policy — callers add their own parse_error/order checks on the
+// returned row. The malformed-id usage error is handled by the caller before this.
+func (e *engine) resolveSingleRow(scope, idArg string, form idForm, noun string) (*index.Project, error) {
+	var rows []*index.Project
+	var err error
+	if form == idFull {
+		rows, err = e.db.ProjectsByID(scope, idArg)
+	} else {
+		rows, err = e.db.ProjectsByShortID(scope, idArg)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("unknown %s id %q", noun, idArg)
+	}
+	if len(rows) > 1 {
+		return nil, duplicateRefusal(rows)
+	}
+	return rows[0], nil
+}
+
+// resolveWriteRow resolves an id argument to the single project row a mutator will
+// write, applying the id-taking-verb refuse contract: an unknown-but-well-formed id
+// is generic non-zero, a duplicate_id collision is refused with no write to either
+// side, and a parse_error-quarantined project is refused (its frontmatter cannot be
+// safely rewritten). The malformed-id usage error is handled by the caller before
+// reconcile.
+func (e *engine) resolveWriteRow(scope, idArg string, form idForm) (*index.Project, error) {
+	p, err := e.resolveSingleRow(scope, idArg, form, "project")
+	if err != nil {
+		return nil, err
+	}
+	if p.ParseError {
+		return nil, fmt.Errorf("%s", token.Line(token.ParseError,
+			fmt.Sprintf("%s: %s — cannot rewrite quarantined frontmatter", p.ID, p.ParseMsg)))
+	}
+	return p, nil
+}
+
+// terminalLocation returns the path a project file belongs at for its terminal-ness:
+// under archive/ (created on demand) when terminal, at the dir root otherwise. The
+// basename is unchanged — a mark (or other terminal-boundary write) only relocates
+// the file, never renames it.
+func terminalLocation(dir, base string, terminal bool) (string, error) {
+	if !terminal {
+		return filepath.Join(dir, base), nil
+	}
+	archiveDir := filepath.Join(dir, "archive")
+	if err := os.MkdirAll(archiveDir, 0o755); err != nil {
+		return "", fmt.Errorf("create archive dir: %w", err)
+	}
+	return filepath.Join(archiveDir, base), nil
 }

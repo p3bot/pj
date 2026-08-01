@@ -62,7 +62,7 @@ func (e *engine) runRepairs(c *cobra.Command, scopes []string, f doctorFlags) er
 // The reconcile is inside the scope lock, not before it: the repair procedures choose which
 // files to rewrite from these rows, so the read that decides and the write that acts must
 // sit in one lock span — the same span every complete-state write verb holds. A reconcile
-// taken outside it could be invalidated by a concurrent pj status before the first byte
+// taken outside it could be invalidated by a concurrent pj mark before the first byte
 // is written.
 func (e *engine) repairScope(c *cobra.Command, scope, dir string, f doctorFlags) error {
 	// Reachability is checked before the flock, because taking the flock creates a file in

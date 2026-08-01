@@ -17,7 +17,7 @@ const (
 )
 
 // parseIDArg classifies an id argument for the id-taking project verbs — get,
-// meta, deps, edit, status, reorder, and other mutators. It is the shared
+// meta, deps, edit, mark, reorder, and other mutators. It is the shared
 // parse over P1's predicates: a token with '-' is a full-id attempt validated by
 // IsFullProjectID; any other token is a short-form attempt validated by
 // IsShortID. ok is false for malformed input — a '-'-containing token that fails

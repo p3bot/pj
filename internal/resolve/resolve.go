@@ -25,10 +25,19 @@ import (
 	"github.com/start-cli/pj/internal/token"
 )
 
+// How a scope was chosen — the closed labels for the status dashboard's
+// `resolved` field and any other caller that needs the winning tier.
+const (
+	SourceFlag = "flag" // --scope
+	SourceEnv  = "env"  // PJ_SCOPE
+	SourceCwd  = "cwd"  // longest-prefix code-root of cwd
+)
+
 // Resolved is a successfully resolved ambient scope.
 type Resolved struct {
-	Name  string
-	Entry registry.Entry
+	Name   string
+	Entry  registry.Entry
+	Source string // SourceFlag, SourceEnv, or SourceCwd
 }
 
 // Options carries the ambient inputs, read once at the CLI edge and passed in so
@@ -76,28 +85,26 @@ func (e *DriftError) Error() string { return e.line }
 // names an unregistered scope returns *UnknownScopeError; a resolved scope in
 // name-drift returns *DriftError; no match with no override returns ErrNoScope.
 func Resolve(ctx *cue.Context, reg *registry.Registry, opts Options) (*Resolved, error) {
-	if name := override(opts); name != "" {
-		entry, ok := reg.Scopes[name]
+	if opts.ScopeFlag != "" {
+		entry, ok := reg.Scopes[opts.ScopeFlag]
 		if !ok {
-			return nil, &UnknownScopeError{Name: name}
+			return nil, &UnknownScopeError{Name: opts.ScopeFlag}
 		}
-		return resolvedOrDrift(ctx, name, entry)
+		return resolvedOrDrift(ctx, opts.ScopeFlag, entry, SourceFlag)
+	}
+	if opts.EnvScope != "" {
+		entry, ok := reg.Scopes[opts.EnvScope]
+		if !ok {
+			return nil, &UnknownScopeError{Name: opts.EnvScope}
+		}
+		return resolvedOrDrift(ctx, opts.EnvScope, entry, SourceEnv)
 	}
 
 	name, entry, ok := longestPrefix(reg, opts.Cwd)
 	if !ok {
 		return nil, ErrNoScope
 	}
-	return resolvedOrDrift(ctx, name, entry)
-}
-
-// override returns the winning explicit override name (--scope over PJ_SCOPE),
-// or "" when neither is set.
-func override(opts Options) string {
-	if opts.ScopeFlag != "" {
-		return opts.ScopeFlag
-	}
-	return opts.EnvScope
+	return resolvedOrDrift(ctx, name, entry, SourceCwd)
 }
 
 // longestPrefix returns the registered scope whose code-root is the longest
@@ -122,7 +129,7 @@ func longestPrefix(reg *registry.Registry, cwd string) (string, registry.Entry, 
 // the registry key. When the pj.cue name cannot be read (absent/unparseable), the
 // scope still resolves — reads stay available and the write path enforces the
 // config_unparseable gate; drift is specifically a name mismatch.
-func resolvedOrDrift(ctx *cue.Context, name string, entry registry.Entry) (*Resolved, error) {
+func resolvedOrDrift(ctx *cue.Context, name string, entry registry.Entry, source string) (*Resolved, error) {
 	pjName, err := scopeconfig.ReadName(ctx, entry.Dir)
 	if err == nil && pjName != name {
 		return nil, &DriftError{
@@ -132,7 +139,7 @@ func resolvedOrDrift(ctx *cue.Context, name string, entry registry.Entry) (*Reso
 			line:   DriftLine(name, pjName, entry.Dir, SuggestCodeRoot(entry.Dir, entry.Root)),
 		}
 	}
-	return &Resolved{Name: name, Entry: entry}, nil
+	return &Resolved{Name: name, Entry: entry, Source: source}, nil
 }
 
 // DriftLine formats the stderr line for a name-drift condition: the name_drift

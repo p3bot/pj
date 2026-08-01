@@ -37,6 +37,9 @@ func TestResolveScopeFlagWins(t *testing.T) {
 	if got.Name != "api" {
 		t.Errorf("expected --scope to win, got %q", got.Name)
 	}
+	if got.Source != SourceFlag {
+		t.Errorf("source = %q want %q", got.Source, SourceFlag)
+	}
 }
 
 func TestResolveEnvOverCodeRoot(t *testing.T) {
@@ -52,6 +55,9 @@ func TestResolveEnvOverCodeRoot(t *testing.T) {
 	if got.Name != "api" {
 		t.Errorf("expected PJ_SCOPE to win over code-root, got %q", got.Name)
 	}
+	if got.Source != SourceEnv {
+		t.Errorf("source = %q want %q", got.Source, SourceEnv)
+	}
 }
 
 func TestResolveLongestPrefix(t *testing.T) {
@@ -66,6 +72,9 @@ func TestResolveLongestPrefix(t *testing.T) {
 	}
 	if got.Name != "inner" {
 		t.Errorf("longest-prefix should pick inner, got %q", got.Name)
+	}
+	if got.Source != SourceCwd {
+		t.Errorf("source = %q want %q", got.Source, SourceCwd)
 	}
 
 	got, err = Resolve(ctx, reg, Options{Cwd: "/repo/backend"})

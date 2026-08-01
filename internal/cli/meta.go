@@ -77,7 +77,7 @@ func newMetaCmd(app *App) *cobra.Command {
 			"per line). A trailing value of - reads the value from stdin (one optional final\n" +
 			"newline stripped).\n\n" +
 			"meta set refuses multi-value keys; meta add/rm refuse scalars. id, status, order,\n" +
-			"created, and status_conflict are immutable via meta (use status / reorder where\n" +
+			"created, and status_conflict are immutable via meta (use mark / reorder where\n" +
 			"they apply). depends add enforces write-time integrity: self → depends_self:;\n" +
 			"same-scope missing → depends_dangling:; cross-scope unregistered/absent →\n" +
 			"depends_unresolvable: (hard refuse, no write). related is soft (no existence\n" +
@@ -518,7 +518,7 @@ func unknownMetaKeyError(key string, schema *scopeconfig.Schema) error {
 func immutableMetaKeyError(key string) error {
 	switch key {
 	case frontmatter.KeyStatus:
-		return usageErrorf("key %q is immutable via meta; use pj status", key)
+		return usageErrorf("key %q is immutable via meta; use pj mark", key)
 	case frontmatter.KeyOrder:
 		return usageErrorf("key %q is immutable via meta; use pj reorder", key)
 	default:

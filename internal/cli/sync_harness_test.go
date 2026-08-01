@@ -102,12 +102,12 @@ func (m *machine) sync(t *testing.T, args ...string) (string, string, error) {
 	return run(t, m.app, append([]string{"sync"}, args...)...)
 }
 
-// status runs pj status <id> <newStatus> on this machine (a local self-commit), the
+// mark runs pj mark <id> <newStatus> on this machine (a local self-commit), the
 // model of an offline edit the next sync will push and the other machine will merge.
-func (m *machine) status(t *testing.T, id, newStatus string) {
+func (m *machine) mark(t *testing.T, id, newStatus string) {
 	t.Helper()
-	if _, _, err := run(t, m.app, "status", id, newStatus); err != nil {
-		t.Fatalf("status %s %s: %v", id, newStatus, err)
+	if _, _, err := run(t, m.app, "mark", id, newStatus); err != nil {
+		t.Fatalf("mark %s %s: %v", id, newStatus, err)
 	}
 }
 

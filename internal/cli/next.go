@@ -67,10 +67,35 @@ func runNext(app *App, c *cobra.Command, scopeFlag string, noLens bool) error {
 	if err != nil {
 		return err
 	}
+	sel := selectNext(gate, rows, e.reg.Lens[scope], noLens)
+	sel.writeDiagnostics(c)
+
+	if sel.Chosen != nil {
+		stdoutln(c, sel.Chosen.Path)
+		return nil
+	}
+	return emptyQueueError(sel.ApplyLens, sel.Lens, sel.Blocked, sel.ReadyOutsideLens)
+}
+
+// nextSelection is the outcome of one unclaimed next walk: first eligible project
+// under the lens, full depends-token set, and empty-queue stats. status and next
+// share this so eligibility and stderr tokens cannot fork.
+type nextSelection struct {
+	Chosen           *index.Project
+	Tokens           []string
+	Blocked          int
+	ReadyOutsideLens int
+	ApplyLens        bool
+	Lens             []string
+}
+
+// selectNext walks every next-candidate under the gate and lens: accumulates
+// depends tokens for the whole walk, records the first eligible as Chosen, and
+// counts holds for empty-queue diagnostics. Callers own empty-queue policy
+// (next refuses; status emits next\t and exits 0).
+func selectNext(gate *gate, rows []*index.Project, lens []string, noLens bool) nextSelection {
 	candidates := nextCandidates(rows)
 	sortProjects(candidates)
-
-	lens := e.reg.Lens[scope]
 	applyLens := !noLens && len(lens) > 0
 
 	tokens := newTokenSet()
@@ -95,19 +120,23 @@ func runNext(app *App, c *cobra.Command, scopeFlag string, noLens bool) error {
 			chosen = p
 		}
 	}
-
-	if applyLens {
-		stderrln(c, lensEcho(lens))
+	return nextSelection{
+		Chosen:           chosen,
+		Tokens:           tokens.lines(),
+		Blocked:          blocked,
+		ReadyOutsideLens: readyOutsideLens,
+		ApplyLens:        applyLens,
+		Lens:             lens,
 	}
-	for _, line := range tokens.lines() {
+}
+
+func (s nextSelection) writeDiagnostics(c *cobra.Command) {
+	if s.ApplyLens {
+		stderrln(c, lensEcho(s.Lens))
+	}
+	for _, line := range s.Tokens {
 		stderrln(c, line)
 	}
-
-	if chosen != nil {
-		stdoutln(c, chosen.Path)
-		return nil
-	}
-	return emptyQueueError(applyLens, lens, blocked, readyOutsideLens)
 }
 
 // nextCandidates keeps only the projects that could be next before the depends gate

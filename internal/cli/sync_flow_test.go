@@ -7,12 +7,12 @@ import (
 	"testing"
 )
 
-// A one-sided pj status done lands uncontested on the other machine after sync.
+// A one-sided pj mark done lands uncontested on the other machine after sync.
 func TestSyncOneSidedStatusLandsUncontested(t *testing.T) {
 	requireGit(t)
 	a, b, _ := twoMachines(t)
 
-	a.status(t, "wc-ab2c", "done")
+	a.mark(t, "wc-ab2c", "done")
 	if _, _, err := a.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("A sync: %v", err)
 	}
@@ -46,16 +46,16 @@ func TestSyncMultiStopRebaseCompletes(t *testing.T) {
 	dirB := b.importScope(t)
 
 	// A advances both projects to in-progress in two commits, then pushes.
-	a.status(t, "wc-ab2c", "in-progress")
-	a.status(t, "wc-cd3e", "in-progress")
+	a.mark(t, "wc-ab2c", "in-progress")
+	a.mark(t, "wc-cd3e", "in-progress")
 	if _, _, err := a.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("A sync: %v", err)
 	}
 
 	// B moves both to a different non-terminal status in two local commits: each conflicts
 	// with A's change at a separate rebase stop, and both auto-resolve by LWW.
-	b.status(t, "wc-ab2c", "review")
-	b.status(t, "wc-cd3e", "review")
+	b.mark(t, "wc-ab2c", "review")
+	b.mark(t, "wc-cd3e", "review")
 	_, errOut, err := b.sync(t, "--scope", "wc")
 	if err != nil {
 		t.Fatalf("B multi-stop sync should complete in one invocation: %v (stderr %q)", err, errOut)
@@ -164,7 +164,7 @@ func TestSyncDeleteEditPausesThenResumes(t *testing.T) {
 		t.Fatalf("A delete sync: %v", err)
 	}
 
-	b.status(t, "wc-ab2c", "in-progress")
+	b.mark(t, "wc-ab2c", "in-progress")
 	_, errOut, err := b.sync(t, "--scope", "wc")
 	if ExitCodeFromError(err) != exitFailure {
 		t.Fatalf("delete/edit must pause non-zero, got %v (stderr %q)", err, errOut)
@@ -203,7 +203,7 @@ func TestSyncDeleteEditUnactionedRerunPauses(t *testing.T) {
 		t.Fatalf("A delete sync: %v", err)
 	}
 
-	b.status(t, "wc-ab2c", "in-progress")
+	b.mark(t, "wc-ab2c", "in-progress")
 	_, firstOut, err := b.sync(t, "--scope", "wc")
 	if ExitCodeFromError(err) != exitFailure {
 		t.Fatalf("delete/edit must pause non-zero, got %v (stderr %q)", err, firstOut)
@@ -235,7 +235,7 @@ func TestSyncDeleteEditModifiedResumes(t *testing.T) {
 		t.Fatalf("A delete sync: %v", err)
 	}
 
-	b.status(t, "wc-ab2c", "in-progress")
+	b.mark(t, "wc-ab2c", "in-progress")
 	if _, _, err := b.sync(t, "--scope", "wc"); ExitCodeFromError(err) != exitFailure {
 		t.Fatalf("expected delete/edit pause, got %v", err)
 	}
@@ -267,7 +267,7 @@ func TestSyncDeleteEditGitAddResumes(t *testing.T) {
 		t.Fatalf("A delete sync: %v", err)
 	}
 
-	b.status(t, "wc-ab2c", "in-progress")
+	b.mark(t, "wc-ab2c", "in-progress")
 	if _, _, err := b.sync(t, "--scope", "wc"); ExitCodeFromError(err) != exitFailure {
 		t.Fatalf("expected delete/edit pause, got %v", err)
 	}
@@ -293,7 +293,7 @@ func TestSyncDeleteEditMirroredUnactionedRerunPauses(t *testing.T) {
 	a, b, remote := twoMachines(t)
 
 	// A edits and pushes first — its content becomes the incoming survivor on B.
-	a.status(t, "wc-ab2c", "review")
+	a.mark(t, "wc-ab2c", "review")
 	if _, _, err := a.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("A edit sync: %v", err)
 	}

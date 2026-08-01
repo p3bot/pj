@@ -11,9 +11,10 @@ live authority and must not override the tree.
 P1 through P7 have landed. `pj` runs as a Cobra CLI with the machine-local CUE
 registry, scope `pj.cue` evaluation, ambient resolution, and the full `pj scope`
 verb set (`init`, `import`, `rebind`, `forget`, `list`, `rename`); the machine-wide
-SQLite index with reconcile, FTS5 search, and the read/board verbs (`list`, `get`,
-`meta`, `next`, `deps`, `search`, `query`, `lens`); the authoring hot path
-(`create`, `status`, `reorder`, `edit`, `next --claim`) with local git self-commit;
+SQLite index with reconcile, FTS5 search, and the read/board verbs (`list`,
+`status`, `get`, `meta`, `next`, `deps`, `search`, `query`, `lens`); the authoring
+hot path (`create`, `mark`, `reorder`, `edit`, `next --claim`) with local git
+self-commit;
 `pj doctor` with its integrity repairs and the closed token catalogue; P6a's
 frontmatter merge package (`internal/fmmerge`), the rebase driver
 (`internal/rebasedriver`), and the read/integrate/push half of the git wrapper;
@@ -37,9 +38,9 @@ hard-refuse `skill install`/`list`/`uninstall` placeholders.
 
 Project documents are ordinary `pj` project files under the `projects/` scope
 (`<id>-<slug>.md`). Active work lives at the scope dir root; terminal status
-moves a file into `projects/archive/` via `pj status` (do not hand-move).
+moves a file into `projects/archive/` via `pj mark` (do not hand-move).
 
-- When a project is complete, set a terminal status with `pj status <id> done`
+- When a project is complete, set a terminal status with `pj mark <id> done`
   (or another terminal status). That renames into `archive/` in the same write.
 - Cross-project references use logical labels (`P1`…`P8`) or full ids
   (`pj-mwtc`, …); path or filename references need rewriting after id/slug

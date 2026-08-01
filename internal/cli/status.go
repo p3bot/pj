@@ -1,190 +1,324 @@
 package cli
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/start-cli/pj/internal/index"
+	"github.com/start-cli/pj/internal/scopeadmin"
+	"github.com/start-cli/pj/internal/scopeconfig"
 	"github.com/start-cli/pj/internal/status"
-	"github.com/start-cli/pj/internal/token"
 )
+
+// statusKeys is the locked stdout key order for `pj status`. Emit exactly these
+// keys, one key\tvalue line each, every time ambient resolve succeeds.
+var statusKeys = []string{
+	"scope",
+	"dir",
+	"resolved",
+	"mode",
+	"lens",
+	"total",
+	"todo",
+	"review",
+	"in-progress",
+	"blocked",
+	"draft",
+	"backlog",
+	"done",
+	"cancelled",
+	"next",
+	"claimed",
+	"blocked_ids",
+	"dangling",
+	"integrity",
+	"uncommitted",
+}
 
 func newStatusCmd(app *App) *cobra.Command {
 	var scope string
 	cmd := &cobra.Command{
-		Use:   "status <id> <status> [--scope S]",
-		Short: "Set a project's status (promote / claim / done / …)",
-		Long: "Rewrite a project's status. When the new status crosses the terminal boundary\n" +
-			"(non-terminal ↔ terminal) the file is renamed between the dir root and archive/\n" +
-			"in the same write, and the post-move absolute path is printed. Statuses are\n" +
-			"labels: any known status (built-in or CUE custom) is accepted; an unknown one is\n" +
-			"a usage error. An auto-commit scope self-commits the change when a git-root\n" +
-			"exists. A quarantined or duplicate-id project is refused with no write.",
-		Args: usageArgs(cobra.ExactArgs(2)),
-		RunE: func(c *cobra.Command, args []string) error {
-			return runStatus(app, c, args[0], args[1], scope)
+		Use:   "status [--scope S]",
+		Short: "Scope pulse: key/value counts, next, claimed, integrity",
+		Long: "Print a pure-read orientation block for one scope as parse-stable key\\tvalue\n" +
+			"lines (no header). Empty values still emit the key (`key\\t`) so agents can rely\n" +
+			"on key presence. Exit 0 whenever ambient resolve succeeds — including when next\n" +
+			"is empty (an empty queue is a pulse value, not a failure).\n" +
+			"\n" +
+			"Locked keys (order fixed): scope, dir, resolved, mode, lens, total, todo,\n" +
+			"review, in-progress, blocked, draft, backlog, done, cancelled, next, claimed,\n" +
+			"blocked_ids, dangling, integrity, uncommitted.\n" +
+			"\n" +
+			"resolved is how the scope was chosen: flag (--scope), env (PJ_SCOPE), or cwd\n" +
+			"(longest-prefix code-root).\n" +
+			"\n" +
+			"mode is one of pj-driven | repo-driven | plain-files only. With a known schema:\n" +
+			"autoCommit true → pj-driven (with or without a git-root — the planned no-repo\n" +
+			"layout stays pj-driven); autoCommit false + git-root → repo-driven; false and\n" +
+			"no git-root → plain-files. When the schema is unusable, mode is plain-files and\n" +
+			"config_unparseable: rides stderr — do not read plain-files as healthy host files\n" +
+			"without checking stderr. uncommitted is non-zero only in repo-driven mode.\n" +
+			"\n" +
+			"The active lens filters the working board (non-terminal status counts, claimed,\n" +
+			"blocked_ids, and as the base for total) the same way bare list and pj next do.\n" +
+			"total is bare-list membership under the lens (excludes backlog). Working-board\n" +
+			"built-in counts still include backlog. Terminal tallies (done, cancelled) are\n" +
+			"full-scope including archive/ and ignore the lens. Identity and health keys\n" +
+			"(dangling, integrity, uncommitted) ignore the lens.\n" +
+			"\n" +
+			"next reuses pj next selection (reconcileClosure + depends gate + lens) but never\n" +
+			"surfaces next's empty-queue diagnostic: empty next still exits 0 with the full\n" +
+			"key block. dangling is the edge-count of same-scope depends targets missing a\n" +
+			"project in this scope (matches doctor's per-edge depends_dangling findings).\n" +
+			"integrity is ok or issues for the ambient scope only (parse_error rows,\n" +
+			"duplicate_id, equal_order, archive layout drift) — not soft doctor classes or\n" +
+			"depended-on scopes from the next closure.\n" +
+			"\n" +
+			"To change a project's status, use `pj mark <id> <status>`.",
+		Args: usageArgs(cobra.NoArgs),
+		RunE: func(c *cobra.Command, _ []string) error {
+			return runStatus(app, c, scope)
 		},
 	}
-	cmd.Flags().StringVar(&scope, "scope", "", "ambient scope for a short id")
+	cmd.Flags().StringVar(&scope, "scope", "", "scope to pulse (defaults to ambient; wins over ambient)")
 	return cmd
 }
 
-func runStatus(app *App, c *cobra.Command, idArg, newStatus, scopeFlag string) error {
-	form, ok := parseIDArg(idArg)
-	if !ok {
-		return usageErrorf("%q is not a valid project id", idArg)
-	}
-
+func runStatus(app *App, c *cobra.Command, scopeFlag string) error {
 	e, err := app.openEngine(c)
 	if err != nil {
 		return err
 	}
 	defer e.close()
 
-	scope, err := e.scopeForID(idArg, form, scopeFlag)
+	resolved, err := e.resolveAmbient(scopeFlag)
 	if err != nil {
 		return err
 	}
-	entry, registered := e.reg.Scopes[scope]
-	if !registered {
-		return fmt.Errorf("unknown project id %q: scope %q is not registered here", idArg, scope)
+	scope := resolved.Name
+	dir := resolved.Entry.Dir
+	absDir, err := absPath(dir)
+	if err != nil {
+		return err
 	}
-	dir := entry.Dir
 
-	lock, err := acquireScopeLock(dir)
+	// Same closure + gate path as pj next so cross-scope depends eligibility stays fresh.
+	res, targets, err := e.reconcileClosure(c, scope, dir)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = lock.Release() }()
+	gate, err := e.buildGate(res, targets)
+	if err != nil {
+		return err
+	}
 
-	ctx := c.Context()
-	res, err := e.reconcileResult(single(scope, dir))
+	rows, err := e.db.ScopeProjects(scope)
 	if err != nil {
-		return err
-	}
-	if err := refuseUnusableScope(res, scope, dir); err != nil {
 		return err
 	}
 	schema := res.Schema(scope)
 	custom := schemaCustom(schema)
-	if !status.IsKnown(newStatus, custom) {
-		return usageErrorf("%q is not a known status for scope %q", newStatus, scope)
-	}
-	autoCommit := schemaAutoCommit(schema)
+	lens := e.reg.Lens[scope]
+
 	root, hasRoot := gitRootFor(dir)
-	if err := checkMidRebase(ctx, scope, autoCommit, root, hasRoot); err != nil {
-		return err
-	}
-	e.printWarnings(c, res.Warnings)
+	mode := statusMode(schema, res.ConfigErrs[scope] != nil, hasRoot)
 
-	p, err := e.resolveWriteRow(scope, idArg, form)
-	if err != nil {
-		return err
+	pulse := map[string]string{
+		"scope":    scope,
+		"dir":      absDir,
+		"resolved": resolved.Source,
+		"mode":     mode,
+		"lens":     strings.Join(lens, " "),
 	}
 
-	m, body, err := readProjectFile(p.Path)
-	if err != nil {
-		return err
-	}
-	wasTerminal := status.IsTerminal(m.Status, custom)
-	nowTerminal := status.IsTerminal(newStatus, custom)
-	m.Status = newStatus
-
-	newPath, oldPath := p.Path, ""
-	if wasTerminal != nowTerminal {
-		newPath, err = terminalLocation(dir, filepath.Base(p.Path), nowTerminal)
-		if err != nil {
-			return err
+	var (
+		total, todo, review, inProgress, blocked, draft, backlog int
+		done, cancelled                                          int
+		claimed, blockedIDs                                      []*index.Project
+	)
+	for _, p := range rows {
+		if p.ParseError {
+			continue
 		}
-		oldPath = p.Path
-	}
-
-	// Write the new content in place, then move it with an atomic rename. Doing it in
-	// this order means a crash never leaves two files sharing the id: before the rename
-	// only the old path exists (with the new content — repairable layout drift, not a
-	// duplicate); after it, only the new path does.
-	if err := writeProjectFile(p.Path, m, body); err != nil {
-		return err
-	}
-	if oldPath != "" && oldPath != newPath {
-		if err := os.Rename(oldPath, newPath); err != nil {
-			return fmt.Errorf("move %s to %s: %w", oldPath, newPath, err)
+		// Terminal tallies: full-scope including archive/, ignore lens.
+		switch p.Status {
+		case status.Done:
+			done++
+		case status.Cancelled:
+			cancelled++
+		}
+		if !workingBoardMember(p, lens) {
+			continue
+		}
+		switch p.Status {
+		case status.Todo:
+			todo++
+		case status.Review:
+			review++
+		case status.InProgress:
+			inProgress++
+			claimed = append(claimed, p)
+		case status.Blocked:
+			blocked++
+			blockedIDs = append(blockedIDs, p)
+		case status.Draft:
+			draft++
+		case status.Backlog:
+			backlog++
+		}
+		if status.InDefaultList(p.Status, custom) {
+			total++
 		}
 	}
-	if err := e.rec.SyncPaths(scope, writtenPaths(newPath, oldPath)); err != nil {
-		return err
+	sortProjects(claimed)
+	sortProjects(blockedIDs)
+
+	// Same full next walk as unclaimed pj next (tokens + eligibility); empty next
+	// is still a pulse value, not emptyQueueError.
+	sel := selectNext(gate, rows, lens, false)
+	nextID := ""
+	if sel.Chosen != nil {
+		nextID = sel.Chosen.ID
 	}
 
-	message := fmt.Sprintf("pj: %s -> %s", p.ID, newStatus)
-	if err := e.completeStateDurability(ctx, c, scope, dir, autoCommit, message, newPath, oldPath, root, hasRoot); err != nil {
-		return err
-	}
-
-	out, err := absPath(newPath)
+	dangling, err := countSameScopeDangling(e, scope)
 	if err != nil {
 		return err
 	}
-	stdoutln(c, out)
+	integrity, err := ambientIntegrity(e, scope, schema)
+	if err != nil {
+		return err
+	}
+	uncommitted := 0
+	if mode == scopeadmin.ModeRepoDriven {
+		uncommitted = countAllowlistedDirty(c.Context(), dir, root, hasRoot)
+	}
+
+	pulse["total"] = strconv.Itoa(total)
+	pulse["todo"] = strconv.Itoa(todo)
+	pulse["review"] = strconv.Itoa(review)
+	pulse["in-progress"] = strconv.Itoa(inProgress)
+	pulse["blocked"] = strconv.Itoa(blocked)
+	pulse["draft"] = strconv.Itoa(draft)
+	pulse["backlog"] = strconv.Itoa(backlog)
+	pulse["done"] = strconv.Itoa(done)
+	pulse["cancelled"] = strconv.Itoa(cancelled)
+	pulse["next"] = nextID
+	pulse["claimed"] = joinIDs(claimed)
+	pulse["blocked_ids"] = joinIDs(blockedIDs)
+	pulse["dangling"] = strconv.Itoa(dangling)
+	pulse["integrity"] = integrity
+	pulse["uncommitted"] = strconv.Itoa(uncommitted)
+
+	sel.writeDiagnostics(c)
+	for _, key := range statusKeys {
+		stdoutln(c, key+"\t"+pulse[key])
+	}
 	return nil
 }
 
-// resolveSingleRow resolves a well-formed id argument to exactly one project row in
-// scope, applying the id-count half of the id-taking-verb refuse contract: zero rows
-// is unknown-but-well-formed (generic non-zero, worded with noun, e.g. "project" or
-// "neighbour"), more than one is a duplicate_id collision refused for either side. It
-// layers no row-level policy — callers add their own parse_error/order checks on the
-// returned row. The malformed-id usage error is handled by the caller before this.
-func (e *engine) resolveSingleRow(scope, idArg string, form idForm, noun string) (*index.Project, error) {
-	var rows []*index.Project
-	var err error
-	if form == idFull {
-		rows, err = e.db.ProjectsByID(scope, idArg)
-	} else {
-		rows, err = e.db.ProjectsByShortID(scope, idArg)
+// workingBoardMember is the base set for non-terminal status counts, claimed,
+// blocked_ids, and total's outer filter: non-quarantined, not under archive/, and
+// passes the active lens (empty lens / untagged projects are visible).
+func workingBoardMember(p *index.Project, lens []string) bool {
+	if p.ParseError || p.Archived {
+		return false
 	}
+	return passesLens(p, lens)
+}
+
+// statusMode maps schema usability + autoCommit + git-root to the three-label set.
+// Unknown schema → plain-files (never unknown or repo-driven); config_unparseable
+// already rides from reconcile.
+func statusMode(schema *scopeconfig.Schema, configUnusable bool, hasRoot bool) string {
+	if configUnusable || schema == nil {
+		return scopeadmin.ModePlainFiles
+	}
+	return scopeadmin.DeriveMode(schema.AutoCommit, hasRoot)
+}
+
+// countSameScopeDangling counts depends edges from ambient-scope projects whose
+// target is same-scope and has no project row in this scope — edge-count, not
+// distinct targets (matches doctor's per-edge depends_dangling findings).
+func countSameScopeDangling(e *engine, scope string) (int, error) {
+	edges, err := e.db.AllEdges()
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
+	rows, err := e.db.ScopeProjects(scope)
+	if err != nil {
+		return 0, err
+	}
+	have := map[string]bool{}
+	for _, p := range rows {
+		have[p.ID] = true
+	}
+	n := 0
+	for _, ed := range edges {
+		if ed.Kind != index.EdgeDepends || ed.FromScope != scope {
+			continue
+		}
+		if ed.ToScope != scope {
+			continue
+		}
+		if !have[ed.ToID] {
+			n++
+		}
+	}
+	return n, nil
+}
+
+// ambientIntegrity returns "ok" or "issues" for the ambient scope alone: any
+// parse_error row, duplicate_id, equal_order, or archive layout drift flips to issues.
+func ambientIntegrity(e *engine, scope string, schema *scopeconfig.Schema) (string, error) {
+	scopes := []string{scope}
+	n, err := e.db.ParseErrorCount(scopes)
+	if err != nil {
+		return "", err
+	}
+	if n > 0 {
+		return "issues", nil
+	}
+	dups, err := e.db.DuplicateIDs(scopes)
+	if err != nil {
+		return "", err
+	}
+	if len(dups) > 0 {
+		return "issues", nil
+	}
+	eq, err := e.db.EqualOrders(scopes)
+	if err != nil {
+		return "", err
+	}
+	if len(eq) > 0 {
+		return "issues", nil
+	}
+	rows, err := e.db.ScopeProjects(scope)
+	if err != nil {
+		return "", err
+	}
+	custom := schemaCustom(schema)
+	for _, p := range rows {
+		if p.ParseError {
+			continue
+		}
+		terminal := status.IsTerminal(p.Status, custom)
+		if (p.Archived && !terminal) || (!p.Archived && terminal) {
+			return "issues", nil
+		}
+	}
+	return "ok", nil
+}
+
+func joinIDs(rows []*index.Project) string {
 	if len(rows) == 0 {
-		return nil, fmt.Errorf("unknown %s id %q", noun, idArg)
+		return ""
 	}
-	if len(rows) > 1 {
-		return nil, duplicateRefusal(rows)
+	ids := make([]string, len(rows))
+	for i, p := range rows {
+		ids[i] = p.ID
 	}
-	return rows[0], nil
-}
-
-// resolveWriteRow resolves an id argument to the single project row a mutator will
-// write, applying the id-taking-verb refuse contract: an unknown-but-well-formed id
-// is generic non-zero, a duplicate_id collision is refused with no write to either
-// side, and a parse_error-quarantined project is refused (its frontmatter cannot be
-// safely rewritten). The malformed-id usage error is handled by the caller before
-// reconcile.
-func (e *engine) resolveWriteRow(scope, idArg string, form idForm) (*index.Project, error) {
-	p, err := e.resolveSingleRow(scope, idArg, form, "project")
-	if err != nil {
-		return nil, err
-	}
-	if p.ParseError {
-		return nil, fmt.Errorf("%s", token.Line(token.ParseError,
-			fmt.Sprintf("%s: %s — cannot rewrite quarantined frontmatter", p.ID, p.ParseMsg)))
-	}
-	return p, nil
-}
-
-// terminalLocation returns the path a project file belongs at for its terminal-ness:
-// under archive/ (created on demand) when terminal, at the dir root otherwise. The
-// basename is unchanged — a status write only relocates the file, never renames it.
-func terminalLocation(dir, base string, terminal bool) (string, error) {
-	if !terminal {
-		return filepath.Join(dir, base), nil
-	}
-	archiveDir := filepath.Join(dir, "archive")
-	if err := os.MkdirAll(archiveDir, 0o755); err != nil {
-		return "", fmt.Errorf("create archive dir: %w", err)
-	}
-	return filepath.Join(archiveDir, base), nil
+	return strings.Join(ids, " ")
 }

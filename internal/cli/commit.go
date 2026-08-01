@@ -80,7 +80,7 @@ func checkMidRebase(ctx context.Context, scope string, autoCommit bool, root str
 }
 
 // completeStateDurability applies the post-write durability policy for a
-// complete-state verb (status / reorder / next --claim / meta set|add|rm). On an
+// complete-state verb (mark / reorder / next --claim / meta set|add|rm). On an
 // auto-commit scope it
 // self-commits the touched paths when a git-root exists, or rides sync_disabled and
 // skips the commit when none does (or git is absent); the file and index writes
@@ -133,12 +133,24 @@ func (e *engine) createDurability(ctx context.Context, c *cobra.Command, dir str
 // commits, or pushes. It skips silently when there is no git-root (plain files),
 // git is absent, or status fails; pure reads never reach here.
 func (e *engine) repoDirtyHealth(ctx context.Context, c *cobra.Command, dir, root string, hasRoot bool) {
+	n := countAllowlistedDirty(ctx, dir, root, hasRoot)
+	if n > 0 {
+		stderrln(c, token.Line(token.Uncommitted,
+			fmt.Sprintf("%d allowlisted path(s) under %s uncommitted — commit with the host repo", n, dir)))
+	}
+}
+
+// countAllowlistedDirty returns how many dirty paths under dir match the auto-commit
+// allowlist. Zero when there is no git-root, git is absent, or status fails — the
+// single count behind write-path uncommitted:, doctor uncommitted:, and the status
+// dashboard uncommitted field.
+func countAllowlistedDirty(ctx context.Context, dir, root string, hasRoot bool) int {
 	if !hasRoot {
-		return
+		return 0
 	}
 	dirty, err := git.DirtyPaths(ctx, root, dir)
 	if err != nil {
-		return
+		return 0
 	}
 	n := 0
 	for _, p := range dirty {
@@ -146,10 +158,7 @@ func (e *engine) repoDirtyHealth(ctx context.Context, c *cobra.Command, dir, roo
 			n++
 		}
 	}
-	if n > 0 {
-		stderrln(c, token.Line(token.Uncommitted,
-			fmt.Sprintf("%d allowlisted path(s) under %s uncommitted — commit with the host repo", n, dir)))
-	}
+	return n
 }
 
 // isAllowlistedScopeFile reports whether an absolute path under dir is a first-class
