@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/start-cli/pj/internal/skill"
-	"github.com/start-cli/pj/internal/token"
 )
 
 func TestSkillPrintsContractNoScope(t *testing.T) {
@@ -109,19 +108,6 @@ func TestScopeInitWritesNoAgentsMD(t *testing.T) {
 		case "pj.cue", ".gitignore":
 		default:
 			t.Errorf("unexpected init artefact %q", e.Name())
-		}
-	}
-}
-
-func TestSkillDoctorTokensMatchCatalogue(t *testing.T) {
-	// Skill body must embed every closed stderr token from token.All().
-	out, _, err := run(t, newApp(t), "skill")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, tok := range token.All() {
-		if !strings.Contains(out, tok) {
-			t.Errorf("skill output missing token %q", tok)
 		}
 	}
 }

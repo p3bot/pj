@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/start-cli/pj/internal/skill"
-	"github.com/start-cli/pj/internal/token"
 )
 
 func TestRequiredHeadingsInOrder(t *testing.T) {
@@ -34,8 +33,8 @@ func TestRequiredHeadingsInOrder(t *testing.T) {
 	if !strings.Contains(text, "Project management") {
 		t.Fatal("skill description must lead with Project management")
 	}
-	if !strings.Contains(text, "\n# pj\n") {
-		t.Fatal("skill must have H1 # pj after frontmatter")
+	if !strings.Contains(text, "\n# Project management with pj\n") {
+		t.Fatal("skill must have H1 # Project management with pj after frontmatter")
 	}
 	for _, bad := range []string{"(locked)", "TODO:", "TBD", "skeleton placeholder"} {
 		if strings.Contains(text, bad) {
@@ -44,16 +43,8 @@ func TestRequiredHeadingsInOrder(t *testing.T) {
 	}
 }
 
-func TestClosedTokensPresent(t *testing.T) {
-	text := skill.Text()
-	for _, tok := range token.All() {
-		if !strings.Contains(text, tok) {
-			t.Errorf("skill missing closed token %q", tok)
-		}
-	}
-}
-
-func TestEndOfTurnAndConflictHandoffs(t *testing.T) {
+func TestRequiredGuidancePresent(t *testing.T) {
+	// Hot-path contracts the body must keep; not a full doctor token catalogue.
 	text := skill.Text()
 	needles := []string{
 		"pj-driven",
@@ -63,11 +54,13 @@ func TestEndOfTurnAndConflictHandoffs(t *testing.T) {
 		"uncommitted:",
 		"sync_disabled:",
 		"status_conflict",
-		"delete/edit",
-		"re-pauses",
-		"git add",
-		"not a transient failure",
-		"one machine at a time",
+		"config_unparseable:",
+		"next --claim",
+		"sole push",
+		"stdout",
+		"stderr",
+		"never invent a path or filename",
+		"frontmatter fence",
 	}
 	for _, n := range needles {
 		if !strings.Contains(text, n) {
@@ -76,7 +69,7 @@ func TestEndOfTurnAndConflictHandoffs(t *testing.T) {
 	}
 }
 
-func TestEighteenSectionsOnly(t *testing.T) {
+func TestRequiredSectionsOnly(t *testing.T) {
 	text := skill.Text()
 	count := 0
 	for _, line := range strings.Split(text, "\n") {

@@ -10,26 +10,12 @@ import (
 //go:embed skill.md
 var embedded string
 
-// requiredHeadings is the v1 locked TOC the embedded contract must contain, in order.
+// requiredHeadings is the locked ## TOC the embedded contract must contain, in order.
 var requiredHeadings = []string{
-	"Core work loop",
-	"Capture",
-	"Frontmatter mutation",
-	"Body conventions",
-	"Title, slug, and filename",
-	"Ordering",
-	"List and filters",
-	"Search",
-	"Dependencies and impact",
-	"Archive",
-	"End of turn (by autoCommit mode)",
-	"Conflicts and paused sync",
-	"Concurrent agents",
-	"Cold start and import",
-	"Cross-scope work",
-	"Waiting and external blockers",
-	"Unsupported operations",
-	"Doctor and integrity warnings",
+	"Commands",
+	"Project files",
+	"Identifiers",
+	"Workflows",
 }
 
 // Text returns the full agent skill contract as markdown, ready for stdout.
@@ -42,7 +28,7 @@ func Text() string {
 	return s
 }
 
-// RequiredHeadings returns the v1 section titles the contract must include, in order.
+// RequiredHeadings returns the ## section titles the contract must include, in order.
 func RequiredHeadings() []string {
 	out := make([]string, len(requiredHeadings))
 	copy(out, requiredHeadings)

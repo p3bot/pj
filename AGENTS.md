@@ -22,9 +22,10 @@ P6b's `pj sync` — the sole push boundary (snapshot, fetch-and-integrate, sync-
 integrity, push), the per-git-root preflight, the layer-4 resume contract, the `--all`
 per-root failure isolation, and the reentrant lock span (self-commit and repair
 orchestration split into acquiring wrappers over locks-held cores); and P7's
-`pj skill` — the 18-section agent contract (embedded `skill.md` as the sole runtime
-source, with structure/token/handoff tests; no design-doc dependency) plus the
-hard-refuse `skill install`/`list`/`uninstall` placeholders.
+`pj skill` — the agent contract (embedded `skill.md` as the sole runtime source:
+Commands, Project files, Identifiers, Workflows; structure and hot-path guidance
+tests; no design-doc dependency) plus the hard-refuse `skill install`/`list`/
+`uninstall` placeholders.
 
 - Prefer packages, tests, and the embedded skill over prose when they disagree.
 - Short-ids are letter-first by construction (the `IsShortID` predicate and the
