@@ -2,43 +2,41 @@ package cli
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/start-cli/pj/internal/git"
+	"github.com/start-cli/pj/internal/pathutil"
+	"github.com/start-cli/pj/internal/testgit"
 )
 
-// requireGit skips a test when the git binary is unavailable — the git-backed modes cannot
+// requireGit skips when git is missing and hermeticises env for production git under test.
 func requireGit(t *testing.T) {
 	t.Helper()
 	if !git.Available() {
 		t.Skip("git not on PATH")
 	}
+	testgit.Hermetic(t)
 }
 
 func runGit(t *testing.T, dir string, args ...string) {
 	t.Helper()
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
-	}
+	testgit.Run(t, dir, args...)
 }
 
 func gitLog(t *testing.T, repo string) []string {
 	t.Helper()
-	cmd := exec.Command("git", "log", "--format=%s")
-	cmd.Dir = repo
-	out, err := cmd.CombinedOutput()
+	// Empty repos have no commits yet; treat non-zero log as "no messages".
+	out, err := testgit.CombinedAllowFailure(t, repo, "log", "--format=%s")
 	if err != nil {
 		return nil
 	}
-	return lines(string(out))
+	return lines(out)
 }
 
 // initGitScope creates a git repo, registers a scope dir inside it with the given
+// name/autoCommit, and returns the registered scope dir and git-root (both canonical).
 func initGitScope(t *testing.T, app *App, name string, autoCommit bool) (string, string) {
 	t.Helper()
 	repo := t.TempDir()
@@ -54,10 +52,11 @@ func initGitScope(t *testing.T, app *App, name string, autoCommit bool) (string,
 	if autoCommit {
 		args = append(args, "--auto-commit")
 	}
-	if _, _, err := run(t, app, args...); err != nil {
+	out, _, err := run(t, app, args...)
+	if err != nil {
 		t.Fatalf("init git scope %s: %v", name, err)
 	}
-	return dir, repo
+	return strings.TrimSpace(out), pathutil.Canonical(repo)
 }
 
 func createID(t *testing.T, app *App, scope string, args ...string) (string, string) {
@@ -463,13 +462,7 @@ func TestAutoCommitSelfCommitLifecycle(t *testing.T) {
 
 func gitTree(t *testing.T, repo string) []string {
 	t.Helper()
-	cmd := exec.Command("git", "ls-tree", "-r", "--name-only", "HEAD")
-	cmd.Dir = repo
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil
-	}
-	return lines(string(out))
+	return lines(testgit.Combined(t, repo, "ls-tree", "-r", "--name-only", "HEAD"))
 }
 
 func containsPath(tree []string, p string) bool {

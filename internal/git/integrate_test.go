@@ -3,32 +3,22 @@ package git
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/start-cli/pj/internal/testgit"
 )
 
 func gitOut(t *testing.T, dir string, args ...string) string {
 	t.Helper()
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
-	}
-	return strings.TrimSpace(string(out))
+	return testgit.Combined(t, dir, args...)
 }
 
 func gitCmdEnv(t *testing.T, dir string, env []string, args ...string) {
 	t.Helper()
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), env...)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
-	}
+	_ = testgit.CombinedEnv(t, dir, env, args...)
 }
 
 // conflictRepo builds a repo paused on a rebase with one 3-way-conflicted file.
@@ -57,10 +47,7 @@ func conflictRepo(t *testing.T) (repo, path, mainTip, featureTip, mainBody, feat
 
 	gitCmd(t, repo, "checkout", "feature")
 	// Rebase feature onto main: replaying feature's commit conflicts.
-	cmd := exec.Command("git", "rebase", main)
-	cmd.Dir = repo
-	cmd.Env = append(os.Environ(), "GIT_EDITOR=true")
-	_ = cmd.Run() // expected non-zero: paused on conflict
+	_ = testgit.AllowFailure(t, repo, []string{"GIT_EDITOR=true"}, "rebase", main) // expected non-zero: paused on conflict
 	if !MidRebase(context.Background(), repo) {
 		t.Fatal("setup: expected a paused rebase")
 	}
@@ -120,10 +107,7 @@ func TestConflictStagesAddAdd(t *testing.T) {
 	gitCmd(t, repo, "commit", "-m", "main add")
 
 	gitCmd(t, repo, "checkout", "feature")
-	cmd := exec.Command("git", "rebase", main)
-	cmd.Dir = repo
-	cmd.Env = append(os.Environ(), "GIT_EDITOR=true")
-	_ = cmd.Run()
+	_ = testgit.AllowFailure(t, repo, []string{"GIT_EDITOR=true"}, "rebase", main)
 
 	stages, err := ConflictStages(ctx, repo, path)
 	if err != nil {
@@ -159,10 +143,7 @@ func TestConflictStagesDeleteModify(t *testing.T) {
 	gitCmd(t, repo, "commit", "-am", "modify")
 
 	gitCmd(t, repo, "checkout", "feature")
-	cmd := exec.Command("git", "rebase", main)
-	cmd.Dir = repo
-	cmd.Env = append(os.Environ(), "GIT_EDITOR=true")
-	_ = cmd.Run()
+	_ = testgit.AllowFailure(t, repo, []string{"GIT_EDITOR=true"}, "rebase", main)
 
 	stages, err := ConflictStages(ctx, repo, path)
 	if err != nil {

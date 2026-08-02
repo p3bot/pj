@@ -7,9 +7,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/start-cli/pj/internal/pathutil"
 )
 
-// RepoRoot returns the cleaned absolute path of the git repository containing dir.
+// RepoRoot returns the cleaned, symlink-resolved absolute path of the git repository containing dir.
+// Canonicalisation matches CLI path hand-off so gitstate keys and registry roots agree on macOS
+// (/var vs /private/var) and other symlink-spelled temp roots.
 // ok is false — never an error — when dir is outside any repo, does not exist, or git is not on PATH.
 func RepoRoot(dir string) (root string, ok bool) {
 	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
@@ -22,7 +26,7 @@ func RepoRoot(dir string) (root string, ok bool) {
 	if root == "" {
 		return "", false
 	}
-	return filepath.Clean(root), true
+	return pathutil.Canonical(root), true
 }
 
 // RepoRootForNew derives the git root a not-yet-created dir would belong to by

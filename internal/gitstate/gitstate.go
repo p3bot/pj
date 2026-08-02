@@ -1,6 +1,7 @@
 // Package gitstate manages per-git-root operational state in machine-local XDG
 // state — never under <git-root>/.git/. Each auto-commit git-root has a directory
-// keyed by SHA-256 of the cleaned absolute path, holding sync.lock and last-push-error.
+// keyed by SHA-256 of the cleaned, symlink-resolved absolute path, holding
+// sync.lock and last-push-error.
 package gitstate
 
 import (
@@ -12,13 +13,17 @@ import (
 	"strings"
 
 	"github.com/start-cli/pj/internal/flock"
+	"github.com/start-cli/pj/internal/pathutil"
 )
 
 const lastPushErrorFile = "last-push-error"
 
-// Key is the lowercase hex SHA-256 of the cleaned absolute git-root path.
+// Key is the lowercase hex SHA-256 of the canonical (cleaned, symlink-resolved)
+// absolute git-root path. Symlink spellings of the same directory share one key.
+// There is no dual-hash fallback: pre-canonical Clean-only keys were never a
+// released on-disk contract for auto-commit state.
 func Key(gitRoot string) string {
-	sum := sha256.Sum256([]byte(filepath.Clean(gitRoot)))
+	sum := sha256.Sum256([]byte(pathutil.Canonical(gitRoot)))
 	return hex.EncodeToString(sum[:])
 }
 

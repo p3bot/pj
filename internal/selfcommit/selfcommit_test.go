@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/start-cli/pj/internal/gitstate"
+	"github.com/start-cli/pj/internal/testgit"
 )
 
 func requireGit(t *testing.T) {
@@ -16,17 +17,12 @@ func requireGit(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not on PATH")
 	}
+	testgit.Hermetic(t)
 }
 
 func gitCmd(t *testing.T, dir string, args ...string) string {
 	t.Helper()
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
-	}
-	return string(out)
+	return testgit.Combined(t, dir, args...) + "\n"
 }
 
 func newRepo(t *testing.T) string {

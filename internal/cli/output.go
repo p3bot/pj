@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/term"
 
+	"github.com/start-cli/pj/internal/pathutil"
 	"github.com/start-cli/pj/internal/token"
 )
 
@@ -52,26 +53,5 @@ func absPath(p string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve absolute path for %q: %w", p, err)
 	}
-	return canonicalize(abs), nil
-}
-
-// canonicalize resolves symlinks on the longest existing prefix; missing tail is rejoined.
-func canonicalize(abs string) string {
-	abs = filepath.Clean(abs)
-	var tail []string
-	cur := abs
-	for {
-		if resolved, err := filepath.EvalSymlinks(cur); err == nil {
-			for i := len(tail) - 1; i >= 0; i-- {
-				resolved = filepath.Join(resolved, tail[i])
-			}
-			return resolved
-		}
-		parent := filepath.Dir(cur)
-		if parent == cur {
-			return abs
-		}
-		tail = append(tail, filepath.Base(cur))
-		cur = parent
-	}
+	return pathutil.Canonical(abs), nil
 }

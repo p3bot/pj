@@ -54,7 +54,13 @@ func TestSyncPushFailureRecordsAndClearsLastPushError(t *testing.T) {
 	dir := m.initScopeAutoCommit(t)
 	addProject(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
 
-	hook := filepath.Join(m.clone, ".git", "hooks", "pre-push")
+	// Hermetic clears templates, so .git/hooks is often absent after init.
+	hooksDir := filepath.Join(m.clone, ".git", "hooks")
+	if err := os.MkdirAll(hooksDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, m.clone, "config", "core.hooksPath", hooksDir)
+	hook := filepath.Join(hooksDir, "pre-push")
 	if err := os.WriteFile(hook, []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}

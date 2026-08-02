@@ -4,6 +4,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"github.com/start-cli/pj/internal/pathutil"
+	"github.com/start-cli/pj/internal/testgit"
 )
 
 func TestRepoRootInsideRepo(t *testing.T) {
@@ -11,9 +14,7 @@ func TestRepoRootInsideRepo(t *testing.T) {
 		t.Skip("git not on PATH")
 	}
 	dir := t.TempDir()
-	if out, err := exec.Command("git", "-C", dir, "init").CombinedOutput(); err != nil {
-		t.Fatalf("git init: %v: %s", err, out)
-	}
+	testgit.Run(t, dir, "init")
 	sub := filepath.Join(dir, "a", "b")
 	if err := exec.Command("mkdir", "-p", sub).Run(); err != nil {
 		t.Fatal(err)
@@ -23,11 +24,9 @@ func TestRepoRootInsideRepo(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a git-root")
 	}
-	// macOS /tmp is a symlink; compare resolved forms.
-	wantResolved, _ := filepath.EvalSymlinks(dir)
-	gotResolved, _ := filepath.EvalSymlinks(root)
-	if gotResolved != wantResolved {
-		t.Errorf("RepoRoot=%q want %q", gotResolved, wantResolved)
+	// macOS /var → /private/var and similar: RepoRoot is already canonical.
+	if root != pathutil.Canonical(dir) {
+		t.Errorf("RepoRoot=%q want %q", root, pathutil.Canonical(dir))
 	}
 }
 
@@ -49,18 +48,14 @@ func TestRepoRootForNewMissingDescendant(t *testing.T) {
 		t.Skip("git not on PATH")
 	}
 	repo := t.TempDir()
-	if out, err := exec.Command("git", "-C", repo, "init").CombinedOutput(); err != nil {
-		t.Fatalf("git init: %v: %s", err, out)
-	}
+	testgit.Run(t, repo, "init")
 	missing := filepath.Join(repo, "a", "b", "c")
 	root, ok := RepoRootForNew(missing)
 	if !ok {
 		t.Fatal("expected a git-root for a missing descendant of a repo")
 	}
-	wantResolved, _ := filepath.EvalSymlinks(repo)
-	gotResolved, _ := filepath.EvalSymlinks(root)
-	if gotResolved != wantResolved {
-		t.Errorf("RepoRootForNew=%q want %q", gotResolved, wantResolved)
+	if root != pathutil.Canonical(repo) {
+		t.Errorf("RepoRootForNew=%q want %q", root, pathutil.Canonical(repo))
 	}
 }
 

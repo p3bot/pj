@@ -2,23 +2,19 @@ package cli
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"cuelang.org/go/cue/cuecontext"
+
+	"github.com/start-cli/pj/internal/pathutil"
+	"github.com/start-cli/pj/internal/testgit"
 )
 
 func gitIn(t *testing.T, dir string, args ...string) string {
 	t.Helper()
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git %s (in %s): %v\n%s", strings.Join(args, " "), dir, err, out)
-	}
-	return strings.TrimSpace(string(out))
+	return testgit.Combined(t, dir, args...)
 }
 
 func configIdentity(t *testing.T, dir string) {
@@ -58,6 +54,8 @@ func cloneMachine(t *testing.T, remote string) *machine {
 	clone := filepath.Join(base, "clone")
 	gitIn(t, base, "clone", remote, "clone")
 	configIdentity(t, clone)
+	// Canonical so gitstate keys, gitroot, and path assertions agree on macOS.
+	clone = pathutil.Canonical(clone)
 	app := &App{Ctx: cuecontext.New(), ConfigDir: t.TempDir(), StateDir: t.TempDir()}
 	return &machine{app: app, clone: clone}
 }

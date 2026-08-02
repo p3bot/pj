@@ -9,8 +9,10 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	"github.com/start-cli/pj/internal/pathutil"
 	"github.com/start-cli/pj/internal/registry"
 	"github.com/start-cli/pj/internal/scopeconfig"
+	"github.com/start-cli/pj/internal/testgit"
 	"github.com/start-cli/pj/internal/token"
 )
 
@@ -44,29 +46,28 @@ func gitInit(t *testing.T, dir string) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if out, err := exec.Command("git", "-C", dir, "init").CombinedOutput(); err != nil {
-		t.Fatalf("git init: %v: %s", err, out)
-	}
+	testgit.Run(t, dir, "init")
 }
 
 func TestInitPlainFiles(t *testing.T) {
 	h := newHarness(t)
 	dir := filepath.Join(t.TempDir(), "standalone")
+	want := pathutil.Canonical(dir)
 	got, err := h.admin.Init(InitParams{Dir: dir, Name: "home"})
 	if err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	if got != dir {
-		t.Errorf("registered dir = %q want %q", got, dir)
+	if got != want {
+		t.Errorf("registered dir = %q want %q", got, want)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "pj.cue")); err != nil {
+	if _, err := os.Stat(filepath.Join(got, "pj.cue")); err != nil {
 		t.Errorf("pj.cue not written: %v", err)
 	}
-	gi, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	gi, err := os.ReadFile(filepath.Join(got, ".gitignore"))
 	if err != nil || !strings.Contains(string(gi), ".pj.lock") {
 		t.Errorf(".gitignore missing .pj.lock: %v %q", err, gi)
 	}
-	if h.reg(t).Scopes["home"].Root != dir {
+	if h.reg(t).Scopes["home"].Root != want {
 		t.Errorf("plain-files root should default to dir")
 	}
 }
@@ -83,14 +84,12 @@ func TestInitRepoDefaultsAndAutoName(t *testing.T) {
 	}
 	_ = got
 	entry := h.reg(t).Scopes["we"] // webctl -> "we"
-	if entry.Dir != dir {
+	if entry.Dir != pathutil.Canonical(dir) {
 		t.Fatalf("auto-name did not register 'we': %+v", h.reg(t).Scopes)
 	}
 	// Code-root defaults to the repo root, resolved for symlinked temp roots.
-	wantRoot, _ := filepath.EvalSymlinks(repo)
-	gotRoot, _ := filepath.EvalSymlinks(entry.Root)
-	if gotRoot != wantRoot {
-		t.Errorf("code-root = %q want repo root %q", gotRoot, wantRoot)
+	if entry.Root != pathutil.Canonical(repo) {
+		t.Errorf("code-root = %q want repo root %q", entry.Root, pathutil.Canonical(repo))
 	}
 }
 
@@ -154,10 +153,8 @@ func TestInitFreshDirInRepoDefaultsToRepoRoot(t *testing.T) {
 	if _, err := h.admin.Init(InitParams{Dir: dir, Name: "rr"}); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	wantRoot, _ := filepath.EvalSymlinks(repo)
-	gotRoot, _ := filepath.EvalSymlinks(h.reg(t).Scopes["rr"].Root)
-	if gotRoot != wantRoot {
-		t.Errorf("code-root = %q want repo root %q", gotRoot, wantRoot)
+	if got := h.reg(t).Scopes["rr"].Root; got != pathutil.Canonical(repo) {
+		t.Errorf("code-root = %q want repo root %q", got, pathutil.Canonical(repo))
 	}
 }
 
@@ -169,8 +166,8 @@ func TestInitOutsideRepoExplicitCodeRoot(t *testing.T) {
 	if _, err := h.admin.Init(InitParams{Dir: dir, Name: "cr", CodeRoot: codeRoot, CodeRootGiven: true}); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	if got := h.reg(t).Scopes["cr"].Root; got != codeRoot {
-		t.Errorf("outside-repo explicit code-root = %q want %q", got, codeRoot)
+	if got := h.reg(t).Scopes["cr"].Root; got != pathutil.Canonical(codeRoot) {
+		t.Errorf("outside-repo explicit code-root = %q want %q", got, pathutil.Canonical(codeRoot))
 	}
 }
 
@@ -306,15 +303,17 @@ func TestRebind(t *testing.T) {
 	if err := os.Rename(orig, moved); err != nil {
 		t.Fatal(err)
 	}
+	wantMoved := pathutil.Canonical(moved)
+	wantOrig := pathutil.Canonical(orig)
 	dir, changed, err := h.admin.Rebind(RebindParams{Dir: moved, Name: "rb"})
-	if err != nil || !changed || dir != moved {
+	if err != nil || !changed || dir != wantMoved {
 		t.Fatalf("rebind: dir=%q changed=%v err=%v", dir, changed, err)
 	}
 	reg := h.reg(t)
-	if reg.Scopes["rb"].Dir != moved {
+	if reg.Scopes["rb"].Dir != wantMoved {
 		t.Errorf("dir not updated: %+v", reg.Scopes["rb"])
 	}
-	if reg.Scopes["rb"].Root != orig {
+	if reg.Scopes["rb"].Root != wantOrig {
 		t.Errorf("root should be unchanged on a dir-only move, got %q", reg.Scopes["rb"].Root)
 	}
 	if got := reg.Lens["rb"]; len(got) != 1 || got[0] != "tagx" {

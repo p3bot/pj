@@ -24,6 +24,18 @@ func TestKeyStableAndHex(t *testing.T) {
 	}
 }
 
+func TestKeyResolvesSymlinkSpellings(t *testing.T) {
+	real := t.TempDir()
+	linkParent := t.TempDir()
+	link := filepath.Join(linkParent, "repo-link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+	if Key(link) != Key(real) {
+		t.Errorf("Key must collapse symlink spellings: link=%q real=%q", Key(link), Key(real))
+	}
+}
+
 func TestDirUnderStateHome(t *testing.T) {
 	got := Dir("/state/pj", "/repo/one")
 	want := filepath.Join("/state/pj", "git-roots", Key("/repo/one"))

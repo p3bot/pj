@@ -3,10 +3,10 @@ package git
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/start-cli/pj/internal/testgit"
 )
 
 func requireGit(t *testing.T) {
@@ -14,15 +14,12 @@ func requireGit(t *testing.T) {
 	if !Available() {
 		t.Skip("git not on PATH")
 	}
+	testgit.Hermetic(t)
 }
 
 func gitCmd(t *testing.T, dir string, args ...string) {
 	t.Helper()
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
-	}
+	testgit.Run(t, dir, args...)
 }
 
 func newRepo(t *testing.T) string {

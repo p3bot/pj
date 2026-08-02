@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue/cuecontext"
+
+	"github.com/start-cli/pj/internal/pathutil"
 )
 
 func TestLoadEmpty(t *testing.T) {
@@ -38,14 +40,38 @@ func TestWriteAndReload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if reg.Scopes["wc"].Root != "/home/g/webctl" {
+	if reg.Scopes["wc"].Root != pathutil.Canonical("/home/g/webctl") {
 		t.Errorf("wc root = %q", reg.Scopes["wc"].Root)
 	}
-	if reg.Scopes["ta"].Dir != "/org/mono/teamA/.agents/pj" {
+	if reg.Scopes["ta"].Dir != pathutil.Canonical("/org/mono/teamA/.agents/pj") {
 		t.Errorf("ta dir = %q", reg.Scopes["ta"].Dir)
 	}
 	if got := reg.Lens["wc"]; len(got) != 2 || got[0] != "frontend" {
 		t.Errorf("lens = %v", got)
+	}
+}
+
+func TestLoadCanonicalisesSymlinkSpellings(t *testing.T) {
+	real := t.TempDir()
+	linkParent := t.TempDir()
+	link := filepath.Join(linkParent, "scope-link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+	dir := t.TempDir()
+	s := NewStore(cuecontext.New(), dir)
+	if err := s.WriteRegistry(map[string]Entry{
+		"wc": {Dir: link, Root: link},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	reg, err := s.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := pathutil.Canonical(real)
+	if reg.Scopes["wc"].Dir != want || reg.Scopes["wc"].Root != want {
+		t.Errorf("Load should resolve symlink spellings, got %+v want dir/root %q", reg.Scopes["wc"], want)
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 	"cuelang.org/go/cue/format"
 
 	"github.com/start-cli/pj/internal/atomicfile"
+	"github.com/start-cli/pj/internal/pathutil"
 )
 
 const (
@@ -23,6 +24,8 @@ const (
 )
 
 // Entry is one scope's registration: two independent absolute paths (git repo is derived from Dir).
+// After Load, Dir and Root are canonical (symlink-resolved); they may differ from the
+// spellings still stored in registry.cue until the next WriteRegistry.
 type Entry struct {
 	// Dir is where the scope's .md files and pj.cue live.
 	Dir string `json:"dir"`
@@ -48,6 +51,8 @@ func NewStore(ctx *cue.Context, configDir string) *Store {
 }
 
 // Load reads registry.cue and lens.cue. Missing files yield empty sections; uncompilable files hard-error.
+// Scope Dir/Root are returned canonical for path matching; Load never rewrites the file
+// (list may show physical paths while registry.cue still has a pre-heal spelling).
 func (s *Store) Load() (*Registry, error) {
 	reg := &Registry{Scopes: map[string]Entry{}, Lens: map[string][]string{}}
 
@@ -61,7 +66,12 @@ func (s *Store) Load() (*Registry, error) {
 			return nil, fmt.Errorf("%s is malformed: %w", filepath.Join(s.dir, registryFile), err)
 		}
 		if rc.Scopes != nil {
-			reg.Scopes = rc.Scopes
+			reg.Scopes = make(map[string]Entry, len(rc.Scopes))
+			for name, e := range rc.Scopes {
+				e.Dir = pathutil.Canonical(e.Dir)
+				e.Root = pathutil.Canonical(e.Root)
+				reg.Scopes[name] = e
+			}
 		}
 	}
 

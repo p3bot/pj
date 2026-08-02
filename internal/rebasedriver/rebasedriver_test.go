@@ -3,7 +3,6 @@ package rebasedriver
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -12,6 +11,7 @@ import (
 	"github.com/start-cli/pj/internal/frontmatter"
 	"github.com/start-cli/pj/internal/git"
 	"github.com/start-cli/pj/internal/scopeconfig"
+	"github.com/start-cli/pj/internal/testgit"
 )
 
 func requireGit(t *testing.T) {
@@ -19,27 +19,17 @@ func requireGit(t *testing.T) {
 	if !git.Available() {
 		t.Skip("git not on PATH")
 	}
+	testgit.Hermetic(t)
 }
 
 func gitRun(t *testing.T, dir string, env []string, args ...string) {
 	t.Helper()
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), env...)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
-	}
+	_ = testgit.CombinedEnv(t, dir, env, args...)
 }
 
 func gitCapture(t *testing.T, dir string, args ...string) string {
 	t.Helper()
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
-	}
-	return strings.TrimSpace(string(out))
+	return testgit.Combined(t, dir, args...)
 }
 
 func newRepo(t *testing.T) string {
@@ -79,10 +69,7 @@ func commitAll(t *testing.T, repo, msg, date string) string {
 // startRebase runs git rebase onto non-interactively and reports whether it paused.
 func startRebase(t *testing.T, repo, onto string) bool {
 	t.Helper()
-	cmd := exec.Command("git", "rebase", onto)
-	cmd.Dir = repo
-	cmd.Env = append(os.Environ(), "GIT_EDITOR=true")
-	_ = cmd.Run()
+	_ = testgit.AllowFailure(t, repo, []string{"GIT_EDITOR=true"}, "rebase", onto)
 	return git.MidRebase(context.Background(), repo)
 }
 

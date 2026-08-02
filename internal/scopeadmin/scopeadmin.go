@@ -56,6 +56,11 @@ func (a *Admin) Init(p InitParams) (string, error) {
 	if p.AutoName == (p.Name != "") {
 		return "", fmt.Errorf("exactly one of --name or --auto-name is required")
 	}
+	// Enforce the CLI edge contract: cleaned absolute symlink-resolved paths.
+	p.Dir = pathutil.Canonical(p.Dir)
+	if p.CodeRootGiven {
+		p.CodeRoot = pathutil.Canonical(p.CodeRoot)
+	}
 
 	// Pre-write guard: existing pj.cue means adopt-not-author.
 	if _, err := os.Stat(filepath.Join(p.Dir, "pj.cue")); err == nil {
@@ -136,6 +141,11 @@ type ImportParams struct {
 
 // Import registers an existing on-disk scope. Unusable pj.cue is a hard fail.
 func (a *Admin) Import(p ImportParams) (string, error) {
+	p.Dir = pathutil.Canonical(p.Dir)
+	if p.CodeRootGiven {
+		p.CodeRoot = pathutil.Canonical(p.CodeRoot)
+	}
+
 	schema, err := scopeconfig.Load(a.ctx, p.Dir)
 	if err != nil {
 		if ce, ok := scopeconfig.AsConfigError(err); ok {
@@ -199,6 +209,11 @@ type RebindParams struct {
 // Dir always; root only when --code-root given (dir-only move leaves root untouched).
 // Not name repair. changed reports whether anything moved.
 func (a *Admin) Rebind(p RebindParams) (dir string, changed bool, err error) {
+	p.Dir = pathutil.Canonical(p.Dir)
+	if p.CodeRootGiven {
+		p.CodeRoot = pathutil.Canonical(p.CodeRoot)
+	}
+
 	lock, err := xdg.AcquireConfigLock(a.configDir)
 	if err != nil {
 		return "", false, err

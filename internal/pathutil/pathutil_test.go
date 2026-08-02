@@ -1,6 +1,39 @@
 package pathutil
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestCanonicalResolvesSymlinksAndMissingTail(t *testing.T) {
+	realDir := t.TempDir()
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(realDir, link); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+	got := Canonical(filepath.Join(link, "sub", "missing"))
+	wantReal, err := filepath.EvalSymlinks(realDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(wantReal, "sub", "missing")
+	if got != want {
+		t.Errorf("Canonical through symlink = %q want %q", got, want)
+	}
+}
+
+func TestCanonicalIdempotentOnCleanAbs(t *testing.T) {
+	dir := t.TempDir()
+	got := Canonical(dir)
+	if Canonical(got) != got {
+		t.Errorf("Canonical not idempotent: %q -> %q", got, Canonical(got))
+	}
+	// Cleaning alone: trailing slash.
+	if Canonical(dir+"/") != got {
+		t.Errorf("Canonical should clean trailing separator, got %q want %q", Canonical(dir+"/"), got)
+	}
+}
 
 func TestUnderOrEqual(t *testing.T) {
 	cases := []struct {
@@ -38,5 +71,30 @@ func TestOverlap(t *testing.T) {
 		if got := Overlap(c.a, c.b); got != c.want {
 			t.Errorf("Overlap(%q,%q)=%v want %v", c.a, c.b, got, c.want)
 		}
+	}
+}
+
+func TestUnderOrEqualCollapsesSymlinkSpellings(t *testing.T) {
+	real := t.TempDir()
+	linkParent := t.TempDir()
+	link := filepath.Join(linkParent, "repo")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+	// child via link, ancestor via real (or the reverse): same tree.
+	child := filepath.Join(link, "scope")
+	if !UnderOrEqual(child, real) {
+		t.Errorf("UnderOrEqual(%q, %q) = false, want true after canonicalisation", child, real)
+	}
+	if !UnderOrEqual(filepath.Join(real, "scope"), link) {
+		t.Errorf("UnderOrEqual via real child and link ancestor should hold")
+	}
+	if !Overlap(link, real) {
+		t.Errorf("Overlap(%q, %q) = false, want true", link, real)
+	}
+	// Distinct trees still reject.
+	other := t.TempDir()
+	if UnderOrEqual(child, other) {
+		t.Errorf("UnderOrEqual must not treat unrelated dirs as nested")
 	}
 }

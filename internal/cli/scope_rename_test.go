@@ -169,13 +169,16 @@ func TestScopeRenameRefusesNameTakenUnderLock(t *testing.T) {
 	defer e.close()
 
 	// "core" is registered against a different dir before the re-key runs.
-	victim := filepath.Join(t.TempDir(), "core")
-	if err := os.MkdirAll(victim, 0o755); err != nil {
+	victimIn := filepath.Join(t.TempDir(), "core")
+	if err := os.MkdirAll(victimIn, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := run(t, app, "scope", "init", victim, "--name", "core"); err != nil {
+	out, _, err := run(t, app, "scope", "init", victimIn, "--name", "core")
+	if err != nil {
 		t.Fatalf("concurrent init: %v", err)
 	}
+	// Registry stores the canonical dir (macOS /var vs /private/var).
+	victim := strings.TrimSpace(out)
 
 	err = e.rekeyRegistry("wc", "core")
 	if err == nil {
