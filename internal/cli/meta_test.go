@@ -491,10 +491,36 @@ func TestMetaRelatedAndTags(t *testing.T) {
 		t.Fatalf("rm absent tag: %v", err)
 	}
 
+	// tag is a CLI alias for the wire key tags.
+	if _, _, err := run(t, app, "meta", "add", "wc-ab2c", "tag", "style"); err != nil {
+		t.Fatalf("add tag alias: %v", err)
+	}
+	out, _, err := run(t, app, "meta", "get", "wc-ab2c", "tag")
+	if err != nil {
+		t.Fatalf("get tag alias: %v", err)
+	}
+	if out != "frontend\nstyle\n" {
+		t.Errorf("get tag alias = %q want frontend\\nstyle\\n", out)
+	}
+	out, _, _ = run(t, app, "meta", "get", "wc-ab2c", "tags")
+	if out != "frontend\nstyle\n" {
+		t.Errorf("get tags after tag alias add = %q", out)
+	}
+	if _, _, err := run(t, app, "meta", "rm", "wc-ab2c", "tag", "style"); err != nil {
+		t.Fatalf("rm tag alias: %v", err)
+	}
+	out, _, _ = run(t, app, "meta", "get", "wc-ab2c", "tags")
+	if out != "frontend\n" {
+		t.Errorf("tags after rm via tag alias = %q", out)
+	}
+	if _, _, err := run(t, app, "meta", "set", "wc-ab2c", "tag", "x"); ExitCodeFromError(err) != exitUsage {
+		t.Errorf("set tag (multi) should exit 2, got %v", err)
+	}
+
 	if _, _, err := runIn(t, app, "https://example.com/doc\n", "meta", "add", "wc-ab2c", "links", "-"); err != nil {
 		t.Fatalf("add links stdin: %v", err)
 	}
-	out, _, err := run(t, app, "meta", "get", "wc-ab2c", "links")
+	out, _, err = run(t, app, "meta", "get", "wc-ab2c", "links")
 	if err != nil || out != "https://example.com/doc\n" {
 		t.Errorf("links get = %q err=%v", out, err)
 	}
@@ -504,6 +530,29 @@ func TestMetaRelatedAndTags(t *testing.T) {
 	out, _, _ = run(t, app, "meta", "get", "wc-ab2c", "links")
 	if out != "" {
 		t.Errorf("links after stdin rm = %q", out)
+	}
+
+	// link is a CLI alias for the wire key links.
+	if _, _, err := run(t, app, "meta", "add", "wc-ab2c", "link", "https://example.com/a"); err != nil {
+		t.Fatalf("add link alias: %v", err)
+	}
+	out, _, err = run(t, app, "meta", "get", "wc-ab2c", "link")
+	if err != nil || out != "https://example.com/a\n" {
+		t.Errorf("get link alias = %q err=%v", out, err)
+	}
+	out, _, _ = run(t, app, "meta", "get", "wc-ab2c", "links")
+	if out != "https://example.com/a\n" {
+		t.Errorf("get links after link alias add = %q", out)
+	}
+	if _, _, err := run(t, app, "meta", "rm", "wc-ab2c", "link", "https://example.com/a"); err != nil {
+		t.Fatalf("rm link alias: %v", err)
+	}
+	out, _, _ = run(t, app, "meta", "get", "wc-ab2c", "links")
+	if out != "" {
+		t.Errorf("links after rm via link alias = %q", out)
+	}
+	if _, _, err := run(t, app, "meta", "set", "wc-ab2c", "link", "x"); ExitCodeFromError(err) != exitUsage {
+		t.Errorf("set link (multi) should exit 2, got %v", err)
 	}
 }
 

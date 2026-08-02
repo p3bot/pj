@@ -261,6 +261,13 @@ func TestSearchAndDeps(t *testing.T) {
 	if len(rows) != 1 || !strings.HasPrefix(rows[0], "wc-ab2c\ttodo\tNetwork redesign\t\t") || !strings.HasSuffix(rows[0], ".md") {
 		t.Errorf("search hit wrong: %q", out)
 	}
+	findOut, _, err := run(t, app, "find", "sockets", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("find alias: %v", err)
+	}
+	if findOut != out {
+		t.Errorf("find alias output differs from search:\nsearch=%q\nfind=%q", out, findOut)
+	}
 
 	out, _, err = run(t, app, "deps", "wc-de34")
 	if err != nil {

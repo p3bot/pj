@@ -77,7 +77,8 @@ func newMetaCmd(app *App) *cobra.Command {
 			"they apply). depends add enforces write-time integrity: self → depends_self:;\n" +
 			"same-scope missing → depends_dangling:; cross-scope unregistered/absent →\n" +
 			"depends_unresolvable: (hard refuse, no write). related is soft (no existence\n" +
-			"check). Short ids on depends/related normalise to full ids in the subject scope.",
+			"check). Short ids on depends/related normalise to full ids in the subject scope.\n" +
+			"Key aliases: tag → tags, link → links (wire keys stay plural).",
 		Args: cobra.ArbitraryArgs,
 		RunE: func(c *cobra.Command, args []string) error {
 			if len(args) > 0 {
@@ -108,6 +109,7 @@ func newMetaGetCmd(app *App) *cobra.Command {
 			"keys one entry per line. Absent key or empty list: empty stdout, exit 0.\n" +
 			"If the typed model cannot be parsed: non-zero, empty stdout, parse_error token.\n" +
 			"Immutable keys are readable. Unknown key is usage exit 2 listing known keys.\n" +
+			"Key aliases: tag → tags, link → links (wire keys stay plural).\n" +
 			"Pure read; never runs git.",
 		Args: usageArgs(cobra.RangeArgs(1, 2)),
 		RunE: func(c *cobra.Command, args []string) error {
@@ -129,9 +131,9 @@ func newMetaSetCmd(app *App) *cobra.Command {
 		Short: "Set a scalar frontmatter key (summary or custom string/int/bool)",
 		Long: "Rewrite one scalar frontmatter key. Legal keys: summary and custom fields of\n" +
 			"type string, int, or bool. Empty value omits the key (clear). Multi-value keys\n" +
-			"(depends, related, tags, links, custom strings) require meta add/rm. Value -\n" +
-			"reads stdin (optional final newline stripped). Embedded newlines are usage exit 2.\n" +
-			"Prints the absolute project path on success.",
+			"(depends, related, tags/tag, links/link, custom strings) require meta add/rm.\n" +
+			"Value - reads stdin (optional final newline stripped). Embedded newlines are\n" +
+			"usage exit 2. Prints the absolute project path on success.",
 		Args: usageArgs(cobra.ExactArgs(3)),
 		RunE: func(c *cobra.Command, args []string) error {
 			return runMetaMutate(app, c, metaOpSet, args[0], args[1], args[2], scope)
@@ -147,12 +149,12 @@ func newMetaAddCmd(app *App) *cobra.Command {
 		Use:   "add <id> <key> <value> [--scope S]",
 		Short: "Append one entry to a multi-value frontmatter key",
 		Long: "Append value to a multi-value key if not already present (idempotent).\n" +
-			"Legal keys: depends, related, tags, links, and custom fields of type strings.\n" +
-			"Scalar keys require meta set. depends/related short ids normalise to full ids\n" +
-			"in the subject scope. depends add refuses self (depends_self:), same-scope\n" +
-			"missing (depends_dangling:), and cross-scope unresolvable targets\n" +
-			"(depends_unresolvable:). related has no existence check. Value - reads stdin.\n" +
-			"Prints the absolute project path on success.",
+			"Legal keys: depends, related, tags (alias: tag), links (alias: link), and\n" +
+			"custom fields of type strings. Scalar keys require meta set. depends/related\n" +
+			"short ids normalise to full ids in the subject scope. depends add refuses self\n" +
+			"(depends_self:), same-scope missing (depends_dangling:), and cross-scope\n" +
+			"unresolvable targets (depends_unresolvable:). related has no existence check.\n" +
+			"Value - reads stdin. Prints the absolute project path on success.",
 		Args: usageArgs(cobra.ExactArgs(3)),
 		RunE: func(c *cobra.Command, args []string) error {
 			return runMetaMutate(app, c, metaOpAdd, args[0], args[1], args[2], scope)
@@ -169,10 +171,10 @@ func newMetaRmCmd(app *App) *cobra.Command {
 		Aliases: []string{"remove"},
 		Short:   "Remove one entry from a multi-value frontmatter key",
 		Long: "Remove one matching entry from a multi-value key if present (idempotent when\n" +
-			"absent). Legal keys: depends, related, tags, links, and custom fields of type\n" +
-			"strings. Value is required — this removes one list entry, not the whole key.\n" +
-			"depends/related short ids normalise to full ids before compare. Value - reads\n" +
-			"stdin. Prints the absolute project path on success.",
+			"absent). Legal keys: depends, related, tags (alias: tag), links (alias: link),\n" +
+			"and custom fields of type strings. Value is required — this removes one list\n" +
+			"entry, not the whole key. depends/related short ids normalise to full ids\n" +
+			"before compare. Value - reads stdin. Prints the absolute project path on success.",
 		Args: usageArgs(cobra.ExactArgs(3)),
 		RunE: func(c *cobra.Command, args []string) error {
 			return runMetaMutate(app, c, metaOpRm, args[0], args[1], args[2], scope)
@@ -183,6 +185,8 @@ func newMetaRmCmd(app *App) *cobra.Command {
 }
 
 func runMetaGet(app *App, c *cobra.Command, idArg, key, scope string) error {
+	key = frontmatter.CanonicalMetaKey(key)
+
 	e, err := app.openEngine(c)
 	if err != nil {
 		return err
@@ -267,6 +271,8 @@ func runMetaGet(app *App, c *cobra.Command, idArg, key, scope string) error {
 }
 
 func runMetaMutate(app *App, c *cobra.Command, op metaOp, idArg, key, valueArg, scopeFlag string) error {
+	key = frontmatter.CanonicalMetaKey(key)
+
 	form, ok := parseIDArg(idArg)
 	if !ok {
 		return usageErrorf("%q is not a valid project id", idArg)

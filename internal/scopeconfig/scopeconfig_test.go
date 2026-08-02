@@ -101,6 +101,8 @@ func TestLoadConfigErrors(t *testing.T) {
 		{"status bad category", `name: "wc"` + "\nautoCommit: true\nstatuses: {foo: {category: \"weird\"}}"},
 		{"status bad alphabet", `name: "wc"` + "\nautoCommit: true\nstatuses: {\"Foo\": {category: \"done\"}}"},
 		{"field shadows builtin", `name: "wc"` + "\nautoCommit: true\nfields: {status: {type: \"string\"}}"},
+		{"field is meta key alias tag", `name: "wc"` + "\nautoCommit: true\nfields: {tag: {type: \"string\"}}"},
+		{"field is meta key alias link", `name: "wc"` + "\nautoCommit: true\nfields: {link: {type: \"strings\"}}"},
 		{"field bad type", `name: "wc"` + "\nautoCommit: true\nfields: {x: {type: \"float\"}}"},
 		{"field bad name alphabet", `name: "wc"` + "\nautoCommit: true\nfields: {\"X\": {type: \"string\"}}"},
 		{"values enum on int", `name: "wc"` + "\nautoCommit: true\nfields: {x: {type: \"int\", values: [\"a\"]}}"},

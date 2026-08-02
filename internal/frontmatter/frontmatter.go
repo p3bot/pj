@@ -37,6 +37,29 @@ func IsBuiltinKey(name string) bool {
 	return ok
 }
 
+// metaKeyAliases maps CLI key forms onto wire keys. They are not wire keys
+// themselves; scope config refuses them as custom field names so meta aliases
+// stay unambiguous.
+var metaKeyAliases = map[string]string{
+	"tag":  KeyTags,
+	"link": KeyLinks,
+}
+
+// CanonicalMetaKey maps a CLI key (including singular aliases) onto the wire key.
+func CanonicalMetaKey(key string) string {
+	if wire, ok := metaKeyAliases[key]; ok {
+		return wire
+	}
+	return key
+}
+
+// MetaKeyAliasTarget reports whether name is a reserved meta CLI alias and,
+// if so, which wire key it stands for.
+func MetaKeyAliasTarget(name string) (wire string, ok bool) {
+	wire, ok = metaKeyAliases[name]
+	return wire, ok
+}
+
 // Field is an undeclared (custom) frontmatter key preserved in declaration order.
 type Field struct {
 	Key   string

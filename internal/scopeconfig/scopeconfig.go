@@ -207,6 +207,9 @@ func validateFields(dir string, v cue.Value, raw map[string]rawField) (map[strin
 		if frontmatter.IsBuiltinKey(name) {
 			return nil, &ConfigError{Dir: dir, Reason: fmt.Sprintf("field %q shadows a built-in frontmatter key", name)}
 		}
+		if wire, ok := frontmatter.MetaKeyAliasTarget(name); ok {
+			return nil, &ConfigError{Dir: dir, Reason: fmt.Sprintf("field %q is reserved as a meta key alias for %q", name, wire)}
+		}
 		switch f.Type {
 		case FieldString, FieldInt, FieldBool, FieldStrings:
 		default:
