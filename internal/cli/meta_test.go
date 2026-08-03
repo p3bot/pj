@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -47,6 +48,13 @@ func TestMetaGetFullAndSingleKey(t *testing.T) {
 		"depends: [wc-de34]\nsummary: short one\ntags: [a, b]\nstatus_conflict: [todo, done]\n")
 	addProject(t, dir, "wc-de34", "auth", "todo", "a1", "# Auth\n", false, "")
 
+	path := filepath.Join(dir, "wc-ab2c-network.md")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantLines, wantWords, wantChars := countFileText(raw)
+
 	out, _, err := run(t, app, "meta", "get", "wc-ab2c")
 	if err != nil {
 		t.Fatalf("meta get: %v", err)
@@ -60,6 +68,31 @@ func TestMetaGetFullAndSingleKey(t *testing.T) {
 	}
 	if strings.Contains(preamble, "id:") {
 		t.Errorf("preamble must not include id:: %q", preamble)
+	}
+	for _, key := range []string{"lines:", "words:", "characters:"} {
+		if !strings.Contains(preamble, key) {
+			t.Errorf("preamble missing %s: %q", key, preamble)
+		}
+	}
+	// Order locked: title, path, lines, words, characters.
+	wantOrder := []string{"title:", "path:", "lines:", "words:", "characters:"}
+	pos := 0
+	for _, key := range wantOrder {
+		i := strings.Index(preamble[pos:], key)
+		if i < 0 {
+			t.Fatalf("preamble key order: missing %s after pos %d in %q", key, pos, preamble)
+		}
+		pos += i + len(key)
+	}
+	// preamble is cut before the blank line, so the last field has no trailing
+	// newline; search in preamble+"\n" so every key uses an exact "key: N\n"
+	// match and digit prefixes cannot false-pass (e.g. characters: 5 vs 50).
+	preambleNL := preamble + "\n"
+	if !strings.Contains(preambleNL, "lines: "+strconv.Itoa(wantLines)+"\n") ||
+		!strings.Contains(preambleNL, "words: "+strconv.Itoa(wantWords)+"\n") ||
+		!strings.Contains(preambleNL, "characters: "+strconv.Itoa(wantChars)+"\n") {
+		t.Errorf("preamble counts wrong: %q (want lines=%d words=%d characters=%d)",
+			preamble, wantLines, wantWords, wantChars)
 	}
 	if !strings.Contains(out, "summary: short one") {
 		t.Errorf("raw interior missing summary: %q", out)

@@ -163,7 +163,8 @@ func TestNextEmptyBecauseBlocked(t *testing.T) {
 func TestGetMetaAndDuplicate(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network redesign\n\nbody", false, "summary: short one\n")
+	body := "# Network redesign\n\nbody"
+	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", body, false, "summary: short one\n")
 
 	out, _, err := run(t, app, "get", "wc-ab2c")
 	if err != nil || !strings.HasSuffix(strings.TrimSpace(out), "wc-ab2c-network.md") {
@@ -172,6 +173,22 @@ func TestGetMetaAndDuplicate(t *testing.T) {
 	out, _, err = run(t, app, "get", "ab2c", "--scope", "wc")
 	if err != nil || strings.TrimSpace(out) == "" {
 		t.Fatalf("get short = %q err=%v", out, err)
+	}
+
+	wantPath := filepath.Join(dir, "wc-ab2c-network.md")
+	wantBytes, err := os.ReadFile(wantPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, _, err = run(t, app, "get", "wc-ab2c", "--content")
+	if err != nil {
+		t.Fatalf("get --content: %v", err)
+	}
+	if out != string(wantBytes) {
+		t.Errorf("get --content must print exact file bytes\ngot:\n%s\nwant:\n%s", out, wantBytes)
+	}
+	if strings.Contains(out, wantPath) && !strings.Contains(string(wantBytes), wantPath) {
+		t.Error("get --content must not print the path")
 	}
 
 	out, _, err = run(t, app, "meta", "get", "wc-ab2c")

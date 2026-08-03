@@ -14,9 +14,10 @@ description: >-
 A scope is a project directory plus its pj.cue, registered on this machine
 (ambient via cwd / PJ_SCOPE / --scope). create, get, next, and mark (on terminal
 moves) print a cleaned absolute path on stdout — open that path; never invent
-filenames. Edit the body under the document H1; preserve the YAML frontmatter
-fence. Change status with mark and order with reorder, not by hand-editing those
-keys. Paths and table data on stdout; tokens and warnings on stderr — parse both.
+filenames. get --content prints the full file on stdout instead of the path.
+Edit the body under the document H1; preserve the YAML frontmatter fence.
+Change status with mark and order with reorder, not by hand-editing those keys.
+Paths and table data on stdout; tokens and warnings on stderr — parse both.
 Writes take a per-scope flock; prefer next --claim so agents do not collide on
 the same todo.
 
@@ -24,14 +25,14 @@ the same todo.
 
 ```
 pj create <title> [status] [--scope S]                              # Scaffold project (FM + H1); print path
-pj get <id> [--scope S]                                             # Resolve id to absolute project path
+pj get <id> [--content] [--scope S]                                 # Resolve id to path; --content prints full file
 pj mark <id> <status> [--scope S]                                   # Set status; rename on terminal boundary
 pj reorder <id> (--before <id> | --after <id> | --first | --last) [--scope S]  # Move board order key
 pj next [--scope S] [--no-lens] [--claim]                           # First runnable path; --claim sets in-progress
 
 pj list [status...] [--scope S] [--tag T]... [--all] [--no-lens]    # Board inventory TSV
 pj status [--scope S]                                               # Scope pulse (key/value counts)
-pj meta get <id> [key] [--scope S]                                  # Print frontmatter or one key
+pj meta get <id> [key] [--scope S]                                  # Full header (title/path/lines/words/characters + FM) or one key
 pj meta set <id> <key> <value> [--scope S]                          # Set scalar frontmatter key
 pj meta add <id> <key> <value> [--scope S]                          # Append multi-value frontmatter entry
 pj meta rm <id> <key> <value> [--scope S]                           # Remove multi-value frontmatter entry
@@ -111,6 +112,7 @@ pj status [--scope S]                    # mode, next, claimed, integrity, uncom
 pj list [status...] [--tag T]... [--all] [--no-lens]
 pj next [--no-lens]                      # next available todo document path (read-only; no --claim)
 pj get <id>                              # absolute path when you already have an id
+pj get <id> --content                    # full file on stdout (no path)
 ```
 
 Core work loop:

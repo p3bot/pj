@@ -68,10 +68,10 @@ func newMetaCmd(app *App) *cobra.Command {
 			"  set  <id> <key> <value>   scalar keys (summary, custom string/int/bool)\n" +
 			"  add  <id> <key> <value>   multi-value keys (depends, related, tags, links, custom strings)\n" +
 			"  rm   <id> <key> <value>   remove one multi-value entry (alias: remove)\n\n" +
-			"Full get prints title then path, a blank line, and the raw frontmatter interior\n" +
-			"(never the body). Single-key get prints only the value (multi-value: one entry\n" +
-			"per line). A trailing value of - reads the value from stdin (one optional final\n" +
-			"newline stripped).\n\n" +
+			"Full get prints title, path, whole-file lines/words/characters, a blank line,\n" +
+			"and the raw frontmatter interior (never the body). Single-key get prints only\n" +
+			"the value (multi-value: one entry per line). A trailing value of - reads the\n" +
+			"value from stdin (one optional final newline stripped).\n\n" +
 			"meta set refuses multi-value keys; meta add/rm refuse scalars. id, status, order,\n" +
 			"created, and status_conflict are immutable via meta (use mark / reorder where\n" +
 			"they apply). depends add enforces write-time integrity: self → depends_self:;\n" +
@@ -101,8 +101,11 @@ func newMetaGetCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get <id> [key] [--scope S]",
 		Short: "Print project frontmatter (full header or one key)",
-		Long: "Without a key: print title then path, a blank line, and the raw frontmatter\n" +
-			"interior exactly as stored (key order, quoting, comments, customs preserved).\n" +
+		Long: "Without a key: print title, path, whole-file lines/words/characters (wc-style\n" +
+			"order), a blank line, and the raw frontmatter interior exactly as stored\n" +
+			"(key order, quoting, comments, customs preserved). Counts cover the entire\n" +
+			"file (frontmatter + body). lines is newline count; words are whitespace-\n" +
+			"separated runs; characters is Unicode code points (not bytes).\n" +
 			"Extractable frontmatter exits 0 even under parse_error (token on stderr);\n" +
 			"wholly unparseable frontmatter is non-zero with empty stdout.\n\n" +
 			"With a key: print only the decoded value — scalars as one line, multi-value\n" +
@@ -216,8 +219,12 @@ func runMetaGet(app *App, c *cobra.Command, idArg, key, scope string) error {
 	}
 
 	if key == "" {
+		lines, words, characters := countFileText(data)
 		stdoutln(c, "title: "+title.Extract(body))
 		stdoutln(c, "path: "+p.Path)
+		stdoutln(c, "lines: "+strconv.Itoa(lines))
+		stdoutln(c, "words: "+strconv.Itoa(words))
+		stdoutln(c, "characters: "+strconv.Itoa(characters))
 		stdoutln(c, "")
 		if _, err := c.OutOrStdout().Write(interior); err != nil {
 			return err
