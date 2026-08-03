@@ -78,11 +78,12 @@ func newStatusCmd(app *App) *cobra.Command {
 			"without checking stderr. uncommitted is non-zero only in repo-driven mode.\n" +
 			"\n" +
 			"The active lens filters the working board (non-terminal status counts, claimed,\n" +
-			"blocked_ids, and as the base for total) the same way bare list and pj next do.\n" +
-			"total is bare-list membership under the lens (excludes backlog). Working-board\n" +
-			"built-in counts still include backlog. Terminal tallies (done, cancelled) are\n" +
-			"full-scope including archive/ and ignore the lens. Identity and health keys\n" +
-			"(dangling, integrity, uncommitted) ignore the lens.\n" +
+			"blocked_ids) the same way bare list and pj next do. total is the full-scope\n" +
+			"count of parseable projects (dir root and archive/, every status including\n" +
+			"backlog and terminals) and ignores the lens. Working-board built-in counts\n" +
+			"include backlog (unlike bare list). Terminal tallies (done, cancelled) are full-scope\n" +
+			"including archive/ and ignore the lens. Identity and health keys (dangling,\n" +
+			"integrity, uncommitted) ignore the lens.\n" +
 			"\n" +
 			"next reuses pj next selection (reconcileClosure + depends gate + lens) but never\n" +
 			"surfaces next's empty-queue diagnostic: empty next still exits 0 with the full\n" +
@@ -135,7 +136,6 @@ func runStatus(app *App, c *cobra.Command, scopeFlag string) error {
 		return err
 	}
 	schema := res.Schema(scope)
-	custom := schemaCustom(schema)
 	lens := e.reg.Lens[scope]
 
 	root, hasRoot := gitRootFor(dir)
@@ -158,6 +158,8 @@ func runStatus(app *App, c *cobra.Command, scopeFlag string) error {
 		if p.ParseError {
 			continue
 		}
+		// Full-scope total: every parseable project, including archive/ and backlog.
+		total++
 		// Terminal tallies ignore lens and include archive/.
 		switch p.Status {
 		case status.Done:
@@ -183,9 +185,6 @@ func runStatus(app *App, c *cobra.Command, scopeFlag string) error {
 			draft++
 		case status.Backlog:
 			backlog++
-		}
-		if status.InDefaultList(p.Status, custom) {
-			total++
 		}
 	}
 	sortProjects(claimed)

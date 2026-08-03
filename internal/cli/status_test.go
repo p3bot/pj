@@ -78,8 +78,8 @@ func TestStatusDashboardKeyOrderAndCounts(t *testing.T) {
 	if p["lens"] != "" {
 		t.Errorf("lens should be empty, got %q", p["lens"])
 	}
-	if p["total"] != "5" {
-		t.Errorf("total = %q want 5", p["total"])
+	if p["total"] != "8" {
+		t.Errorf("total = %q want 8 (all parseable projects, not bare-list only)", p["total"])
 	}
 	if p["todo"] != "1" || p["review"] != "1" || p["in-progress"] != "1" ||
 		p["blocked"] != "1" || p["draft"] != "1" || p["backlog"] != "1" {
@@ -108,12 +108,12 @@ func TestStatusDashboardKeyOrderAndCounts(t *testing.T) {
 		t.Errorf("uncommitted = %q want 0", p["uncommitted"])
 	}
 
-	listOut, _, err := run(t, app, "list", "--scope", "wc")
+	listOut, _, err := run(t, app, "list", "--all", "--no-lens", "--scope", "wc")
 	if err != nil {
-		t.Fatalf("list: %v", err)
+		t.Fatalf("list --all --no-lens: %v", err)
 	}
-	if got := len(lines(listOut)); got != 5 {
-		t.Errorf("bare list rows = %d want 5 (must match total)", got)
+	if got := len(lines(listOut)); got != 8 {
+		t.Errorf("list --all --no-lens rows = %d want 8 (must match total)", got)
 	}
 }
 
@@ -176,8 +176,8 @@ func TestStatusLensFiltersWorkingBoard(t *testing.T) {
 	if p["todo"] != "1" || p["blocked"] != "1" || p["in-progress"] != "0" {
 		t.Errorf("lens counts: todo=%s blocked=%s in-progress=%s", p["todo"], p["blocked"], p["in-progress"])
 	}
-	if p["total"] != "2" {
-		t.Errorf("total under lens = %q want 2", p["total"])
+	if p["total"] != "5" {
+		t.Errorf("total ignores lens = %q want 5 (full scope)", p["total"])
 	}
 	if p["next"] != "wc-aa22" {
 		t.Errorf("next under lens = %q want wc-aa22", p["next"])
@@ -389,7 +389,7 @@ func TestStatusIntegrityIgnoresSoftSchemaWarn(t *testing.T) {
 	}
 }
 
-func TestStatusCustomActiveInTotal(t *testing.T) {
+func TestStatusTotalIncludesBacklogAndCustom(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
 	cue := "name: \"wc\"\nautoCommit: false\nstatuses: {\n  polishing: {category: \"active\"}\n}\n"
@@ -404,15 +404,18 @@ func TestStatusCustomActiveInTotal(t *testing.T) {
 		t.Fatalf("status: %v", err)
 	}
 	p := parsePulse(out)
-	if p["total"] != "1" {
-		t.Errorf("total with custom active = %q want 1", p["total"])
+	if p["total"] != "2" {
+		t.Errorf("total = %q want 2 (custom active + backlog)", p["total"])
+	}
+	if p["backlog"] != "1" {
+		t.Errorf("backlog = %q want 1", p["backlog"])
 	}
 	listOut, _, err := run(t, app, "list", "--scope", "wc")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
 	if got := len(lines(listOut)); got != 1 {
-		t.Errorf("bare list rows = %d want 1", got)
+		t.Errorf("bare list rows = %d want 1 (still default-list only)", got)
 	}
 }
 
