@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue/cuecontext"
-	"github.com/start-cli/pj/internal/status"
+	"github.com/p3bot/pj/internal/status"
 )
 
 func writeCfg(t *testing.T, content string) string {

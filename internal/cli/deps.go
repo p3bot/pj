@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/pj/internal/index"
+	"github.com/p3bot/pj/internal/index"
 )
 
 func newDepsCmd(app *App) *cobra.Command {

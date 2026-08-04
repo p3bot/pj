@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/start-cli/pj/internal/frontmatter"
-	"github.com/start-cli/pj/internal/id"
-	"github.com/start-cli/pj/internal/repair"
-	"github.com/start-cli/pj/internal/scopeconfig"
+	"github.com/p3bot/pj/internal/frontmatter"
+	"github.com/p3bot/pj/internal/id"
+	"github.com/p3bot/pj/internal/repair"
+	"github.com/p3bot/pj/internal/scopeconfig"
 )
 
 // Stage is one git merge stage's blob plus whether that stage exists at all.

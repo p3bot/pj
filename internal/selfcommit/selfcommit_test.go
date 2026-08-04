@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/start-cli/pj/internal/gitstate"
-	"github.com/start-cli/pj/internal/testgit"
+	"github.com/p3bot/pj/internal/gitstate"
+	"github.com/p3bot/pj/internal/testgit"
 )
 
 func requireGit(t *testing.T) {

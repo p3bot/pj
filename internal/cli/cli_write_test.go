@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/start-cli/pj/internal/git"
-	"github.com/start-cli/pj/internal/pathutil"
-	"github.com/start-cli/pj/internal/testgit"
+	"github.com/p3bot/pj/internal/git"
+	"github.com/p3bot/pj/internal/pathutil"
+	"github.com/p3bot/pj/internal/testgit"
 )
 
 // requireGit skips when git is missing and hermeticises env for production git under test.

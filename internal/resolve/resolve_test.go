@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue/cuecontext"
-	"github.com/start-cli/pj/internal/registry"
-	"github.com/start-cli/pj/internal/token"
+	"github.com/p3bot/pj/internal/registry"
+	"github.com/p3bot/pj/internal/token"
 )
 
 func scopeDir(t *testing.T, name string) string {

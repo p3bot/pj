@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/start-cli/pj/internal/skill"
+	"github.com/p3bot/pj/internal/skill"
 )
 
 func TestRequiredHeadingsInOrder(t *testing.T) {

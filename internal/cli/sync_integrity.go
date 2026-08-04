@@ -5,9 +5,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/pj/internal/git"
-	"github.com/start-cli/pj/internal/gitstate"
-	"github.com/start-cli/pj/internal/token"
+	"github.com/p3bot/pj/internal/git"
+	"github.com/p3bot/pj/internal/gitstate"
+	"github.com/p3bot/pj/internal/token"
 )
 
 // syncIntegrity: only reconcile pj sync runs; uses locks-held repair core over merged tree.

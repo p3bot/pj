@@ -3,7 +3,7 @@ package cli
 import (
 	"strings"
 
-	"github.com/start-cli/pj/internal/id"
+	"github.com/p3bot/pj/internal/id"
 )
 
 type idForm int

@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/pj/internal/skill"
+	"github.com/p3bot/pj/internal/skill"
 )
 
 // skillInstallRefuse is shared by install/list/uninstall (hard refuse, no tree write).

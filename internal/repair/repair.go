@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/start-cli/pj/internal/frontmatter"
-	"github.com/start-cli/pj/internal/id"
-	"github.com/start-cli/pj/internal/order"
-	"github.com/start-cli/pj/internal/rewrite"
+	"github.com/p3bot/pj/internal/frontmatter"
+	"github.com/p3bot/pj/internal/id"
+	"github.com/p3bot/pj/internal/order"
+	"github.com/p3bot/pj/internal/rewrite"
 )
 
 // OrderLongThreshold is the soft length above which an order key is eligible for re-space.

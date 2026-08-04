@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/pj/internal/index"
-	"github.com/start-cli/pj/internal/token"
+	"github.com/p3bot/pj/internal/index"
+	"github.com/p3bot/pj/internal/token"
 )
 
 func newGetCmd(app *App) *cobra.Command {

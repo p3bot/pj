@@ -9,8 +9,8 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/pj/internal/scopeadmin"
-	"github.com/start-cli/pj/internal/xdg"
+	"github.com/p3bot/pj/internal/scopeadmin"
+	"github.com/p3bot/pj/internal/xdg"
 )
 
 // App carries process-wide CUE context and XDG config/state directories.

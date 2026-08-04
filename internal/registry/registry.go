@@ -14,8 +14,8 @@ import (
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
 
-	"github.com/start-cli/pj/internal/atomicfile"
-	"github.com/start-cli/pj/internal/pathutil"
+	"github.com/p3bot/pj/internal/atomicfile"
+	"github.com/p3bot/pj/internal/pathutil"
 )
 
 const (

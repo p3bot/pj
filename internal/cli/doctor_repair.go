@@ -7,16 +7,16 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/pj/internal/git"
-	"github.com/start-cli/pj/internal/gitstate"
-	"github.com/start-cli/pj/internal/index"
-	"github.com/start-cli/pj/internal/reconcile"
-	"github.com/start-cli/pj/internal/repair"
-	"github.com/start-cli/pj/internal/rewrite"
-	"github.com/start-cli/pj/internal/scopeconfig"
-	"github.com/start-cli/pj/internal/selfcommit"
-	"github.com/start-cli/pj/internal/status"
-	"github.com/start-cli/pj/internal/token"
+	"github.com/p3bot/pj/internal/git"
+	"github.com/p3bot/pj/internal/gitstate"
+	"github.com/p3bot/pj/internal/index"
+	"github.com/p3bot/pj/internal/reconcile"
+	"github.com/p3bot/pj/internal/repair"
+	"github.com/p3bot/pj/internal/rewrite"
+	"github.com/p3bot/pj/internal/scopeconfig"
+	"github.com/p3bot/pj/internal/selfcommit"
+	"github.com/p3bot/pj/internal/status"
+	"github.com/p3bot/pj/internal/token"
 )
 
 // repairTarget holds values resolved once under flock for the whole repair run.

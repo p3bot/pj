@@ -7,7 +7,7 @@ import (
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
 
-	"github.com/start-cli/pj/internal/atomicfile"
+	"github.com/p3bot/pj/internal/atomicfile"
 )
 
 // WriteMinimal authors a fresh minimal pj.cue (name + autoCommit) via CUE AST

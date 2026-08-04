@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/start-cli/pj/internal/id"
+	"github.com/p3bot/pj/internal/id"
 )
 
 const (

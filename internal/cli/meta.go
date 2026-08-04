@@ -10,10 +10,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/pj/internal/frontmatter"
-	"github.com/start-cli/pj/internal/scopeconfig"
-	"github.com/start-cli/pj/internal/title"
-	"github.com/start-cli/pj/internal/token"
+	"github.com/p3bot/pj/internal/frontmatter"
+	"github.com/p3bot/pj/internal/scopeconfig"
+	"github.com/p3bot/pj/internal/title"
+	"github.com/p3bot/pj/internal/token"
 )
 
 type metaOp int

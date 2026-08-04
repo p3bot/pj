@@ -8,15 +8,15 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/pj/internal/flock"
-	"github.com/start-cli/pj/internal/git"
-	"github.com/start-cli/pj/internal/gitroot"
-	"github.com/start-cli/pj/internal/gitstate"
-	"github.com/start-cli/pj/internal/id"
-	"github.com/start-cli/pj/internal/reconcile"
-	"github.com/start-cli/pj/internal/selfcommit"
-	"github.com/start-cli/pj/internal/slug"
-	"github.com/start-cli/pj/internal/token"
+	"github.com/p3bot/pj/internal/flock"
+	"github.com/p3bot/pj/internal/git"
+	"github.com/p3bot/pj/internal/gitroot"
+	"github.com/p3bot/pj/internal/gitstate"
+	"github.com/p3bot/pj/internal/id"
+	"github.com/p3bot/pj/internal/reconcile"
+	"github.com/p3bot/pj/internal/selfcommit"
+	"github.com/p3bot/pj/internal/slug"
+	"github.com/p3bot/pj/internal/token"
 )
 
 // Per-scope flock: writers hold it across the whole reconcile→read→write span.

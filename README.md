@@ -14,6 +14,7 @@ than half-running. This is a deliberate v1 scope limit.
 ## Install / build
 
 ```sh
+go install github.com/p3bot/pj/cmd/pj@latest
 go build ./...          # build
 go build -o pj ./cmd/pj # produce the binary
 ```

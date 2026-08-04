@@ -10,19 +10,19 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/pj/internal/frontmatter"
-	"github.com/start-cli/pj/internal/git"
-	"github.com/start-cli/pj/internal/gitroot"
-	"github.com/start-cli/pj/internal/gitstate"
-	"github.com/start-cli/pj/internal/id"
-	"github.com/start-cli/pj/internal/index"
-	"github.com/start-cli/pj/internal/order"
-	"github.com/start-cli/pj/internal/reconcile"
-	"github.com/start-cli/pj/internal/repair"
-	"github.com/start-cli/pj/internal/resolve"
-	"github.com/start-cli/pj/internal/scopeconfig"
-	"github.com/start-cli/pj/internal/status"
-	"github.com/start-cli/pj/internal/token"
+	"github.com/p3bot/pj/internal/frontmatter"
+	"github.com/p3bot/pj/internal/git"
+	"github.com/p3bot/pj/internal/gitroot"
+	"github.com/p3bot/pj/internal/gitstate"
+	"github.com/p3bot/pj/internal/id"
+	"github.com/p3bot/pj/internal/index"
+	"github.com/p3bot/pj/internal/order"
+	"github.com/p3bot/pj/internal/reconcile"
+	"github.com/p3bot/pj/internal/repair"
+	"github.com/p3bot/pj/internal/resolve"
+	"github.com/p3bot/pj/internal/scopeconfig"
+	"github.com/p3bot/pj/internal/status"
+	"github.com/p3bot/pj/internal/token"
 )
 
 const staleInProgress = 72 * time.Hour

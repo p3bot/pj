@@ -7,7 +7,7 @@ import (
 
 	"cuelang.org/go/cue/cuecontext"
 
-	"github.com/start-cli/pj/internal/pathutil"
+	"github.com/p3bot/pj/internal/pathutil"
 )
 
 func TestLoadEmpty(t *testing.T) {

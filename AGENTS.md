@@ -59,7 +59,7 @@ moves a file into `projects/archive/` via `pj mark` (do not hand-move).
 
 ## Module and layout
 
-- Module path: `github.com/start-cli/pj`
+- Module path: `github.com/p3bot/pj`
 - Go version: 1.26 (pure Go, no cgo)
 - `cmd/pj/main.go` — minimal entry point: run, map a signal or error to an exit
   code, exit (all command logic is in `internal/cli`)

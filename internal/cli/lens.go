@@ -7,10 +7,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/pj/internal/index"
-	"github.com/start-cli/pj/internal/registry"
-	"github.com/start-cli/pj/internal/token"
-	"github.com/start-cli/pj/internal/xdg"
+	"github.com/p3bot/pj/internal/index"
+	"github.com/p3bot/pj/internal/registry"
+	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/pj/internal/xdg"
 )
 
 func newLensCmd(app *App) *cobra.Command {

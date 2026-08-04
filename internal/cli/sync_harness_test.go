@@ -8,8 +8,8 @@ import (
 
 	"cuelang.org/go/cue/cuecontext"
 
-	"github.com/start-cli/pj/internal/pathutil"
-	"github.com/start-cli/pj/internal/testgit"
+	"github.com/p3bot/pj/internal/pathutil"
+	"github.com/p3bot/pj/internal/testgit"
 )
 
 func gitIn(t *testing.T, dir string, args ...string) string {

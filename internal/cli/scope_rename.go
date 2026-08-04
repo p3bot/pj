@@ -8,15 +8,15 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/pj/internal/frontmatter"
-	"github.com/start-cli/pj/internal/id"
-	"github.com/start-cli/pj/internal/registry"
-	"github.com/start-cli/pj/internal/repair"
-	"github.com/start-cli/pj/internal/rewrite"
-	"github.com/start-cli/pj/internal/scopeconfig"
-	"github.com/start-cli/pj/internal/selfcommit"
-	"github.com/start-cli/pj/internal/token"
-	"github.com/start-cli/pj/internal/xdg"
+	"github.com/p3bot/pj/internal/frontmatter"
+	"github.com/p3bot/pj/internal/id"
+	"github.com/p3bot/pj/internal/registry"
+	"github.com/p3bot/pj/internal/repair"
+	"github.com/p3bot/pj/internal/rewrite"
+	"github.com/p3bot/pj/internal/scopeconfig"
+	"github.com/p3bot/pj/internal/selfcommit"
+	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/pj/internal/xdg"
 )
 
 // newScopeRenameCmd: the only name_drift-exempt verb (idempotent re-run of interrupted rename).

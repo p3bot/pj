@@ -3,8 +3,8 @@ package cli
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/pj/internal/id"
-	"github.com/start-cli/pj/internal/scopeadmin"
+	"github.com/p3bot/pj/internal/id"
+	"github.com/p3bot/pj/internal/scopeadmin"
 )
 
 func newScopeInitCmd(app *App) *cobra.Command {

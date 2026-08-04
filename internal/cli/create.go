@@ -8,12 +8,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/pj/internal/frontmatter"
-	"github.com/start-cli/pj/internal/id"
-	"github.com/start-cli/pj/internal/index"
-	"github.com/start-cli/pj/internal/order"
-	"github.com/start-cli/pj/internal/slug"
-	"github.com/start-cli/pj/internal/status"
+	"github.com/p3bot/pj/internal/frontmatter"
+	"github.com/p3bot/pj/internal/id"
+	"github.com/p3bot/pj/internal/index"
+	"github.com/p3bot/pj/internal/order"
+	"github.com/p3bot/pj/internal/slug"
+	"github.com/p3bot/pj/internal/status"
 )
 
 func newCreateCmd(app *App) *cobra.Command {

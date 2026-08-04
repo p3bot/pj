@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/pj/internal/resolve"
+	"github.com/p3bot/pj/internal/resolve"
 )
 
 // doctorFlags: bare doctor diagnoses only; --repair / --re-space-order mutate; --reindex rebuilds.

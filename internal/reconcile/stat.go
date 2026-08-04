@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/start-cli/pj/internal/id"
+	"github.com/p3bot/pj/internal/id"
 )
 
 // archiveDir is the lone tool-managed subdirectory reconcile scans (immediate children only).

@@ -3,11 +3,11 @@ package scopeadmin
 import (
 	"fmt"
 
-	"github.com/start-cli/pj/internal/gitroot"
-	"github.com/start-cli/pj/internal/pathutil"
-	"github.com/start-cli/pj/internal/registry"
-	"github.com/start-cli/pj/internal/scopeconfig"
-	"github.com/start-cli/pj/internal/token"
+	"github.com/p3bot/pj/internal/gitroot"
+	"github.com/p3bot/pj/internal/pathutil"
+	"github.com/p3bot/pj/internal/registry"
+	"github.com/p3bot/pj/internal/scopeconfig"
+	"github.com/p3bot/pj/internal/token"
 )
 
 // checkNameCollision rejects a name already registered. No rename-on-import: the

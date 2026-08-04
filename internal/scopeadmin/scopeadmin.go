@@ -14,15 +14,15 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
-	"github.com/start-cli/pj/internal/atomicfile"
-	"github.com/start-cli/pj/internal/gitroot"
-	"github.com/start-cli/pj/internal/pathutil"
-	"github.com/start-cli/pj/internal/registry"
-	"github.com/start-cli/pj/internal/resolve"
-	"github.com/start-cli/pj/internal/scope"
-	"github.com/start-cli/pj/internal/scopeconfig"
-	"github.com/start-cli/pj/internal/token"
-	"github.com/start-cli/pj/internal/xdg"
+	"github.com/p3bot/pj/internal/atomicfile"
+	"github.com/p3bot/pj/internal/gitroot"
+	"github.com/p3bot/pj/internal/pathutil"
+	"github.com/p3bot/pj/internal/registry"
+	"github.com/p3bot/pj/internal/resolve"
+	"github.com/p3bot/pj/internal/scope"
+	"github.com/p3bot/pj/internal/scopeconfig"
+	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/pj/internal/xdg"
 )
 
 // Admin performs scope administration against a fixed XDG config directory.

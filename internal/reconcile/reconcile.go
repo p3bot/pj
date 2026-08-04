@@ -9,10 +9,10 @@ import (
 
 	"cuelang.org/go/cue"
 
-	"github.com/start-cli/pj/internal/index"
-	"github.com/start-cli/pj/internal/scopeconfig"
-	"github.com/start-cli/pj/internal/status"
-	"github.com/start-cli/pj/internal/token"
+	"github.com/p3bot/pj/internal/index"
+	"github.com/p3bot/pj/internal/scopeconfig"
+	"github.com/p3bot/pj/internal/status"
+	"github.com/p3bot/pj/internal/token"
 )
 
 // Reconciler reconciles scopes into an open index using a shared CUE context.

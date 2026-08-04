@@ -17,14 +17,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/start-cli/pj/internal/atomicfile"
-	"github.com/start-cli/pj/internal/fmmerge"
-	"github.com/start-cli/pj/internal/frontmatter"
-	"github.com/start-cli/pj/internal/git"
-	"github.com/start-cli/pj/internal/id"
-	"github.com/start-cli/pj/internal/repair"
-	"github.com/start-cli/pj/internal/rewrite"
-	"github.com/start-cli/pj/internal/scopeconfig"
+	"github.com/p3bot/pj/internal/atomicfile"
+	"github.com/p3bot/pj/internal/fmmerge"
+	"github.com/p3bot/pj/internal/frontmatter"
+	"github.com/p3bot/pj/internal/git"
+	"github.com/p3bot/pj/internal/id"
+	"github.com/p3bot/pj/internal/repair"
+	"github.com/p3bot/pj/internal/rewrite"
+	"github.com/p3bot/pj/internal/scopeconfig"
 )
 
 const fileMode = 0o644

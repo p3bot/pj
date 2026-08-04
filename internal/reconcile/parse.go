@@ -5,10 +5,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/start-cli/pj/internal/frontmatter"
-	"github.com/start-cli/pj/internal/id"
-	"github.com/start-cli/pj/internal/index"
-	"github.com/start-cli/pj/internal/title"
+	"github.com/p3bot/pj/internal/frontmatter"
+	"github.com/p3bot/pj/internal/id"
+	"github.com/p3bot/pj/internal/index"
+	"github.com/p3bot/pj/internal/title"
 )
 
 // conflictMarkers force parse_error quarantine when inside the frontmatter fence

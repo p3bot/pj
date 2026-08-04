@@ -13,9 +13,9 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
-	"github.com/start-cli/pj/internal/frontmatter"
-	"github.com/start-cli/pj/internal/id"
-	"github.com/start-cli/pj/internal/status"
+	"github.com/p3bot/pj/internal/frontmatter"
+	"github.com/p3bot/pj/internal/id"
+	"github.com/p3bot/pj/internal/status"
 )
 
 // Field types (closed set for v1).

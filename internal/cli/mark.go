@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/pj/internal/status"
+	"github.com/p3bot/pj/internal/status"
 )
 
 func newMarkCmd(app *App) *cobra.Command {

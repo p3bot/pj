@@ -5,8 +5,8 @@ import (
 	"os"
 	"sort"
 
-	"github.com/start-cli/pj/internal/index"
-	"github.com/start-cli/pj/internal/scopeconfig"
+	"github.com/p3bot/pj/internal/index"
+	"github.com/p3bot/pj/internal/scopeconfig"
 )
 
 // closureFile is one file in a config import closure with the stat that decides change.

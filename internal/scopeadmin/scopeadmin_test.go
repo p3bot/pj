@@ -9,11 +9,11 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
-	"github.com/start-cli/pj/internal/pathutil"
-	"github.com/start-cli/pj/internal/registry"
-	"github.com/start-cli/pj/internal/scopeconfig"
-	"github.com/start-cli/pj/internal/testgit"
-	"github.com/start-cli/pj/internal/token"
+	"github.com/p3bot/pj/internal/pathutil"
+	"github.com/p3bot/pj/internal/registry"
+	"github.com/p3bot/pj/internal/scopeconfig"
+	"github.com/p3bot/pj/internal/testgit"
+	"github.com/p3bot/pj/internal/token"
 )
 
 type harness struct {

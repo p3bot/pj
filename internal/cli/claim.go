@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/pj/internal/index"
-	"github.com/start-cli/pj/internal/status"
+	"github.com/p3bot/pj/internal/index"
+	"github.com/p3bot/pj/internal/status"
 )
 
 // runClaim: scope flock spans reconcile→claim so candidates stay valid under the same lock.

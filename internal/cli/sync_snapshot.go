@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/pj/internal/git"
-	"github.com/start-cli/pj/internal/selfcommit"
-	"github.com/start-cli/pj/internal/token"
+	"github.com/p3bot/pj/internal/git"
+	"github.com/p3bot/pj/internal/selfcommit"
+	"github.com/p3bot/pj/internal/token"
 )
 
 type dirtyProject struct {

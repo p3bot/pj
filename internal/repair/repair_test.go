@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/start-cli/pj/internal/order"
-	"github.com/start-cli/pj/internal/rewrite"
+	"github.com/p3bot/pj/internal/order"
+	"github.com/p3bot/pj/internal/rewrite"
 )
 
 // writeProj writes a project file and returns its path. Empty created omits the key.

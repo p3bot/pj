@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue/cuecontext"
-	"github.com/start-cli/pj/internal/frontmatter"
-	"github.com/start-cli/pj/internal/git"
-	"github.com/start-cli/pj/internal/scopeconfig"
-	"github.com/start-cli/pj/internal/testgit"
+	"github.com/p3bot/pj/internal/frontmatter"
+	"github.com/p3bot/pj/internal/git"
+	"github.com/p3bot/pj/internal/scopeconfig"
+	"github.com/p3bot/pj/internal/testgit"
 )
 
 func requireGit(t *testing.T) {

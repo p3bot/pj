@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/start-cli/pj/internal/gitstate"
+	"github.com/p3bot/pj/internal/gitstate"
 )
 
 func TestDoctorRepairSelfCommitsAutoCommit(t *testing.T) {

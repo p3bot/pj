@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/start-cli/pj/internal/gitstate"
+	"github.com/p3bot/pj/internal/gitstate"
 )
 
 // An empty auto-commit eligible set is not a failure: exit 0 with a note.

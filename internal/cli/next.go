@@ -6,9 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/pj/internal/index"
-	"github.com/start-cli/pj/internal/reconcile"
-	"github.com/start-cli/pj/internal/status"
+	"github.com/p3bot/pj/internal/index"
+	"github.com/p3bot/pj/internal/reconcile"
+	"github.com/p3bot/pj/internal/status"
 )
 
 func newNextCmd(app *App) *cobra.Command {

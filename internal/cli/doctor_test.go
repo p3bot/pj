@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/start-cli/pj/internal/scopeconfig"
-	"github.com/start-cli/pj/internal/token"
+	"github.com/p3bot/pj/internal/scopeconfig"
+	"github.com/p3bot/pj/internal/token"
 )
 
 func projectFiles(t *testing.T, dir string) []string {

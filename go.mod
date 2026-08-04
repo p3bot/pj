@@ -1,4 +1,4 @@
-module github.com/start-cli/pj
+module github.com/p3bot/pj
 
 go 1.26
 

@@ -9,8 +9,8 @@ import (
 	"cuelang.org/go/cue/literal"
 	"cuelang.org/go/cue/parser"
 
-	"github.com/start-cli/pj/internal/atomicfile"
-	"github.com/start-cli/pj/internal/id"
+	"github.com/p3bot/pj/internal/atomicfile"
+	"github.com/p3bot/pj/internal/id"
 )
 
 // RewriteName rewrites only the top-level name field of <dir>/pj.cue via CUE AST

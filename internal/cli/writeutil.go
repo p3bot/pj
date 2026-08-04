@@ -5,12 +5,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/start-cli/pj/internal/atomicfile"
-	"github.com/start-cli/pj/internal/frontmatter"
-	"github.com/start-cli/pj/internal/index"
-	"github.com/start-cli/pj/internal/order"
-	"github.com/start-cli/pj/internal/scopeconfig"
-	"github.com/start-cli/pj/internal/token"
+	"github.com/p3bot/pj/internal/atomicfile"
+	"github.com/p3bot/pj/internal/frontmatter"
+	"github.com/p3bot/pj/internal/index"
+	"github.com/p3bot/pj/internal/order"
+	"github.com/p3bot/pj/internal/scopeconfig"
+	"github.com/p3bot/pj/internal/token"
 )
 
 const projectFileMode = 0o644

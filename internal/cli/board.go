@@ -3,11 +3,11 @@ package cli
 import (
 	"sort"
 
-	"github.com/start-cli/pj/internal/index"
-	"github.com/start-cli/pj/internal/reconcile"
-	"github.com/start-cli/pj/internal/scopeconfig"
-	"github.com/start-cli/pj/internal/status"
-	"github.com/start-cli/pj/internal/token"
+	"github.com/p3bot/pj/internal/index"
+	"github.com/p3bot/pj/internal/reconcile"
+	"github.com/p3bot/pj/internal/scopeconfig"
+	"github.com/p3bot/pj/internal/status"
+	"github.com/p3bot/pj/internal/token"
 )
 
 type gate struct {

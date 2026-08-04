@@ -6,7 +6,7 @@ package main
 import (
 	"os"
 
-	"github.com/start-cli/pj/internal/cli"
+	"github.com/p3bot/pj/internal/cli"
 )
 
 func main() {

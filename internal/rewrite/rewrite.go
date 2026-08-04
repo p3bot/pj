@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/start-cli/pj/internal/atomicfile"
+	"github.com/p3bot/pj/internal/atomicfile"
 )
 
 const fileMode = 0o644

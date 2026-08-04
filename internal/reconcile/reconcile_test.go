@@ -8,7 +8,7 @@ import (
 
 	"cuelang.org/go/cue/cuecontext"
 
-	"github.com/start-cli/pj/internal/index"
+	"github.com/p3bot/pj/internal/index"
 )
 
 func newReconciler(t *testing.T) (*Reconciler, *index.DB) {

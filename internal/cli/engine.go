@@ -7,10 +7,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/pj/internal/index"
-	"github.com/start-cli/pj/internal/reconcile"
-	"github.com/start-cli/pj/internal/registry"
-	"github.com/start-cli/pj/internal/resolve"
+	"github.com/p3bot/pj/internal/index"
+	"github.com/p3bot/pj/internal/reconcile"
+	"github.com/p3bot/pj/internal/registry"
+	"github.com/p3bot/pj/internal/resolve"
 )
 
 type engine struct {

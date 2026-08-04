@@ -7,12 +7,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/pj/internal/flock"
-	"github.com/start-cli/pj/internal/git"
-	"github.com/start-cli/pj/internal/gitroot"
-	"github.com/start-cli/pj/internal/gitstate"
-	"github.com/start-cli/pj/internal/scopeconfig"
-	"github.com/start-cli/pj/internal/token"
+	"github.com/p3bot/pj/internal/flock"
+	"github.com/p3bot/pj/internal/git"
+	"github.com/p3bot/pj/internal/gitroot"
+	"github.com/p3bot/pj/internal/gitstate"
+	"github.com/p3bot/pj/internal/scopeconfig"
+	"github.com/p3bot/pj/internal/token"
 )
 
 // rootOutcome: only NeedsAttention makes the run exit non-zero.

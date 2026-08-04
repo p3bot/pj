@@ -10,12 +10,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/pj/internal/fmmerge"
-	"github.com/start-cli/pj/internal/frontmatter"
-	"github.com/start-cli/pj/internal/git"
-	"github.com/start-cli/pj/internal/rebasedriver"
-	"github.com/start-cli/pj/internal/scopeconfig"
-	"github.com/start-cli/pj/internal/token"
+	"github.com/p3bot/pj/internal/fmmerge"
+	"github.com/p3bot/pj/internal/frontmatter"
+	"github.com/p3bot/pj/internal/git"
+	"github.com/p3bot/pj/internal/rebasedriver"
+	"github.com/p3bot/pj/internal/scopeconfig"
+	"github.com/p3bot/pj/internal/token"
 )
 
 type integrateResult int
