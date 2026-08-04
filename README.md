@@ -11,12 +11,27 @@ macOS and Linux only. Windows is not supported — there is no flock or path
 substitute, and `pj` fails with a clear startup error on an unsupported OS rather
 than half-running. This is a deliberate v1 scope limit.
 
-## Install / build
+## Installation
 
-```sh
+### Homebrew (Linux/macOS)
+
+```bash
+brew tap p3bot/tap
+brew trust p3bot/tap
+brew install p3bot/tap/pj
+```
+
+### Go Install
+
+```bash
 go install github.com/p3bot/pj/cmd/pj@latest
-go build ./...          # build
-go build -o pj ./cmd/pj # produce the binary
+```
+
+### Build from Source
+
+```bash
+go build ./...
+go build -o pj ./cmd/pj
 ```
 
 Requires Go 1.26. Pure Go, no cgo. The external `git` binary is used only to
