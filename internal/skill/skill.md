@@ -88,6 +88,7 @@ Ownership:
 - status_conflict: not via meta; see Recovery
 - summary / scalar customs → pj meta set
 - depends, related, tags, links → pj meta add|rm (depends refuses self/dangling/unresolvable)
+- related write is one-way on the subject only (no mirror on the target); deps shows both directions
 
 If a tool only supports full-file write: read first, pass the existing fence
 through unchanged, change body only.
@@ -158,11 +159,11 @@ pj search <terms> [--scope S]            # FTS5; TSV includes absolute path
 Dependencies:
 
 ```
-pj deps <id> [--transitive] [--tree]     # depends + related neighbourhood
+pj deps <id> [--transitive] [--tree]     # depends split in/out; related both directions (read)
 pj meta add <id> depends <target-id>     # hard checks: self / dangling / unresolvable refuse
 pj meta rm <id> depends <target-id>
-pj meta add <id> related <target-id>     # soft; no existence check
-pj meta rm <id> related <target-id>
+pj meta add <id> related <target-id>     # soft one-way write on subject; no existence check; no mirror
+pj meta rm <id> related <target-id>      # removes from subject only
 pj next                                  # re-check eligibility after edge changes
 ```
 
