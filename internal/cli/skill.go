@@ -59,7 +59,8 @@ func newSkillListCmd(app *App) *cobra.Command {
 		Use:   "list",
 		Short: "List installed skill copies for installed agents",
 		Long: "Inventory existing pj/SKILL.md paths under candidates of installed\n" +
-			"agents that have a skills concept. No agent positionals. Empty set is success.",
+			"agents that have a skills concept. No agent positionals. Empty inventory\n" +
+			"exits 0 with empty stdout and a stderr note.",
 		Args: usageArgs(cobra.NoArgs),
 		RunE: func(c *cobra.Command, _ []string) error {
 			return runSkillList(c, app, local)
@@ -199,6 +200,11 @@ func runSkillList(c *cobra.Command, app *App, local bool) error {
 		paths = append(paths, p)
 	}
 	skill.SortPaths(paths)
+	if len(paths) == 0 {
+		// Keep stdout path-pure for scripts; humans get a note on stderr.
+		stderrln(c, "not installed")
+		return nil
+	}
 	for _, p := range paths {
 		file := skill.FilePath(p)
 		stdoutln(c, file+"\t"+skill.JoinAgents(claimers[p]))

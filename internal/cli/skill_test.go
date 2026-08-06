@@ -362,12 +362,15 @@ func TestSkillList(t *testing.T) {
 	app := skillApp(t, home, wd, "pj-fixture-alpha", "pj-fixture-gamma", "pj-fixture-delta")
 
 	// empty list when nothing installed on disk
-	out, _, err := run(t, app, "skill", "list")
+	out, errOut, err := run(t, app, "skill", "list")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if out != "" {
-		t.Fatalf("empty inventory want empty, got %q", out)
+		t.Fatalf("empty inventory want empty stdout, got %q", out)
+	}
+	if !strings.Contains(errOut, "not installed") {
+		t.Fatalf("empty inventory want stderr note, got %q", errOut)
 	}
 
 	if _, _, err := run(t, app, "skill", "install"); err != nil {
@@ -407,12 +410,15 @@ func TestSkillListEmptyDefaultSet(t *testing.T) {
 	home := t.TempDir()
 	wd := t.TempDir()
 	app := skillApp(t, home, wd) // no bins
-	out, _, err := run(t, app, "skill", "list")
+	out, errOut, err := run(t, app, "skill", "list")
 	if err != nil {
 		t.Fatalf("list empty set: %v", err)
 	}
 	if out != "" {
 		t.Fatalf("want empty stdout, got %q", out)
+	}
+	if !strings.Contains(errOut, "not installed") {
+		t.Fatalf("want stderr note, got %q", errOut)
 	}
 }
 
@@ -432,12 +438,15 @@ func TestSkillListLocal(t *testing.T) {
 		t.Fatalf("list --local missing %s in %q", want, out)
 	}
 	// Global inventory empty (nothing written at global roots).
-	out, _, err = run(t, app, "skill", "list")
+	out, errOut, err := run(t, app, "skill", "list")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if out != "" {
-		t.Fatalf("global list should be empty after local-only install, got %q", out)
+		t.Fatalf("global list should be empty stdout after local-only install, got %q", out)
+	}
+	if !strings.Contains(errOut, "not installed") {
+		t.Fatalf("global list should note not installed, got %q", errOut)
 	}
 }
 
