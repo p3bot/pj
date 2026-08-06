@@ -1,6 +1,8 @@
 // Package reconcile is pj's read-through: it brings the derived SQLite index into
 // agreement with project files before a command reads it, git-free. It never
 // mutates a project file — detection here, repair elsewhere.
+// It owns file→row upsert/delete and prune of unregistered scopes. It does not
+// own full-cache Rebuild (that discards the store; callers rebuild then Reconcile).
 package reconcile
 
 import (

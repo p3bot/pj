@@ -65,6 +65,7 @@ moves a file into `projects/archive/` via `pj mark` (do not hand-move).
   code, exit (all command logic is in `internal/cli`)
 - `internal/` — pure wire-contract primitives, then the engines built on them:
   - `id` — scope/short-id/full-id predicates, `crypto/rand` mint, collision-repair extension
+  - `collision` — pure same-id keeper total order (`KeepBefore`); shared by repair and fmmerge
   - `slug` — `Slugify` and the closed slug grammar
   - `order` — the fractional-index `order` wire format and `KeyBetween`
   - `frontmatter` — fence split, YAML parse/serialize, raw fence-slice API
@@ -88,9 +89,8 @@ moves a file into `projects/archive/` via `pj mark` (do not hand-move).
   - `gitstate` — per-git-root XDG ops state (`sync.lock`, `last-push-error` read/write/clear)
   - `selfcommit` — the single reusable self-commit step for auto-commit scopes
   - `rewrite` — the shared multi-file rewrite durability engine
-  - `repair` — deterministic integrity repairs (collision pick, re-space, archive move);
-    exports the shared `KeepBefore` loser pick the merge package reuses
-  - `fmmerge` — the pure 3-way frontmatter merge over raw stage blobs (P6a)
+  - `repair` — deterministic integrity repairs (collision pick via `collision`, re-space, archive move)
+  - `fmmerge` — the pure 3-way frontmatter merge over raw stage blobs (P6a); add/add uses `collision`
   - `rebasedriver` — resolves one conflicted project `.md` at a paused rebase (P6a)
   - `skill` — embedded agent skill contract (`skill.md`; sole source, no design-doc dependency) (P7)
   - `cli` — Cobra command tree, exit codes, signals, colour/TTY, path hand-off

@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/p3bot/pj/internal/collision"
 	"github.com/p3bot/pj/internal/frontmatter"
 	"github.com/p3bot/pj/internal/id"
-	"github.com/p3bot/pj/internal/repair"
 	"github.com/p3bot/pj/internal/scopeconfig"
 )
 
@@ -170,9 +170,9 @@ func addAdd(oursM, theirsM *frontmatter.Model, oursRaw, theirsRaw []byte, meta M
 	}
 	// Both stages share one path/basename; only Created and byte hash decide the loser.
 	loser := SideTheirs
-	if !repair.KeepBefore(
-		repair.LoserMember{Created: oursM.Created, Raw: oursRaw},
-		repair.LoserMember{Created: theirsM.Created, Raw: theirsRaw},
+	if !collision.KeepBefore(
+		collision.Member{Created: oursM.Created, Raw: oursRaw},
+		collision.Member{Created: theirsM.Created, Raw: theirsRaw},
 	) {
 		loser = SideOurs
 	}
