@@ -43,7 +43,8 @@ func newSkillInstallCmd(app *App) *cobra.Command {
 		Long: "Write the embedded skill contract to agent skills directories\n" +
 			"resolved by agentdex. With no agent args, installs to Primary for each\n" +
 			"installed agent that has a skills concept. Named agents use Native if\n" +
-			"set, else Shared (agents role). Paths de-dupe so a shared root is written once.",
+			"set, else Shared (agents role). Paths de-dupe so a shared root is written\n" +
+			"once; written paths are printed in alphabetical order.",
 		Args: usageArgs(cobra.ArbitraryArgs),
 		RunE: func(c *cobra.Command, args []string) error {
 			return runSkillInstall(c, app, args, local)
@@ -59,8 +60,8 @@ func newSkillListCmd(app *App) *cobra.Command {
 		Use:   "list",
 		Short: "List installed skill copies for installed agents",
 		Long: "Inventory existing pj/SKILL.md paths under candidates of installed\n" +
-			"agents that have a skills concept. No agent positionals. Empty inventory\n" +
-			"exits 0 with empty stdout and a stderr note.",
+			"agents that have a skills concept. No agent positionals. Paths print in\n" +
+			"alphabetical order. Empty inventory exits 0 with empty stdout and a stderr note.",
 		Args: usageArgs(cobra.NoArgs),
 		RunE: func(c *cobra.Command, _ []string) error {
 			return runSkillList(c, app, local)
@@ -77,7 +78,8 @@ func newSkillUninstallCmd(app *App) *cobra.Command {
 		Short: "Remove installed skill copies",
 		Long: "Remove owned pure pj/ skill directories under candidates of the target\n" +
 			"agent set. Multi-tenant paths still claimed by other installed agents are\n" +
-			"kept (reported, not an error). Foreign files or wrong frontmatter name keep the dir.",
+			"kept (reported, not an error). Foreign files or wrong frontmatter name keep\n" +
+			"the dir. Report lines are ordered alphabetically by path.",
 		Args: usageArgs(cobra.ArbitraryArgs),
 		RunE: func(c *cobra.Command, args []string) error {
 			return runSkillUninstall(c, app, args, local)
@@ -136,7 +138,7 @@ func runSkillInstall(c *cobra.Command, app *App, agentIDs []string, local bool) 
 		}
 	}
 
-	// De-dupe by absolute skills root; write once per path (first-seen order).
+	// De-dupe by absolute skills root; write once per path; print sorted.
 	seen := make(map[string]struct{})
 	var order []string
 	for _, a := range agents {
@@ -158,6 +160,7 @@ func runSkillInstall(c *cobra.Command, app *App, agentIDs []string, local bool) 
 		// Default set had skills concept but no Primary at this location.
 		return skillUsageError(skill.ErrNoWritablePath)
 	}
+	skill.SortPaths(order)
 
 	for _, root := range order {
 		written, err := skill.WriteInstall(root)

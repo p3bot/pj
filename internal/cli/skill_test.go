@@ -214,18 +214,15 @@ func TestSkillInstallDefaultPrimary(t *testing.T) {
 		t.Fatalf("install: %v\nstderr=%s", err, errOut)
 	}
 	// alpha Primary = native ~/.alpha/skills; gamma Primary = agents ~/.agents/skills
+	// Printed alphabetically: .agents before .alpha
 	alphaFile := filepath.Join(home, ".alpha", "skills", "pj", "SKILL.md")
 	gammaFile := filepath.Join(home, ".agents", "skills", "pj", "SKILL.md")
 	lines := nonEmptyLines(out)
 	if len(lines) != 2 {
 		t.Fatalf("want 2 install paths, got %q", out)
 	}
-	seen := map[string]bool{}
-	for _, l := range lines {
-		seen[l] = true
-	}
-	if !seen[alphaFile] || !seen[gammaFile] {
-		t.Fatalf("paths = %v want %s and %s", lines, alphaFile, gammaFile)
+	if lines[0] != gammaFile || lines[1] != alphaFile {
+		t.Fatalf("paths = %v want alphabetical [%s, %s]", lines, gammaFile, alphaFile)
 	}
 	for _, p := range []string{alphaFile, gammaFile} {
 		data, err := os.ReadFile(p)
@@ -381,28 +378,21 @@ func TestSkillList(t *testing.T) {
 		t.Fatal(err)
 	}
 	// default set is all three installed; alpha native + shared (gamma+delta claim)
+	// alphabetical: .agents before .alpha
 	lines := nonEmptyLines(out)
 	if len(lines) != 2 {
 		t.Fatalf("list lines = %q", out)
 	}
-	// path\tagents
 	shared := filepath.Join(home, ".agents", "skills", "pj", "SKILL.md")
 	alpha := filepath.Join(home, ".alpha", "skills", "pj", "SKILL.md")
-	byPath := map[string]string{}
-	for _, line := range lines {
-		parts := strings.SplitN(line, "\t", 2)
-		byPath[parts[0]] = ""
-		if len(parts) == 2 {
-			byPath[parts[0]] = parts[1]
-		}
+	parts0 := strings.SplitN(lines[0], "\t", 2)
+	parts1 := strings.SplitN(lines[1], "\t", 2)
+	if parts0[0] != shared || parts1[0] != alpha {
+		t.Fatalf("list order = %v want alphabetical [%s, %s]", lines, shared, alpha)
 	}
-	if _, ok := byPath[alpha]; !ok {
-		t.Fatalf("missing alpha path in %v", byPath)
-	}
-	if agents, ok := byPath[shared]; !ok {
-		t.Fatalf("missing shared path in %v", byPath)
-	} else if !strings.Contains(agents, "gamma-agent") || !strings.Contains(agents, "delta-agent") {
-		t.Fatalf("shared agents = %q", agents)
+	// agent ids within a line are sorted (JoinAgents)
+	if len(parts0) < 2 || parts0[1] != "delta-agent,gamma-agent" {
+		t.Fatalf("shared agents = %q want delta-agent,gamma-agent", parts0)
 	}
 }
 
