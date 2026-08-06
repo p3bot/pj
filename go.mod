@@ -5,6 +5,7 @@ go 1.26
 require (
 	cuelang.org/go v0.17.1
 	github.com/goccy/go-yaml v1.19.2
+	github.com/p3bot/agentdex v0.0.2
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/term v0.44.0
 	golang.org/x/text v0.40.0
@@ -29,6 +30,7 @@ require (
 	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
+	golang.org/x/mod v0.37.0 // indirect
 	golang.org/x/net v0.56.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect

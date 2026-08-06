@@ -24,8 +24,8 @@ per-root failure isolation, and the reentrant lock span (self-commit and repair
 orchestration split into acquiring wrappers over locks-held cores); and P7's
 `pj skill` — the agent contract (embedded `skill.md` as the sole runtime source:
 Commands, Project files, Identifiers, Workflows; structure and hot-path guidance
-tests; no design-doc dependency) plus the hard-refuse `skill install`/`list`/
-`uninstall` placeholders.
+tests; no design-doc dependency) plus agentdex-backed `skill install`/`list`/
+`uninstall` (paths from the agent catalog; no hardcoded product skills dirs).
 
 - Prefer packages, tests, and the embedded skill over prose when they disagree.
 - Short-ids are letter-first by construction (the `IsShortID` predicate and the

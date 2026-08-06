@@ -1,6 +1,6 @@
 ---
 id: pj-fa5u
-status: todo
+status: done
 order: "aE"
 created: "2026-08-06T10:58:36+10:00"
 summary: Implement pj skill install/list/uninstall via agentdex skills paths (primary vs native-else-shared, S3 uninstall, no ledger).

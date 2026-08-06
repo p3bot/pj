@@ -7,6 +7,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	"github.com/p3bot/agentdex"
 	"github.com/spf13/cobra"
 
 	"github.com/p3bot/pj/internal/scopeadmin"
@@ -18,6 +19,9 @@ type App struct {
 	Ctx       *cue.Context
 	ConfigDir string
 	StateDir  string
+	// AgentdexOpts are extra Open options for skill install/list/uninstall
+	// (tests inject catalog dir, look path, env; production leaves nil).
+	AgentdexOpts []agentdex.Option
 }
 
 func (a *App) admin() *scopeadmin.Admin {

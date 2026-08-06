@@ -52,9 +52,9 @@ pj scope rename <old> <new>                                         # Rename sco
 pj sync [--scope S] [--all]                                         # Sole push boundary (auto-commit roots)
 pj doctor [--reindex] [--repair] [--re-space-order] [--all]         # Diagnose integrity; optional repair
 pj skill                                                            # Print this agent skill contract
-pj skill install                                                    # Not implemented in v1 (hard refuse)
-pj skill list                                                       # Not implemented in v1 (hard refuse)
-pj skill uninstall                                                  # Not implemented in v1 (hard refuse)
+pj skill install [agents...] [--local]                              # Install into agentdex skills roots
+pj skill list [--local]                                             # List installed skill copies (default agent set)
+pj skill uninstall [agents...] [--local]                            # Remove owned pure skill installs
 ```
 
 ## Project files
