@@ -52,6 +52,7 @@ func TestRequiredGuidancePresent(t *testing.T) {
 		"plain-files",
 		"pj sync",
 		"uncommitted:",
+		"sync_needed:",
 		"sync_disabled:",
 		"status_conflict",
 		"config_unparseable:",

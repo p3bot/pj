@@ -191,6 +191,7 @@ pj status                                # read mode (from pj.cue autoCommit + g
 # pj-driven (auto-commit):
 #   mutators (mark, reorder, next --claim, meta, …) self-commit when a git-root exists
 #   create never self-commits — still needs the end-of-turn step below
+#   write-side sync_needed: <reason> → run pj sync (reason names condition only: dirty / unpushed / push failed)
 #   pj sync [--all]  — sole push/integrate boundary (auto-commit git-roots only)
 #     snapshot allowlisted dirty → fetch/rebase → resolve FM → integrity → push if ahead
 #   ambient non-auto-commit: sync refuses; --all skips non-auto-commit roots
@@ -198,7 +199,8 @@ pj status                                # read mode (from pj.cue autoCommit + g
 
 # repo-driven:
 #   no pj self-commit; host git commit (and host push if needed)
-#   uncommitted: on stderr means dirty board — not a prompt to pj sync
+#   write path is quiet (no uncommitted: after mutators)
+#   pj status uncommitted / bare pj doctor may still show host dirty — host commit; not pj sync
 #   do not pj sync
 
 # plain-files:
@@ -227,7 +229,8 @@ pj doctor
 # status_conflict in a project file:
 #   set status: to one value, delete the status_conflict key, save
 #   pj-driven → pj sync; repo-driven/plain → no sync step for residue clear
-# uncommitted: (repo-driven) → host commit; not pj sync
+# sync_needed: → pj sync
+# uncommitted: (repo-driven status/doctor) → host commit; not pj sync
 # sync_disabled: / last push error → fix remote/auth/upstream, then pj sync
 # never force-push; never invent a parallel git integrate path around pj sync
 ```

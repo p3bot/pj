@@ -48,8 +48,13 @@ const (
 	// SyncDisabled marks an auto-commit scope that could not self-commit (no git-root / no git).
 	SyncDisabled = "sync_disabled:"
 
-	// Uncommitted marks a host-owned repo scope with dirty allowlisted files after a write.
+	// Uncommitted marks a host-owned repo-driven scope with dirty allowlisted files
+	// (status pulse / bare doctor; write path stays quiet).
 	Uncommitted = "uncommitted:"
+
+	// SyncNeeded marks a pj-driven scope whose durability still requires pj sync
+	// (dirty allowlist, unpushed self-commits, or a recorded push failure).
+	SyncNeeded = "sync_needed:"
 
 	// OrderLong marks a pathologically long order key (soft threshold length > 64); report only.
 	OrderLong = "order_long:"
@@ -91,7 +96,7 @@ var all = []string{
 	NameDrift, ConfigUnparseable, AutoCommitMismatch, UnreachableScope,
 	ParseError, DuplicateID, EqualOrder, ArchiveNonTerminal, ArchiveTerminalAtRoot,
 	DependsDangling, DependsUnresolvable, SchemaError, SchemaWarn,
-	SyncDisabled, Uncommitted, OrderLong, StatusConflict, DependsCycle,
+	SyncDisabled, Uncommitted, SyncNeeded, OrderLong, StatusConflict, DependsCycle,
 	DependsSelf, DependsOnCancelled, RelatedUnresolvable, StaleInProgress,
 	LastPushError, EdgeVerify, NonAllowlist,
 }

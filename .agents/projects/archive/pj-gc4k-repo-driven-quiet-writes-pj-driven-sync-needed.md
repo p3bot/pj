@@ -1,6 +1,6 @@
 ---
 id: pj-gc4k
-status: todo
+status: done
 order: "aF"
 created: "2026-08-06T16:57:51+10:00"
 summary: Silence repo-driven write-side uncommitted; signal pj-driven scopes to run pj sync

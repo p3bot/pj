@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/p3bot/pj/internal/git"
+	"github.com/p3bot/pj/internal/gitstate"
 	"github.com/p3bot/pj/internal/pathutil"
 	"github.com/p3bot/pj/internal/testgit"
 )
@@ -534,7 +535,7 @@ func TestAutoCommitPlannedRidesSyncDisabled(t *testing.T) {
 	}
 }
 
-func TestRepoDrivenUncommitted(t *testing.T) {
+func TestRepoDrivenWriteQuiet(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
 	dir, _ := initGitScope(t, app, "rd", false)
@@ -544,20 +545,106 @@ func TestRepoDrivenUncommitted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("repo-driven mark: %v", err)
 	}
-	if !strings.Contains(errOut, "uncommitted:") {
-		t.Errorf("repo-driven write should ride uncommitted, got %q", errOut)
+	if strings.Contains(errOut, "uncommitted:") {
+		t.Errorf("repo-driven write must not ride uncommitted, got %q", errOut)
 	}
-	// Pure reads never carry the token.
-	if _, readErr, _ := run(t, app, "get", id); strings.Contains(readErr, "uncommitted:") {
-		t.Errorf("reads must never ride uncommitted, got %q", readErr)
+	if strings.Contains(errOut, "sync_needed:") {
+		t.Errorf("repo-driven write must not ride sync_needed, got %q", errOut)
 	}
-	// Non-allowlist residue does not count toward the signal.
+	// Pure reads never carry durability tokens.
+	if _, readErr, _ := run(t, app, "get", id); strings.Contains(readErr, "uncommitted:") || strings.Contains(readErr, "sync_needed:") {
+		t.Errorf("reads must never ride durability tokens, got %q", readErr)
+	}
+	// Status pulse still surfaces host dirty (opt-in visibility).
+	out, _, err := run(t, app, "status", "--scope", "rd")
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if p := parsePulse(out); p["uncommitted"] == "" || p["uncommitted"] == "0" {
+		t.Fatalf("status pulse should report host dirty, uncommitted=%q in %q", p["uncommitted"], out)
+	}
+	// Non-allowlist residue must not invent a write-side signal either.
 	if err := os.WriteFile(filepath.Join(dir, "residue.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, errOut2, _ := run(t, app, "mark", id, "review")
-	if strings.Contains(errOut2, "residue.txt") {
-		t.Errorf("residue must not be flagged as uncommitted, got %q", errOut2)
+	if strings.Contains(errOut2, "uncommitted:") || strings.Contains(errOut2, "residue.txt") {
+		t.Errorf("write must stay quiet with residue present, got %q", errOut2)
+	}
+}
+
+func TestPjDrivenCreateSyncNeededDirty(t *testing.T) {
+	requireGit(t)
+	app := newApp(t)
+	initGitScope(t, app, "wc", true)
+
+	_, errOut, err := run(t, app, "create", "Sync needed dirty", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("pj-driven create: %v", err)
+	}
+	if !strings.Contains(errOut, "sync_needed: dirty") {
+		t.Errorf("pj-driven create should ride sync_needed: dirty, got %q", errOut)
+	}
+	if strings.Contains(errOut, "uncommitted:") {
+		t.Errorf("pj-driven must not overload uncommitted, got %q", errOut)
+	}
+	if strings.Contains(errOut, "run pj sync") || strings.Contains(errOut, "commit with the host") {
+		t.Errorf("token body must not prescribe the action, got %q", errOut)
+	}
+}
+
+func TestPjDrivenSelfCommitSyncNeededUnpushed(t *testing.T) {
+	requireGit(t)
+	remote := newBareRemote(t)
+	m := cloneMachine(t, remote)
+	dir := m.initScopeAutoCommit(t)
+	addProject(t, dir, "wc-ab2c", "work", "todo", "a0", "# Work\n", false, "")
+	// Snapshot scope files so the self-commit is the only local advance.
+	gitIn(t, m.clone, "add", "-A")
+	gitIn(t, m.clone, "commit", "-m", "seed scope")
+	gitIn(t, m.clone, "push", "-u", "origin", "main")
+
+	_, errOut, err := run(t, m.app, "mark", "wc-ab2c", "in-progress")
+	if err != nil {
+		t.Fatalf("pj-driven mark: %v", err)
+	}
+	if !strings.Contains(errOut, "sync_needed: unpushed") {
+		t.Errorf("self-commit ahead of upstream should ride sync_needed: unpushed, got %q", errOut)
+	}
+	if strings.Contains(errOut, "run pj sync") || strings.Contains(errOut, "git push") {
+		t.Errorf("token body must not prescribe push/sync wording, got %q", errOut)
+	}
+	// Pure read stays silent.
+	if _, readErr, _ := run(t, m.app, "get", "wc-ab2c"); strings.Contains(readErr, "sync_needed:") {
+		t.Errorf("reads must never ride sync_needed, got %q", readErr)
+	}
+}
+
+func TestPjDrivenWriteSyncNeededPushFailed(t *testing.T) {
+	requireGit(t)
+	remote := newBareRemote(t)
+	m := cloneMachine(t, remote)
+	dir := m.initScopeAutoCommit(t)
+	addProject(t, dir, "wc-ab2c", "work", "todo", "a0", "# Work\n", false, "")
+	gitIn(t, m.clone, "add", "-A")
+	gitIn(t, m.clone, "commit", "-m", "seed scope")
+	gitIn(t, m.clone, "push", "-u", "origin", "main")
+
+	if err := gitstate.WriteLastPushError(m.app.StateDir, m.clone, "auth failed"); err != nil {
+		t.Fatal(err)
+	}
+	_, errOut, err := run(t, m.app, "mark", "wc-ab2c", "in-progress")
+	if err != nil {
+		t.Fatalf("pj-driven mark: %v", err)
+	}
+	if !strings.Contains(errOut, "sync_needed: push failed") {
+		t.Errorf("last-push-error should ride sync_needed: push failed, got %q", errOut)
+	}
+	if strings.Contains(errOut, "note:") && strings.Contains(errOut, "failed push") {
+		t.Errorf("freeform failed-push note must be retired, got %q", errOut)
+	}
+	if strings.Count(errOut, "sync_needed:") != 1 {
+		t.Errorf("exactly one sync_needed line (priority over unpushed), got %q", errOut)
 	}
 }
 

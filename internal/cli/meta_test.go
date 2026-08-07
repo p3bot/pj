@@ -619,7 +619,7 @@ func TestMetaWrongClassAndImmutable(t *testing.T) {
 	}
 }
 
-func TestMetaSelfCommitAndUncommitted(t *testing.T) {
+func TestMetaSelfCommitAndRepoDrivenQuiet(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
 
@@ -644,8 +644,11 @@ func TestMetaSelfCommitAndUncommitted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("repo-driven add: %v", err)
 	}
-	if !strings.Contains(errOut, "uncommitted:") {
-		t.Errorf("expected uncommitted: on stderr, got %q", errOut)
+	if strings.Contains(errOut, "uncommitted:") {
+		t.Errorf("repo-driven meta write must not ride uncommitted, got %q", errOut)
+	}
+	if strings.Contains(errOut, "sync_needed:") {
+		t.Errorf("repo-driven meta write must not ride sync_needed, got %q", errOut)
 	}
 	after := gitLog(t, repo2)
 	if len(after) != len(before) {

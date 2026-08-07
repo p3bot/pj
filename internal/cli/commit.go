@@ -44,10 +44,10 @@ func checkMidRebase(ctx context.Context, scope string, autoCommit bool, root str
 		scope, root, where)
 }
 
-// completeStateDurability: auto-commit self-commits or rides sync_disabled; else uncommitted:.
+// completeStateDurability: auto-commit self-commits or rides sync_disabled;
+// repo-driven writes stay quiet (host git owns durability).
 func (e *engine) completeStateDurability(ctx context.Context, c *cobra.Command, scope, dir string, autoCommit bool, message, newPath, oldPath, root string, hasRoot bool) error {
 	if !autoCommit {
-		e.repoDirtyHealth(ctx, c, dir, root, hasRoot)
 		return nil
 	}
 	if !hasRoot {
@@ -65,27 +65,35 @@ func (e *engine) completeStateDurability(ctx context.Context, c *cobra.Command, 
 	if err := selfcommit.Commit(ctx, req); err != nil {
 		return fmt.Errorf("self-commit %s: %w", scope, err)
 	}
-	if detail, present := gitstate.ReadLastPushError(e.app.StateDir, root); present {
-		stderrln(c, fmt.Sprintf("note: %s has a failed push on record (%s) — run pj sync", scope, detail))
-	}
+	e.pjDrivenSyncNeeded(ctx, c, dir, root)
 	return nil
 }
 
 // createDurability: create never self-commits; terminal scaffolds get a durability note.
+// Repo-driven writes stay quiet; pj-driven with a git-root may ride sync_needed:.
 func (e *engine) createDurability(ctx context.Context, c *cobra.Command, dir string, autoCommit, terminal bool, fullID, root string, hasRoot bool) {
 	if terminal {
 		stderrln(c, fmt.Sprintf("note: %s scaffolded under archive/ — a terminal create is not git-durable until pj sync (auto-commit) or a host commit", fullID))
 	}
-	if !autoCommit {
-		e.repoDirtyHealth(ctx, c, dir, root, hasRoot)
+	if !autoCommit || !hasRoot {
+		return
 	}
+	e.pjDrivenSyncNeeded(ctx, c, dir, root)
 }
 
-// repoDirtyHealth rides uncommitted: for repo-driven scopes (detect-only).
-func (e *engine) repoDirtyHealth(ctx context.Context, c *cobra.Command, dir, root string, hasRoot bool) {
-	n := scopefile.CountAllowlistedDirty(ctx, dir, root, hasRoot)
-	if n > 0 {
-		stderrln(c, token.Line(token.Uncommitted,
-			fmt.Sprintf("%d allowlisted path(s) under %s uncommitted — commit with the host repo", n, dir)))
+// pjDrivenSyncNeeded emits at most one sync_needed: line after a pj-driven write.
+// Priority when several conditions hold: push failed, then dirty, then unpushed.
+// Reason strings are catalogue-stable: "push failed", "dirty", "unpushed".
+func (e *engine) pjDrivenSyncNeeded(ctx context.Context, c *cobra.Command, dir, root string) {
+	if _, present := gitstate.ReadLastPushError(e.app.StateDir, root); present {
+		stderrln(c, token.Line(token.SyncNeeded, "push failed"))
+		return
+	}
+	if n := scopefile.CountAllowlistedDirty(ctx, dir, root, true); n > 0 {
+		stderrln(c, token.Line(token.SyncNeeded, "dirty"))
+		return
+	}
+	if n, err := git.UnpushedCount(ctx, root); err == nil && n > 0 {
+		stderrln(c, token.Line(token.SyncNeeded, "unpushed"))
 	}
 }
