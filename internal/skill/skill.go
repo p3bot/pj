@@ -12,8 +12,8 @@ var embedded string
 
 // requiredHeadings is the locked ## TOC the embedded contract must contain, in order.
 var requiredHeadings = []string{
+	"Frontmatter",
 	"Commands",
-	"Project files",
 	"Identifiers",
 	"Workflows",
 }

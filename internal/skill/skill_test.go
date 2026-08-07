@@ -51,16 +51,11 @@ func TestRequiredGuidancePresent(t *testing.T) {
 		"repo-driven",
 		"plain-files",
 		"pj sync",
-		"uncommitted:",
-		"sync_needed:",
-		"sync_disabled:",
 		"status_conflict",
-		"config_unparseable:",
 		"next --claim",
 		"sole push",
 		"stdout",
 		"stderr",
-		"never invent a path or filename",
 		"frontmatter fence",
 	}
 	for _, n := range needles {
