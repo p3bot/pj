@@ -39,11 +39,11 @@ description: >-
 ```
 pj create <title> [status] [--scope S]                              # Scaffold project (FM + H1); print path
 pj get <id> [--content] [--scope S]                                 # Resolve id to path; --content prints full file
-pj mark <id> <status> [--scope S]                                   # Set status; rename on terminal boundary
+pj mark <id> <status> [--scope S]                                   # Set status; done/cancelled move to archive/
 pj reorder <id> (--before <id> | --after <id> | --first | --last) [--scope S]  # Move board order key
-pj next [--scope S] [--no-lens] [--claim]                           # First runnable path; --claim sets in-progress
+pj next [--scope S] [--no-lens] [--claim]                           # First runnable path (todo); --claim sets in-progress
 
-pj list [status...] [--scope S] [--tag T]... [--all] [--no-lens]    # Board inventory TSV
+pj list [status...] [--scope S] [--tag T]... [--all] [--no-lens]    # Board inventory includes draft, todo, in-progress, blocked, review 
 pj status [key] [--scope S]                                         # Scope pulse; optional key → bare value
 pj meta get <id> [key] [--scope S]                                  # Full header (title/path/lines/words/characters + FM) or one key
 pj meta set <id> <key> <value> [--scope S]                          # Set scalar frontmatter key
@@ -84,7 +84,7 @@ pj skill uninstall [agents...] [--local]                            # Remove own
 
 Orient: `pj status` | `pj status [key]` (bare value) -> `pj list` -> `pj next` | `pj get <id>`
 
-Core work loop: `pj next --claim` -> edit body under H1 -> `pj mark <id> <status>` -> Durability
+Core work loop: `pj next --claim` | `pj get <id>` -> edit body under H1 -> `pj mark <id> <status>` -> Durability
 
 Capture: `pj create <title>` -> fill body -> optional meta/reorder/mark -> Durability
 
@@ -94,8 +94,11 @@ Dependencies: `pj deps <id>` -> `pj meta add|rm depends|related` -> `pj next`
 
 Manage scopes: `pj scope list` -> `init` | `import` | `rebind` | `forget` | `rename`
 
-Durability:
+Durability (`pj status mode`):
 - pj-driven: mutators self-commit -> `pj sync` (sole push; never host push/rebase)
+  - Commands that self commit: mark, reorder, next --claim, meta set/add/rm
+  - Create and file edits never commit; requires `pj sync`
+  - Call `pj sync` after project document changes to commit/push
 - repo-driven: host git commit/push (no `pj sync`)
 - plain-files: no git step
 
