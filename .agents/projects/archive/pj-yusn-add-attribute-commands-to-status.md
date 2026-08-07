@@ -1,6 +1,6 @@
 ---
 id: pj-yusn
-status: in-progress
+status: done
 order: "aJ"
 created: "2026-08-07T13:25:57+10:00"
 summary: Optional pj status [key] prints one locked pulse field bare value; full pulse unchanged

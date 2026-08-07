@@ -143,10 +143,143 @@ func TestStatusEmptyNextExitsZero(t *testing.T) {
 func TestStatusPositionalsAreUsage(t *testing.T) {
 	app := newApp(t)
 	initScope(t, app, "wc")
-	// Dashboard accepts no positionals — the old mutator shape must not succeed.
-	_, _, err := run(t, app, "status", "wc-aa22", "blocked")
+	// At most one optional key; two or more positionals remain usage exit 2.
+	out, _, err := run(t, app, "status", "wc-aa22", "blocked")
 	if ExitCodeFromError(err) != exitUsage {
-		t.Errorf("status with positionals should exit 2, got %v", err)
+		t.Errorf("status with two positionals should exit 2, got %v", err)
+	}
+	if out != "" {
+		t.Errorf("multi-arg refuse must leave stdout empty, got %q", out)
+	}
+}
+
+func TestStatusAttributeKeyBareValue(t *testing.T) {
+	app := newApp(t)
+	dir := initScope(t, app, "wc")
+	addProject(t, dir, "wc-aa22", "todo", "todo", "a1", "# T\n", false, "")
+	addProject(t, dir, "wc-ac24", "ip", "in-progress", "a3", "# I\n", false, "")
+
+	full, _, err := run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("full status: %v", err)
+	}
+	want := parsePulse(full)
+
+	// Representative locked keys: bare value matches full pulse; no key name or tab.
+	for _, key := range []string{"scope", "mode", "total", "todo", "in-progress", "next", "claimed", "integrity", "uncommitted"} {
+		out, _, err := run(t, app, "status", key, "--scope", "wc")
+		if err != nil {
+			t.Errorf("status %s: %v", key, err)
+			continue
+		}
+		if strings.Contains(out, "\t") {
+			t.Errorf("status %s must not emit full-pulse key\\tvalue lines, got %q", key, out)
+		}
+		if want[key] == "" {
+			if out != "" {
+				t.Errorf("status %s: empty value should be empty stdout, got %q", key, out)
+			}
+			continue
+		}
+		if out != want[key]+"\n" {
+			t.Errorf("status %s = %q want %q", key, out, want[key]+"\n")
+		}
+	}
+	if want["mode"] != "plain-files" {
+		t.Fatalf("fixture mode = %q want plain-files", want["mode"])
+	}
+	modeOut, _, err := run(t, app, "status", "mode", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status mode: %v", err)
+	}
+	if modeOut != "plain-files\n" {
+		t.Errorf("status mode = %q want plain-files\\n", modeOut)
+	}
+}
+
+func TestStatusAttributeEmptyValue(t *testing.T) {
+	app := newApp(t)
+	dir := initScope(t, app, "wc")
+	// Only blocked — next empty; no claimed/in-progress.
+	addProject(t, dir, "wc-aa22", "b", "blocked", "a0", "# B\n", false, "")
+
+	out, _, err := run(t, app, "status", "next", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status next empty must exit 0: %v", err)
+	}
+	if out != "" {
+		t.Errorf("empty next must be empty stdout, got %q", out)
+	}
+	out, _, err = run(t, app, "status", "claimed", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status claimed empty: %v", err)
+	}
+	if out != "" {
+		t.Errorf("empty claimed must be empty stdout, got %q", out)
+	}
+	out, _, err = run(t, app, "status", "lens", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status lens empty: %v", err)
+	}
+	if out != "" {
+		t.Errorf("empty lens must be empty stdout, got %q", out)
+	}
+	// Full pulse still emits every locked key line, including empty next.
+	full, _, err := run(t, app, "status", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("full status: %v", err)
+	}
+	if keys := pulseKeys(full); !slicesEqual(keys, statusKeys) {
+		t.Fatalf("full pulse must still emit every key line, got %v", keys)
+	}
+	if p := parsePulse(full); p["next"] != "" {
+		t.Errorf("full pulse next should be empty, got %q", p["next"])
+	}
+}
+
+func TestStatusAttributeUnknownKey(t *testing.T) {
+	app := newApp(t)
+	initScope(t, app, "wc")
+
+	out, _, err := run(t, app, "status", "nope", "--scope", "wc")
+	if ExitCodeFromError(err) != exitUsage {
+		t.Fatalf("unknown key exit = %v want 2", err)
+	}
+	if out != "" {
+		t.Errorf("unknown key must leave stdout empty, got %q", out)
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, `unknown status key "nope"`) {
+		t.Errorf("message should name bad key, got %q", msg)
+	}
+	for _, k := range statusKeys {
+		if !strings.Contains(msg, k) {
+			t.Errorf("catalogue missing %q in %q", k, msg)
+		}
+	}
+}
+
+func TestStatusAttributeKeepsStderrDiagnostics(t *testing.T) {
+	app := newApp(t)
+	dir := initScope(t, app, "wc")
+	addProject(t, dir, "wc-aa22", "fe", "todo", "a0", "# FE\n", false, "tags: [frontend]\n")
+	addProject(t, dir, "wc-ab23", "be", "todo", "a1", "# BE\n", false, "tags: [backend]\n")
+
+	if _, _, err := run(t, app, "lens", "frontend", "--scope", "wc"); err != nil {
+		t.Fatalf("lens: %v", err)
+	}
+	out, errOut, err := run(t, app, "status", "next", "--scope", "wc")
+	if err != nil {
+		t.Fatalf("status next: %v", err)
+	}
+	if !strings.Contains(errOut, "lens:") {
+		t.Errorf("attribute path must still echo lens on stderr, got %q", errOut)
+	}
+	if out != "wc-aa22\n" {
+		t.Errorf("status next under lens = %q want wc-aa22\\n", out)
+	}
+	if strings.Contains(out, "\t") {
+		t.Errorf("attribute stdout must not be full pulse, got %q", out)
 	}
 }
 

@@ -55,7 +55,7 @@ func maxStatusKeyWidth() int {
 func newStatusCmd(app *App) *cobra.Command {
 	var scope string
 	cmd := &cobra.Command{
-		Use:   "status [--scope S]",
+		Use:   "status [key] [--scope S]",
 		Short: "Scope pulse: key/value counts, next, claimed, integrity",
 		Long: "Print a pure-read orientation block for one scope as parse-stable key\\tvalue\n" +
 			"lines (no header). Keys are left-justified to a fixed column (longest key width)\n" +
@@ -64,6 +64,13 @@ func newStatusCmd(app *App) *cobra.Command {
 			"(`key\\t` with padding) so agents can rely on key presence. Exit 0 whenever\n" +
 			"ambient resolve succeeds — including when next is empty (an empty queue is a\n" +
 			"pulse value, not a failure).\n" +
+			"\n" +
+			"Optional [key]: with exactly one positional matching a locked pulse key, print\n" +
+			"only that field's bare value (no key name, padding, or tab), followed by a\n" +
+			"newline when non-empty. Empty values write empty stdout and exit 0. Unknown\n" +
+			"keys are usage exit 2 listing the locked catalogue. Two or more positionals\n" +
+			"are usage exit 2. The attribute path builds the same pulse map as the full\n" +
+			"dashboard (same reconcile, next selection, counts, integrity, stderr tokens).\n" +
 			"\n" +
 			"Locked keys (order fixed): scope, dir, resolved, mode, lens, total, todo,\n" +
 			"review, in-progress, blocked, draft, backlog, done, cancelled, next, claimed,\n" +
@@ -96,16 +103,33 @@ func newStatusCmd(app *App) *cobra.Command {
 			"depended-on scopes from the next closure.\n" +
 			"\n" +
 			"To change a project's status, use `pj mark <id> <status>`.",
-		Args: usageArgs(cobra.NoArgs),
-		RunE: func(c *cobra.Command, _ []string) error {
-			return runStatus(app, c, scope)
+		Args: usageArgs(cobra.MaximumNArgs(1)),
+		RunE: func(c *cobra.Command, args []string) error {
+			key := ""
+			if len(args) == 1 {
+				key = args[0]
+			}
+			return runStatus(app, c, scope, key)
 		},
 	}
 	cmd.Flags().StringVar(&scope, "scope", "", "scope to pulse (defaults to ambient; wins over ambient)")
 	return cmd
 }
 
-func runStatus(app *App, c *cobra.Command, scopeFlag string) error {
+func knownStatusKey(key string) bool {
+	for _, k := range statusKeys {
+		if k == key {
+			return true
+		}
+	}
+	return false
+}
+
+func runStatus(app *App, c *cobra.Command, scopeFlag, key string) error {
+	if key != "" && !knownStatusKey(key) {
+		return usageErrorf("unknown status key %q; known keys: %s", key, strings.Join(statusKeys, ", "))
+	}
+
 	e, err := app.openEngine(c)
 	if err != nil {
 		return err
@@ -229,8 +253,14 @@ func runStatus(app *App, c *cobra.Command, scopeFlag string) error {
 	pulse["uncommitted"] = strconv.Itoa(uncommitted)
 
 	sel.writeDiagnostics(c)
-	for _, key := range statusKeys {
-		stdoutln(c, fmt.Sprintf("%-*s\t%s", statusKeyWidth, key, pulse[key]))
+	if key != "" {
+		if v := pulse[key]; v != "" {
+			stdoutln(c, v)
+		}
+		return nil
+	}
+	for _, k := range statusKeys {
+		stdoutln(c, fmt.Sprintf("%-*s\t%s", statusKeyWidth, k, pulse[k]))
 	}
 	return nil
 }

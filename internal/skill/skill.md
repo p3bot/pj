@@ -44,7 +44,7 @@ pj reorder <id> (--before <id> | --after <id> | --first | --last) [--scope S]  #
 pj next [--scope S] [--no-lens] [--claim]                           # First runnable path; --claim sets in-progress
 
 pj list [status...] [--scope S] [--tag T]... [--all] [--no-lens]    # Board inventory TSV
-pj status [--scope S]                                               # Scope pulse (key/value counts)
+pj status [key] [--scope S]                                         # Scope pulse; optional key → bare value
 pj meta get <id> [key] [--scope S]                                  # Full header (title/path/lines/words/characters + FM) or one key
 pj meta set <id> <key> <value> [--scope S]                          # Set scalar frontmatter key
 pj meta add <id> <key> <value> [--scope S]                          # Append multi-value frontmatter entry
@@ -82,7 +82,7 @@ pj skill uninstall [agents...] [--local]                            # Remove own
 
 ## Workflows
 
-Orient: `pj status` -> `pj list` -> `pj next` | `pj get <id>`
+Orient: `pj status` | `pj status [key]` (bare value) -> `pj list` -> `pj next` | `pj get <id>`
 
 Core work loop: `pj next --claim` -> edit body under H1 -> `pj mark <id> <status>` -> Durability
 
