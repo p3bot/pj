@@ -3,28 +3,17 @@ package cli
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/flock"
 	"github.com/p3bot/pj/internal/git"
-	"github.com/p3bot/pj/internal/gitroot"
 	"github.com/p3bot/pj/internal/gitstate"
-	"github.com/p3bot/pj/internal/id"
 	"github.com/p3bot/pj/internal/reconcile"
+	"github.com/p3bot/pj/internal/scopefile"
 	"github.com/p3bot/pj/internal/selfcommit"
-	"github.com/p3bot/pj/internal/slug"
 	"github.com/p3bot/pj/internal/token"
 )
-
-// Per-scope flock: writers hold it across the whole reconcile→read→write span.
-const scopeLockName = ".pj.lock"
-
-func acquireScopeLock(dir string) (*flock.Lock, error) {
-	return flock.Acquire(filepath.Join(dir, scopeLockName))
-}
 
 // refuseUnusableScope refuses writes when the dir is unreachable or pj.cue is unusable.
 func refuseUnusableScope(res *reconcile.Result, scope, dir string) error {
@@ -37,14 +26,6 @@ func refuseUnusableScope(res *reconcile.Result, scope, dir string) error {
 			fmt.Sprintf("%s (%s): %s — fix pj.cue before writing", scope, cfgErr.Dir, cfgErr.Reason)))
 	}
 	return nil
-}
-
-// gitRootFor resolves once per write command so every durability helper agrees.
-func gitRootFor(dir string) (root string, hasRoot bool) {
-	if !git.Available() {
-		return "", false
-	}
-	return gitroot.RepoRoot(dir)
 }
 
 // checkMidRebase refuses auto-commit writes on a mid-rebase git-root (repo-granular).
@@ -102,62 +83,9 @@ func (e *engine) createDurability(ctx context.Context, c *cobra.Command, dir str
 
 // repoDirtyHealth rides uncommitted: for repo-driven scopes (detect-only).
 func (e *engine) repoDirtyHealth(ctx context.Context, c *cobra.Command, dir, root string, hasRoot bool) {
-	n := countAllowlistedDirty(ctx, dir, root, hasRoot)
+	n := scopefile.CountAllowlistedDirty(ctx, dir, root, hasRoot)
 	if n > 0 {
 		stderrln(c, token.Line(token.Uncommitted,
 			fmt.Sprintf("%d allowlisted path(s) under %s uncommitted — commit with the host repo", n, dir)))
 	}
-}
-
-func countAllowlistedDirty(ctx context.Context, dir, root string, hasRoot bool) int {
-	if !hasRoot {
-		return 0
-	}
-	dirty, err := git.DirtyPaths(ctx, root, dir)
-	if err != nil {
-		return 0
-	}
-	n := 0
-	for _, p := range dirty {
-		if isAllowlistedScopeFile(p, dir) {
-			n++
-		}
-	}
-	return n
-}
-
-// isAllowlistedScopeFile: project .md at dir root or archive/, or pj.cue/.gitignore at root.
-func isAllowlistedScopeFile(path, dir string) bool {
-	rel, err := filepath.Rel(dir, path)
-	if err != nil || rel == "." || strings.HasPrefix(rel, "..") {
-		return false
-	}
-	base := filepath.Base(rel)
-	switch filepath.Dir(rel) {
-	case ".":
-		return base == "pj.cue" || base == ".gitignore" || looksLikeProjectFile(base)
-	case "archive":
-		return looksLikeProjectFile(base)
-	default:
-		return false
-	}
-}
-
-// looksLikeProjectFile: first two hyphen segments form a full id; optional slug tail must be valid.
-func looksLikeProjectFile(base string) bool {
-	stem, ok := strings.CutSuffix(base, ".md")
-	if !ok {
-		return false
-	}
-	parts := strings.SplitN(stem, "-", 3)
-	if len(parts) < 2 {
-		return false
-	}
-	if !id.IsFullProjectID(parts[0] + "-" + parts[1]) {
-		return false
-	}
-	if len(parts) == 3 {
-		return slug.Valid(parts[2])
-	}
-	return true
 }

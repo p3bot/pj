@@ -3,6 +3,8 @@ package cli
 import (
 	"fmt"
 
+	"github.com/p3bot/pj/internal/scopefile"
+
 	"github.com/spf13/cobra"
 
 	"github.com/p3bot/pj/internal/index"
@@ -85,7 +87,7 @@ func runReorder(app *App, c *cobra.Command, idArg string, dest reorderDest, scop
 	}
 	dir := entry.Dir
 
-	lock, err := acquireScopeLock(dir)
+	lock, err := scopefile.AcquireLock(dir)
 	if err != nil {
 		return err
 	}
@@ -101,7 +103,7 @@ func runReorder(app *App, c *cobra.Command, idArg string, dest reorderDest, scop
 	}
 	schema := res.Schema(scope)
 	autoCommit := schemaAutoCommit(schema)
-	root, hasRoot := gitRootFor(dir)
+	root, hasRoot := scopefile.GitRoot(dir)
 	if err := checkMidRebase(ctx, scope, autoCommit, root, hasRoot); err != nil {
 		return err
 	}

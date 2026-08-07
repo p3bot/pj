@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/p3bot/pj/internal/integrity"
 	"github.com/p3bot/pj/internal/resolve"
 )
 
@@ -18,6 +19,10 @@ type doctorFlags struct {
 }
 
 func (f doctorFlags) mutating() bool { return f.repair || f.reSpaceOrder }
+
+func (f doctorFlags) integrityFlags() integrity.Flags {
+	return integrity.Flags{Repair: f.repair, ReSpaceOrder: f.reSpaceOrder, All: f.all}
+}
 
 func newDoctorCmd(app *App) *cobra.Command {
 	var f doctorFlags
@@ -55,9 +60,12 @@ func runDoctor(app *App, c *cobra.Command, f doctorFlags) error {
 		return err
 	}
 
+	deps := e.integrityDeps(c)
+	rep := cobraReporter{c: c}
+
 	// Repairs first under flock so chosen rows cannot change between read and write.
 	if f.mutating() {
-		if err := e.runRepairs(c, mutateScopes, f); err != nil {
+		if err := integrity.RepairScopes(deps, rep, mutateScopes, f.integrityFlags()); err != nil {
 			return err
 		}
 	}
@@ -77,7 +85,7 @@ func runDoctor(app *App, c *cobra.Command, f doctorFlags) error {
 		return err
 	}
 
-	report, err := e.diagnose(c, reportScopes, res)
+	report, err := integrity.Diagnose(deps, reportScopes, res)
 	if err != nil {
 		return err
 	}
@@ -88,6 +96,23 @@ func runDoctor(app *App, c *cobra.Command, f doctorFlags) error {
 		stderrln(c, "pj doctor: no integrity issues found")
 	}
 	return nil
+}
+
+// cobraReporter maps integrity/sync engine progress lines onto cobra stdout/stderr.
+type cobraReporter struct{ c *cobra.Command }
+
+func (r cobraReporter) Out(line string) { stdoutln(r.c, line) }
+func (r cobraReporter) Err(line string) { stderrln(r.c, line) }
+
+func (e *engine) integrityDeps(c *cobra.Command) integrity.Deps {
+	return integrity.Deps{
+		Ctx:      c.Context(),
+		Cue:      e.app.Ctx,
+		StateDir: e.app.StateDir,
+		Reg:      e.reg,
+		DB:       e.db,
+		Rec:      e.rec,
+	}
 }
 
 // doctorScopes: report is ambient or all; mutate needs ambient/--all (never silent machine-wide).

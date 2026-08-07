@@ -1,6 +1,12 @@
-package cli
+// Package integrity is the doctor diagnose report and the shared repair
+// orchestration above pure internal/repair: acquiring entry for doctor, locks-held
+// batch apply + edge_verify for both doctor and sync integrity. Pure repair stays
+// planning-only; this package owns flock, rewrite apply, and self-commit under
+// held locks.
+package integrity
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
+	"cuelang.org/go/cue"
 
 	"github.com/p3bot/pj/internal/frontmatter"
 	"github.com/p3bot/pj/internal/git"
@@ -18,17 +24,33 @@ import (
 	"github.com/p3bot/pj/internal/index"
 	"github.com/p3bot/pj/internal/order"
 	"github.com/p3bot/pj/internal/reconcile"
+	"github.com/p3bot/pj/internal/registry"
 	"github.com/p3bot/pj/internal/repair"
 	"github.com/p3bot/pj/internal/resolve"
 	"github.com/p3bot/pj/internal/scopeconfig"
+	"github.com/p3bot/pj/internal/scopefile"
 	"github.com/p3bot/pj/internal/status"
 	"github.com/p3bot/pj/internal/token"
 )
 
 const staleInProgress = 72 * time.Hour
 
-func (e *engine) diagnose(c *cobra.Command, scopes []string, res *reconcile.Result) ([]string, error) {
-	d, err := e.newDiagnoser(c, res)
+// Deps are the machine-local services diagnose and repair orchestration need.
+type Deps struct {
+	// Ctx is the request context for git and cancel.
+	Ctx context.Context
+	// Cue is the process-wide CUE context for schema/name reads.
+	Cue      *cue.Context
+	StateDir string
+	Reg      *registry.Registry
+	DB       *index.DB
+	Rec      *reconcile.Reconciler
+}
+
+// Diagnose reports integrity token lines for scopes over a post-reconcile result.
+// Never mutates project files.
+func Diagnose(deps Deps, scopes []string, res *reconcile.Result) ([]string, error) {
+	d, err := newDiagnoser(deps, res)
 	if err != nil {
 		return nil, err
 	}
@@ -41,8 +63,7 @@ func (e *engine) diagnose(c *cobra.Command, scopes []string, res *reconcile.Resu
 }
 
 type diagnoser struct {
-	e         *engine
-	c         *cobra.Command
+	deps      Deps
 	res       *reconcile.Result
 	now       time.Time
 	hasRow    map[string]bool
@@ -57,20 +78,24 @@ type diagnoser struct {
 	lines       []string
 }
 
-func (e *engine) newDiagnoser(c *cobra.Command, res *reconcile.Result) (*diagnoser, error) {
-	all, err := e.db.AllProjects()
+func newDiagnoser(deps Deps, res *reconcile.Result) (*diagnoser, error) {
+	all, err := deps.DB.AllProjects()
 	if err != nil {
 		return nil, err
 	}
-	edges, err := e.db.AllEdges()
+	edges, err := deps.DB.AllEdges()
 	if err != nil {
 		return nil, err
+	}
+	registered := make(map[string]bool, len(deps.Reg.Scopes))
+	for name := range deps.Reg.Scopes {
+		registered[name] = true
 	}
 	d := &diagnoser{
-		e: e, c: c, res: res, now: time.Now(),
+		deps: deps, res: res, now: time.Now(),
 		hasRow: map[string]bool{}, rowByID: map[string]*index.Project{},
 		edges: edges, schemaFor: map[string]*scopeconfig.Schema{}, seenRoot: map[string]bool{},
-		registered: e.registeredSet(), cfgReported: map[string]bool{},
+		registered: registered, cfgReported: map[string]bool{},
 	}
 	for _, p := range all {
 		d.hasRow[p.ID] = true
@@ -85,7 +110,7 @@ func (d *diagnoser) add(line string) { d.lines = append(d.lines, line) }
 
 // scope short-circuits project checks on unreachable/drifted scopes (still emits tokens).
 func (d *diagnoser) scope(scope string) error {
-	entry, ok := d.e.reg.Scopes[scope]
+	entry, ok := d.deps.Reg.Scopes[scope]
 	if !ok {
 		return nil
 	}
@@ -95,7 +120,7 @@ func (d *diagnoser) scope(scope string) error {
 		d.add(token.Line(token.UnreachableScope, fmt.Sprintf("%s: dir %s could not be read — rows left in place", scope, dir)))
 		return nil
 	}
-	if pjName, err := scopeconfig.ReadName(d.e.app.Ctx, dir); err == nil && pjName != scope {
+	if pjName, err := scopeconfig.ReadName(d.deps.Cue, dir); err == nil && pjName != scope {
 		d.add(resolve.DriftLine(scope, pjName, dir, resolve.SuggestCodeRoot(dir, entry.Root)))
 		return nil
 	}
@@ -105,7 +130,7 @@ func (d *diagnoser) scope(scope string) error {
 		d.configUnparseable(scope, cfgErr)
 	}
 
-	rows, err := d.e.db.ScopeProjects(scope)
+	rows, err := d.deps.DB.ScopeProjects(scope)
 	if err != nil {
 		return err
 	}
@@ -125,14 +150,14 @@ func (d *diagnoser) scope(scope string) error {
 }
 
 func (d *diagnoser) collisions(scope string) error {
-	dups, err := d.e.db.DuplicateIDs([]string{scope})
+	dups, err := d.deps.DB.DuplicateIDs([]string{scope})
 	if err != nil {
 		return err
 	}
 	for _, col := range dups {
 		d.add(token.Line(token.DuplicateID, fmt.Sprintf("%s claimed by %s — run pj doctor --repair", col.Key, strings.Join(col.Members, ", "))))
 	}
-	eq, err := d.e.db.EqualOrders([]string{scope})
+	eq, err := d.deps.DB.EqualOrders([]string{scope})
 	if err != nil {
 		return err
 	}
@@ -188,7 +213,7 @@ func (d *diagnoser) statusConflictLine(p *index.Project, dir string, autoCommit 
 	}
 	// Skip git lookup when not auto-commit — answer cannot change the line.
 	if autoCommit {
-		if root, ok := gitRootFor(dir); ok && git.MidRebase(d.c.Context(), root) {
+		if root, ok := scopefile.GitRoot(dir); ok && git.MidRebase(d.deps.Ctx, root) {
 			return token.Line(token.StatusConflict, fmt.Sprintf("%s disputes %s (%s) — resolve in file, then pj sync", p.ID, disputed, p.Path))
 		}
 	}
@@ -216,7 +241,7 @@ func (d *diagnoser) frontmatterChecks(p *index.Project, schema *scopeconfig.Sche
 		d.add(fmt.Sprintf("filename/id mismatch: %s does not begin with its frontmatter id %q", base, m.ID))
 	case !id.IsFullProjectID(m.ID):
 		d.add(fmt.Sprintf("filename/id mismatch: %s has a non-project-shaped id %q", base, m.ID))
-	case !looksLikeProjectFile(base):
+	case !scopefile.LooksLikeProject(base):
 		d.add(fmt.Sprintf("filename/id mismatch: %s is not a project file shape (<id>-<slug>.md) — rename it to a valid slug", base))
 	}
 	// Token-less prose: must not open with "word:" (closed-token shape).
@@ -374,8 +399,8 @@ func (d *diagnoser) targetSchema(scope string) *scopeconfig.Schema {
 		return s
 	}
 	var s *scopeconfig.Schema
-	if entry, ok := d.e.reg.Scopes[scope]; ok {
-		s = d.e.rec.SchemaCached(scope, entry.Dir)
+	if entry, ok := d.deps.Reg.Scopes[scope]; ok {
+		s = d.deps.Rec.SchemaCached(scope, entry.Dir)
 	}
 	d.schemaFor[scope] = s
 	return s
@@ -418,7 +443,7 @@ func (d *diagnoser) autoCommitFor(scope string, schema *scopeconfig.Schema) (val
 }
 
 func (d *diagnoser) repoHealth(scope, dir string, schema *scopeconfig.Schema) error {
-	root, hasRoot := gitRootFor(dir)
+	root, hasRoot := scopefile.GitRoot(dir)
 
 	if hasRoot && !d.seenRoot[root] {
 		d.seenRoot[root] = true
@@ -433,16 +458,16 @@ func (d *diagnoser) repoHealth(scope, dir string, schema *scopeconfig.Schema) er
 
 	switch {
 	case autoCommit:
-		if !hasRoot || !git.HasUpstream(d.c.Context(), root) {
+		if !hasRoot || !git.HasUpstream(d.deps.Ctx, root) {
 			d.add(token.Line(token.SyncDisabled, fmt.Sprintf("%s: no git repository with an upstream — set one up, then pj sync", scope)))
 		}
 		if hasRoot {
-			if detail, ok := gitstate.ReadLastPushError(d.e.app.StateDir, root); ok {
+			if detail, ok := gitstate.ReadLastPushError(d.deps.StateDir, root); ok {
 				d.add(token.Line(token.LastPushError, fmt.Sprintf("%s: last push failed (%s) — fix the remote/auth, then pj sync", scope, detail)))
 			}
 		}
 	case hasRoot: // repo-driven
-		if n := countAllowlistedDirty(d.c.Context(), dir, root, hasRoot); n > 0 {
+		if n := scopefile.CountAllowlistedDirty(d.deps.Ctx, dir, root, hasRoot); n > 0 {
 			d.add(token.Line(token.Uncommitted, fmt.Sprintf("%s: %d allowlisted path(s) under %s uncommitted — commit with the host repo", scope, n, dir)))
 		}
 	}
@@ -453,7 +478,7 @@ func (d *diagnoser) repoHealth(scope, dir string, schema *scopeconfig.Schema) er
 func (d *diagnoser) rootPreflight(root string) {
 	seenTrue, seenFalse := false, false
 	for _, name := range d.siblingScopes(root) {
-		schema, cfgErr := d.e.rec.SchemaOrError(name, d.e.reg.Scopes[name].Dir)
+		schema, cfgErr := d.deps.Rec.SchemaOrError(name, d.deps.Reg.Scopes[name].Dir)
 		if cfgErr != nil {
 			d.configUnparseable(name, cfgErr)
 			continue
@@ -474,7 +499,7 @@ func (d *diagnoser) rootPreflight(root string) {
 
 func (d *diagnoser) siblingScopes(root string) []string {
 	var out []string
-	for name, entry := range d.e.reg.Scopes {
+	for name, entry := range d.deps.Reg.Scopes {
 		if sgr, ok := gitroot.RepoRoot(entry.Dir); ok && sgr == root {
 			out = append(out, name)
 		}
@@ -504,10 +529,10 @@ func (d *diagnoser) residue(scope, dir string) {
 			return nil
 		}
 		base := ent.Name()
-		if base == scopeLockName {
+		if base == scopefile.LockName {
 			return nil
 		}
-		if isAllowlistedScopeFile(path, dir) {
+		if scopefile.IsAllowlisted(path, dir) {
 			return nil
 		}
 		d.add(token.Line(token.NonAllowlist, fmt.Sprintf("%s: %s is under the scope dir but outside the allowlist — move or remove it", scope, path)))
@@ -580,4 +605,15 @@ func reaches(node, target string, adj map[string][]string, visited map[string]bo
 		}
 	}
 	return false
+}
+
+func schemaCustom(s *scopeconfig.Schema) map[string]status.Category {
+	if s == nil {
+		return nil
+	}
+	return s.Statuses
+}
+
+func schemaAutoCommit(s *scopeconfig.Schema) bool {
+	return s != nil && s.AutoCommit
 }

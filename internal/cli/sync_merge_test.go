@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/p3bot/pj/internal/syncengine"
 )
 
 // A both-sides terminal status change produces status_conflict in the file (clean YAML, base status)
@@ -30,7 +32,7 @@ func TestSyncBothSidesTerminalStatusDispute(t *testing.T) {
 	if path == "" {
 		t.Fatal("the disputed project file should still exist on B")
 	}
-	if !frontmatterHasStatusConflict(path) {
+	if !syncengine.FrontmatterHasStatusConflict(path) {
 		t.Errorf("the file should carry status_conflict, content:\n%s", readFile(t, path))
 	}
 	if st := fmStatus(t, path); st != "todo" {
@@ -108,7 +110,7 @@ func TestSyncCueConflictPausesThenResumeMergesMD(t *testing.T) {
 	if !strings.Contains(errOut, "config_unparseable:") {
 		t.Errorf("a conflicted pj.cue should ride config_unparseable, got %q", errOut)
 	}
-	if !frontmatterHasMarkers(pB) {
+	if !syncengine.FrontmatterHasMarkers(pB) {
 		t.Errorf("the project .md must be left unmerged (markers in frontmatter) while pj.cue is conflicted:\n%s", readFile(t, pB))
 	}
 
@@ -116,7 +118,7 @@ func TestSyncCueConflictPausesThenResumeMergesMD(t *testing.T) {
 	if _, _, err := b.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("post-resolution sync should field-merge the .md and complete: %v", err)
 	}
-	if frontmatterHasMarkers(pB) {
+	if syncengine.FrontmatterHasMarkers(pB) {
 		t.Errorf("after resume the .md frontmatter must be field-merged clean:\n%s", readFile(t, pB))
 	}
 	if st := fmStatus(t, pB); st == "todo" {
@@ -152,7 +154,7 @@ func TestSyncGitignoreConflictDoesNotBlockProjectMerges(t *testing.T) {
 	}
 
 	pB := mustSeedProject(t, b.scopeDir())
-	if frontmatterHasMarkers(pB) {
+	if syncengine.FrontmatterHasMarkers(pB) {
 		t.Errorf("the project .md must still be field-merged — .gitignore gates nothing:\n%s", readFile(t, pB))
 	}
 
@@ -295,7 +297,7 @@ func TestSyncCueDeleteEditKeepsProjectFailClosed(t *testing.T) {
 	if !strings.Contains(firstOut, "config_unparseable:") {
 		t.Errorf("pj.cue delete/edit should ride config_unparseable, got %q", firstOut)
 	}
-	if !frontmatterHasMarkers(pB) {
+	if !syncengine.FrontmatterHasMarkers(pB) {
 		t.Errorf("project .md must stay unmerged while pj.cue is an open delete/edit:\n%s", readFile(t, pB))
 	}
 
@@ -308,7 +310,7 @@ func TestSyncCueDeleteEditKeepsProjectFailClosed(t *testing.T) {
 	if !strings.Contains(secondOut, "not merged") || !strings.Contains(secondOut, "pj.cue is conflicted") {
 		t.Errorf("project pass must report schema fail-closed, got %q", secondOut)
 	}
-	if !frontmatterHasMarkers(pB) {
+	if !syncengine.FrontmatterHasMarkers(pB) {
 		t.Errorf("project .md must still carry markers after unactioned re-run:\n%s", readFile(t, pB))
 	}
 }

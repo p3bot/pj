@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/p3bot/pj/internal/syncengine"
 )
 
 // A one-sided pj mark done lands uncontested on the other machine after sync.
@@ -86,10 +88,10 @@ func TestSyncBodyConflictPausesThenResumes(t *testing.T) {
 	if !strings.Contains(errOut, "body conflict") {
 		t.Errorf("a body conflict should be reported, got %q", errOut)
 	}
-	if frontmatterHasMarkers(pB) {
+	if syncengine.FrontmatterHasMarkers(pB) {
 		t.Errorf("frontmatter must be clean field-merged, not carry markers:\n%s", readFile(t, pB))
 	}
-	if !hasConflictMarker([]byte(readFile(t, pB))) {
+	if !syncengine.HasConflictMarker([]byte(readFile(t, pB))) {
 		t.Errorf("the body should carry conflict markers awaiting the human:\n%s", readFile(t, pB))
 	}
 

@@ -92,6 +92,9 @@ moves a file into `projects/archive/` via `pj mark` (do not hand-move).
   - `repair` — deterministic integrity repairs (collision pick via `collision`, re-space, archive move)
   - `fmmerge` — the pure 3-way frontmatter merge over raw stage blobs (P6a); add/add uses `collision`
   - `rebasedriver` — resolves one conflicted project `.md` at a paused rebase (P6a)
+  - `scopefile` — scope-dir allowlist classification, dirty counting, and per-scope flock acquire
+  - `integrity` — doctor diagnose report and shared repair orchestration (acquiring + locks-held core)
+  - `syncengine` — sole push boundary: selection policy and per-root snapshot/integrate/integrity/push
   - `skill` — embedded agent skill contract (`skill.md`; sole source, no design-doc dependency) (P7)
   - `cli` — Cobra command tree, exit codes, signals, colour/TTY, path hand-off
 

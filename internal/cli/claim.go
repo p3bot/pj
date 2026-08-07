@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/p3bot/pj/internal/scopefile"
+
 	"github.com/spf13/cobra"
 
 	"github.com/p3bot/pj/internal/index"
@@ -25,7 +27,7 @@ func runClaim(app *App, c *cobra.Command, scopeFlag string, noLens bool) error {
 	scope := resolved.Name
 	dir := resolved.Entry.Dir
 
-	lock, err := acquireScopeLock(dir)
+	lock, err := scopefile.AcquireLock(dir)
 	if err != nil {
 		return err
 	}
@@ -42,7 +44,7 @@ func runClaim(app *App, c *cobra.Command, scopeFlag string, noLens bool) error {
 	}
 	schema := res.Schema(scope)
 	autoCommit := schemaAutoCommit(schema)
-	root, hasRoot := gitRootFor(dir)
+	root, hasRoot := scopefile.GitRoot(dir)
 	if err := checkMidRebase(ctx, scope, autoCommit, root, hasRoot); err != nil {
 		return err
 	}

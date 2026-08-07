@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/p3bot/pj/internal/scopefile"
+
 	"github.com/spf13/cobra"
 
 	"github.com/p3bot/pj/internal/status"
@@ -53,7 +55,7 @@ func runMark(app *App, c *cobra.Command, idArg, newStatus, scopeFlag string) err
 	}
 	dir := entry.Dir
 
-	lock, err := acquireScopeLock(dir)
+	lock, err := scopefile.AcquireLock(dir)
 	if err != nil {
 		return err
 	}
@@ -73,7 +75,7 @@ func runMark(app *App, c *cobra.Command, idArg, newStatus, scopeFlag string) err
 		return usageErrorf("%q is not a known status for scope %q", newStatus, scope)
 	}
 	autoCommit := schemaAutoCommit(schema)
-	root, hasRoot := gitRootFor(dir)
+	root, hasRoot := scopefile.GitRoot(dir)
 	if err := checkMidRebase(ctx, scope, autoCommit, root, hasRoot); err != nil {
 		return err
 	}

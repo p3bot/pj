@@ -1,13 +1,12 @@
-package cli
+package syncengine
 
 import (
 	"fmt"
 	"path/filepath"
 	"strings"
 
-	"github.com/spf13/cobra"
-
 	"github.com/p3bot/pj/internal/git"
+	"github.com/p3bot/pj/internal/scopefile"
 	"github.com/p3bot/pj/internal/selfcommit"
 	"github.com/p3bot/pj/internal/token"
 )
@@ -19,12 +18,12 @@ type dirtyProject struct {
 }
 
 // snapshot: CommitPathsCore under held lock; non-allowlist warned, not committed.
-func (e *engine) snapshot(c *cobra.Command, t syncTarget, rep *syncReport) error {
-	ctx := c.Context()
+func snapshot(deps Deps, r Reporter, t Target, rep *syncReport) error {
+	ctx := deps.Ctx
 	var staged []dirtyProject
 	var allowlisted []string
-	for _, p := range t.participants {
-		entries, err := git.DirtyEntries(ctx, t.root, p.dir)
+	for _, p := range t.Participants {
+		entries, err := git.DirtyEntries(ctx, t.Root, p.Dir)
 		if err != nil {
 			return err
 		}
@@ -33,19 +32,19 @@ func (e *engine) snapshot(c *cobra.Command, t syncTarget, rep *syncReport) error
 			if skipSnapshotPath(ent.Path) {
 				continue // .pj.lock: gitignored, skipped defensively regardless
 			}
-			if isAllowlistedScopeFile(ent.Path, p.dir) {
+			if scopefile.IsAllowlisted(ent.Path, p.Dir) {
 				allowlisted = append(allowlisted, ent.Path)
-				staged = append(staged, dirtyProject{path: ent.Path, code: ent.Code, scope: p.name})
+				staged = append(staged, dirtyProject{path: ent.Path, code: ent.Code, scope: p.Name})
 			} else {
 				residue = append(residue, ent.Path)
 			}
 		}
 		if len(residue) > 0 {
 			rep.residueN += len(residue)
-			stderrln(c, token.Line(token.NonAllowlist, fmt.Sprintf(
-				"%d path(s) under %s not committed — move or remove; see pj doctor", len(residue), p.dir)))
-			for _, r := range residue {
-				stderrln(c, "  "+r)
+			r.Err(token.Line(token.NonAllowlist, fmt.Sprintf(
+				"%d path(s) under %s not committed — move or remove; see pj doctor", len(residue), p.Dir)))
+			for _, path := range residue {
+				r.Err("  " + path)
 			}
 		}
 	}
@@ -55,15 +54,15 @@ func (e *engine) snapshot(c *cobra.Command, t syncTarget, rep *syncReport) error
 	}
 	rep.snapshotN = len(allowlisted)
 	return selfcommit.CommitPathsCore(ctx, selfcommit.BatchRequest{
-		StateDir: e.app.StateDir,
-		GitRoot:  t.root,
+		StateDir: deps.StateDir,
+		GitRoot:  t.Root,
 		Message:  snapshotMessage(staged),
 		Paths:    allowlisted,
 	})
 }
 
 func skipSnapshotPath(path string) bool {
-	return filepath.Base(path) == scopeLockName
+	return filepath.Base(path) == scopefile.LockName
 }
 
 // snapshotMessage: one commit for the whole snapshot (avoids tiny-commit replay piles).

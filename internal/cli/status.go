@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/p3bot/pj/internal/scopefile"
+
 	"github.com/spf13/cobra"
 
 	"github.com/p3bot/pj/internal/index"
@@ -138,7 +140,7 @@ func runStatus(app *App, c *cobra.Command, scopeFlag string) error {
 	schema := res.Schema(scope)
 	lens := e.reg.Lens[scope]
 
-	root, hasRoot := gitRootFor(dir)
+	root, hasRoot := scopefile.GitRoot(dir)
 	mode := statusMode(schema, res.ConfigErrs[scope] != nil, hasRoot)
 
 	pulse := map[string]string{
@@ -207,7 +209,7 @@ func runStatus(app *App, c *cobra.Command, scopeFlag string) error {
 	}
 	uncommitted := 0
 	if mode == scopeadmin.ModeRepoDriven {
-		uncommitted = countAllowlistedDirty(c.Context(), dir, root, hasRoot)
+		uncommitted = scopefile.CountAllowlistedDirty(c.Context(), dir, root, hasRoot)
 	}
 
 	pulse["total"] = strconv.Itoa(total)

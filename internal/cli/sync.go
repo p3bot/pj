@@ -2,15 +2,11 @@ package cli
 
 import (
 	"errors"
-	"fmt"
-	"os"
-	"sort"
 
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/gitroot"
 	"github.com/p3bot/pj/internal/resolve"
-	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/pj/internal/syncengine"
 )
 
 // newSyncCmd is the sole push boundary (autoCommit scopes only).
@@ -44,190 +40,46 @@ func runSync(app *App, c *cobra.Command, scopeFlag string, all bool) error {
 	}
 	defer e.close()
 
-	sel, err := e.selectSyncTargets(scopeFlag, all)
+	in, err := e.syncInput(scopeFlag, all)
 	if err != nil {
 		return err
 	}
 
-	for _, msg := range sel.unreachable {
-		stderrln(c, msg)
+	deps := syncengine.Deps{
+		Ctx:      c.Context(),
+		Cue:      e.app.Ctx,
+		StateDir: e.app.StateDir,
+		Reg:      e.reg,
+		DB:       e.db,
+		Rec:      e.rec,
 	}
-
-	if sel.candidates == 0 {
-		if len(sel.unreachable) > 0 {
-			stderrln(c, "nothing to sync: every registered auto-commit scope is unreachable")
-		} else {
-			stderrln(c, "nothing to sync: no auto-commit git-roots registered")
-		}
-		return nil
+	result, err := syncengine.Run(deps, cobraReporter{c: c}, in)
+	if err != nil {
+		return err
 	}
-
-	needsAttention := false
-	for _, msg := range sel.disabled {
-		stderrln(c, msg)
-		needsAttention = true
-	}
-
-	for _, msg := range sel.configErrs {
-		stderrln(c, msg)
-		needsAttention = true
-	}
-
-	for _, t := range sel.targets {
-		if e.syncRoot(c, t) == outcomeNeedsAttention {
-			needsAttention = true
-		}
-	}
-
-	if needsAttention {
-		return &ExitError{Code: exitFailure, Plain: true, Err: errors.New("pj sync: one or more roots need attention (see the lines above)")}
+	if result.NeedsAttention {
+		return &ExitError{Code: exitFailure, Plain: true, Err: syncengine.ErrNeedsAttention}
 	}
 	return nil
 }
 
-type participant struct {
-	name string
-	dir  string
-}
-
-type syncTarget struct {
-	root         string
-	participants []participant
-}
-
-type selection struct {
-	targets     []syncTarget
-	disabled    []string
-	configErrs  []string
-	unreachable []string
-	candidates  int
-}
-
-// selectSyncTargets: --all/no ambient fans out; ambient hard-refuses non-auto-commit.
-func (e *engine) selectSyncTargets(scopeFlag string, all bool) (selection, error) {
-	if !all {
-		resolved, err := e.resolveAmbient(scopeFlag)
-		switch {
-		case err == nil:
-			return e.ambientSelection(resolved)
-		case errors.Is(err, resolve.ErrNoScope):
-			// No ambient scope: fall through to every auto-commit git-root.
-		default:
-			return selection{}, err
-		}
+// syncInput maps the three CLI invocation shapes onto the two package inputs.
+// Ambient success → ambient; --all or resolve.ErrNoScope → all-registered;
+// other resolve errors fail here before the package runs.
+func (e *engine) syncInput(scopeFlag string, all bool) (syncengine.Input, error) {
+	if all {
+		return syncengine.Input{AllRegistered: true}, nil
 	}
-	return e.allSelection(), nil
-}
-
-func (e *engine) ambientSelection(resolved *resolve.Resolved) (selection, error) {
-	scope := resolved.Name
-	dir := resolved.Entry.Dir
-	root, hasRoot := gitRootFor(dir)
-
-	res, err := e.reconcileResult(single(scope, dir))
-	if err != nil {
-		return selection{}, err
-	}
-	if res.Unreachable[scope] {
-		return selection{}, fmt.Errorf("%s", token.Line(token.UnreachableScope,
-			fmt.Sprintf("%s: dir %s is not reachable — cannot sync", scope, dir)))
-	}
-	cfgErr, badConfig := res.ConfigErrs[scope]
+	resolved, err := e.resolveAmbient(scopeFlag)
 	switch {
-	case badConfig && !hasRoot:
-		return selection{}, fmt.Errorf("%s", token.Line(token.ConfigUnparseable, fmt.Sprintf(
-			"%s (%s): %s — fix pj.cue before sync can evaluate this scope", scope, cfgErr.Dir, cfgErr.Reason)))
-	case badConfig:
-	case !schemaAutoCommit(res.Schema(scope)):
-		return selection{}, e.nonAutoCommitRefusal(scope, hasRoot)
+	case err == nil:
+		return syncengine.Input{Ambient: &syncengine.AmbientScope{
+			Name: resolved.Name,
+			Dir:  resolved.Entry.Dir,
+		}}, nil
+	case errors.Is(err, resolve.ErrNoScope):
+		return syncengine.Input{AllRegistered: true}, nil
+	default:
+		return syncengine.Input{}, err
 	}
-	if !hasRoot {
-		return selection{candidates: 1, disabled: []string{syncDisabledLine(scope, dir)}}, nil
-	}
-	parts := e.autoCommitParticipants(root)
-	return selection{candidates: 1, targets: []syncTarget{{root: root, participants: parts}}}, nil
-}
-
-func (e *engine) allSelection() selection {
-	var sel selection
-	byRoot := map[string][]participant{}
-	type badConfig struct {
-		scope, dir, reason, root string
-		hasRoot                  bool
-	}
-	var badConfigs []badConfig
-	for _, scope := range e.sortedRegistered() {
-		dir := e.reg.Scopes[scope].Dir
-		if _, err := os.Stat(dir); err != nil {
-			sel.unreachable = append(sel.unreachable, token.Line(token.UnreachableScope,
-				fmt.Sprintf("%s: dir %s is not reachable — skipped", scope, dir)))
-			continue
-		}
-		schema, cfgErr := e.rec.SchemaOrError(scope, dir)
-		if cfgErr != nil {
-			root, hasRoot := gitRootFor(dir)
-			badConfigs = append(badConfigs, badConfig{scope: scope, dir: cfgErr.Dir, reason: cfgErr.Reason, root: root, hasRoot: hasRoot})
-			continue
-		}
-		if schema == nil || !schema.AutoCommit {
-			continue // non-auto-commit: not this command's business
-		}
-		sel.candidates++
-		root, hasRoot := gitRootFor(dir)
-		if !hasRoot {
-			sel.disabled = append(sel.disabled, syncDisabledLine(scope, dir))
-			continue
-		}
-		byRoot[root] = append(byRoot[root], participant{name: scope, dir: dir})
-	}
-	roots := make([]string, 0, len(byRoot))
-	for root := range byRoot {
-		roots = append(roots, root)
-	}
-	sort.Strings(roots)
-	for _, root := range roots {
-		parts := byRoot[root]
-		sort.Slice(parts, func(i, j int) bool { return parts[i].name < parts[j].name })
-		sel.targets = append(sel.targets, syncTarget{root: root, participants: parts})
-	}
-	for _, bc := range badConfigs {
-		if bc.hasRoot {
-			if _, covered := byRoot[bc.root]; covered {
-				continue // the per-root preflight already refuses this root by name
-			}
-		}
-		sel.candidates++
-		sel.configErrs = append(sel.configErrs, token.Line(token.ConfigUnparseable,
-			fmt.Sprintf("%s (%s): %s — fix pj.cue before sync can evaluate this scope", bc.scope, bc.dir, bc.reason)))
-	}
-	return sel
-}
-
-func (e *engine) autoCommitParticipants(root string) []participant {
-	var parts []participant
-	for _, scope := range e.sortedRegistered() {
-		dir := e.reg.Scopes[scope].Dir
-		sgr, ok := gitroot.RepoRoot(dir)
-		if !ok || sgr != root {
-			continue
-		}
-		schema, cfgErr := e.rec.SchemaOrError(scope, dir)
-		if cfgErr != nil || schema == nil || !schema.AutoCommit {
-			continue
-		}
-		parts = append(parts, participant{name: scope, dir: dir})
-	}
-	return parts
-}
-
-func (e *engine) nonAutoCommitRefusal(scope string, hasRoot bool) error {
-	if hasRoot {
-		return fmt.Errorf("sync is for auto-commit scopes only — %s is repo-driven; commit its project files with the host repo", scope)
-	}
-	return fmt.Errorf("sync is for auto-commit scopes only — %s is plain-files; there is no pj sync — run pj doctor if integrity warnings appear", scope)
-}
-
-func syncDisabledLine(scope, dir string) string {
-	return token.Line(token.SyncDisabled,
-		fmt.Sprintf("%s: no git repository with a remote for %s — set one up, then pj sync", scope, dir))
 }

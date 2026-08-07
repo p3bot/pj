@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/p3bot/pj/internal/scopefile"
+
 	"github.com/spf13/cobra"
 
 	"github.com/p3bot/pj/internal/frontmatter"
@@ -59,7 +61,7 @@ func runCreate(app *App, c *cobra.Command, titleArg, statusArg, scopeFlag string
 	scope := resolved.Name
 	dir := resolved.Entry.Dir
 
-	lock, err := acquireScopeLock(dir)
+	lock, err := scopefile.AcquireLock(dir)
 	if err != nil {
 		return err
 	}
@@ -85,7 +87,7 @@ func runCreate(app *App, c *cobra.Command, titleArg, statusArg, scopeFlag string
 	}
 
 	autoCommit := schemaAutoCommit(schema)
-	root, hasRoot := gitRootFor(dir)
+	root, hasRoot := scopefile.GitRoot(dir)
 	if err := checkMidRebase(ctx, scope, autoCommit, root, hasRoot); err != nil {
 		return err
 	}

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/p3bot/pj/internal/scopefile"
+
 	"github.com/spf13/cobra"
 
 	"github.com/p3bot/pj/internal/frontmatter"
@@ -76,12 +78,12 @@ func runScopeRename(app *App, c *cobra.Command, oldName, newName string) error {
 		return err
 	}
 	autoCommit := schema.AutoCommit
-	root, hasRoot := gitRootFor(dir)
+	root, hasRoot := scopefile.GitRoot(dir)
 	if err := checkMidRebase(c.Context(), oldName, autoCommit, root, hasRoot); err != nil {
 		return err
 	}
 
-	lock, err := acquireScopeLock(dir)
+	lock, err := scopefile.AcquireLock(dir)
 	if err != nil {
 		return err
 	}

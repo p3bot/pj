@@ -1,17 +1,17 @@
-package cli
+package syncengine
 
 import (
 	"fmt"
 	"sort"
 	"strings"
 
-	"github.com/spf13/cobra"
-
 	"github.com/p3bot/pj/internal/flock"
 	"github.com/p3bot/pj/internal/git"
 	"github.com/p3bot/pj/internal/gitroot"
 	"github.com/p3bot/pj/internal/gitstate"
+	"github.com/p3bot/pj/internal/integrity"
 	"github.com/p3bot/pj/internal/scopeconfig"
+	"github.com/p3bot/pj/internal/scopefile"
 	"github.com/p3bot/pj/internal/token"
 )
 
@@ -33,99 +33,99 @@ type syncReport struct {
 }
 
 // syncRoot isolates one git-root so --all continues past a bad sibling.
-func (e *engine) syncRoot(c *cobra.Command, t syncTarget) rootOutcome {
-	ctx := c.Context()
-	rep := &syncReport{label: participantLabel(t.participants)}
+func syncRoot(deps Deps, r Reporter, t Target) rootOutcome {
+	ctx := deps.Ctx
+	rep := &syncReport{label: participantLabel(t.Participants)}
 
-	if !e.syncPreflight(c, t.root) {
+	if !syncPreflight(deps, r, t.Root) {
 		return outcomeNeedsAttention
 	}
 
-	release, err := e.acquireSyncLocks(t)
+	release, err := acquireSyncLocks(deps, t)
 	if err != nil {
-		stderrln(c, fmt.Sprintf("%s: could not acquire sync locks: %v", rep.label, err))
+		r.Err(fmt.Sprintf("%s: could not acquire sync locks: %v", rep.label, err))
 		return outcomeNeedsAttention
 	}
 	defer release()
 
 	defer func() {
-		if err := e.drainEdgeVerify(c, rep); err != nil {
-			stderrln(c, fmt.Sprintf("%s: edge_verify query failed: %v", rep.label, err))
+		if err := drainEdgeVerify(deps, r, rep); err != nil {
+			r.Err(fmt.Sprintf("%s: edge_verify query failed: %v", rep.label, err))
 		}
 	}()
 
 	var res integrateResult
 	snapshotted := false
 	// Mid-rebase entry: skip snapshot (no commit on temporary HEAD), resume, then fall through.
-	if git.MidRebase(ctx, t.root) {
-		res = e.resumeRebase(c, t, rep)
+	if git.MidRebase(ctx, t.Root) {
+		res = resumeRebase(deps, r, t, rep)
 	} else {
-		if !git.HasUpstream(ctx, t.root) {
-			stderrln(c, token.Line(token.SyncDisabled,
-				fmt.Sprintf("%s: git-root %s has no upstream — add a remote, then pj sync", rep.label, t.root)))
+		if !git.HasUpstream(ctx, t.Root) {
+			r.Err(token.Line(token.SyncDisabled,
+				fmt.Sprintf("%s: git-root %s has no upstream — add a remote, then pj sync", rep.label, t.Root)))
 			return outcomeNeedsAttention
 		}
-		if err := e.snapshot(c, t, rep); err != nil {
-			stderrln(c, fmt.Sprintf("%s: snapshot failed: %v", rep.label, err))
+		if err := snapshot(deps, r, t, rep); err != nil {
+			r.Err(fmt.Sprintf("%s: snapshot failed: %v", rep.label, err))
 			return outcomeNeedsAttention
 		}
 		snapshotted = true
-		res = e.fetchAndIntegrate(c, t, rep)
+		res = fetchAndIntegrate(deps, r, t, rep)
 	}
 
 	switch res {
 	case integrateCompleted:
 		if !snapshotted {
-			if err := e.snapshot(c, t, rep); err != nil {
-				stderrln(c, fmt.Sprintf("%s: snapshot failed: %v", rep.label, err))
+			if err := snapshot(deps, r, t, rep); err != nil {
+				r.Err(fmt.Sprintf("%s: snapshot failed: %v", rep.label, err))
 				return outcomeNeedsAttention
 			}
 		}
-		return e.finishSynced(c, t, rep)
+		return finishSynced(deps, r, t, rep)
 	case integratePaused:
-		e.reportPaused(c, rep)
+		reportPaused(r, rep)
 		return outcomeNeedsAttention
 	default: // integrateError
 		return outcomeNeedsAttention
 	}
 }
 
-func (e *engine) finishSynced(c *cobra.Command, t syncTarget, rep *syncReport) rootOutcome {
-	if err := e.syncIntegrity(c, t); err != nil {
-		stderrln(c, fmt.Sprintf("%s: integrity step failed: %v", rep.label, err))
+func finishSynced(deps Deps, r Reporter, t Target, rep *syncReport) rootOutcome {
+	if err := syncIntegrity(deps, r, t); err != nil {
+		r.Err(fmt.Sprintf("%s: integrity step failed: %v", rep.label, err))
 		return outcomeNeedsAttention
 	}
-	if err := e.drainEdgeVerify(c, rep); err != nil {
-		stderrln(c, fmt.Sprintf("%s: edge_verify query failed: %v", rep.label, err))
+	if err := drainEdgeVerify(deps, r, rep); err != nil {
+		r.Err(fmt.Sprintf("%s: edge_verify query failed: %v", rep.label, err))
 		return outcomeNeedsAttention
 	}
-	switch e.pushIfAhead(c, t, rep) {
+	switch pushIfAhead(deps, r, t, rep) {
 	case pushPaused:
-		e.reportPaused(c, rep)
+		reportPaused(r, rep)
 		return outcomeNeedsAttention
 	case pushFailed:
 		return outcomeNeedsAttention
 	}
-	e.reportSuccess(c, rep)
+	reportSuccess(r, rep)
 	return outcomeSynced
 }
 
 // syncPreflight refuses the whole root on unparseable/drifted/mismatched siblings.
-func (e *engine) syncPreflight(c *cobra.Command, root string) bool {
+func syncPreflight(deps Deps, r Reporter, root string) bool {
 	refuse := false
 	seenTrue, seenFalse := false, false
-	for _, name := range e.siblingScopeNames(root) {
-		dir := e.reg.Scopes[name].Dir
-		if pjName, err := scopeconfig.ReadName(e.app.Ctx, dir); err == nil && pjName != name {
-			stderrln(c, token.Line(token.NameDrift, fmt.Sprintf(
+	for _, name := range siblingScopeNames(deps, root) {
+		dir := deps.Reg.Scopes[name].Dir
+		if pjName, err := scopeconfig.ReadName(deps.Cue, dir); err == nil && pjName != name {
+			r.Err(token.Line(token.NameDrift, fmt.Sprintf(
 				"%s (%s): registry key %q but pj.cue name is %q — recover with pj scope forget %s then pj scope import; the whole git-root %s is refused",
 				name, dir, name, pjName, name, root)))
 			refuse = true
 			continue
 		}
-		schema, cfgErr := e.rec.SchemaOrError(name, dir)
+		schema, cfgErr := deps.Rec.SchemaOrError(name, dir)
 		if cfgErr != nil {
-			stderrln(c, token.Line(token.ConfigUnparseable, fmt.Sprintf(
+			r.Err(token.Line(token.ConfigUnparseable, fmt.Sprintf(
 				"%s (%s): %s — fix pj.cue before sync can merge this git-root", name, cfgErr.Dir, cfgErr.Reason)))
 			refuse = true
 			continue
@@ -137,16 +137,16 @@ func (e *engine) syncPreflight(c *cobra.Command, root string) bool {
 		}
 	}
 	if seenTrue && seenFalse {
-		stderrln(c, token.Line(token.AutoCommitMismatch, fmt.Sprintf(
+		r.Err(token.Line(token.AutoCommitMismatch, fmt.Sprintf(
 			"scopes sharing git-root %s disagree on autoCommit — split the divergent scope into its own repo", root)))
 		refuse = true
 	}
 	return !refuse
 }
 
-func (e *engine) siblingScopeNames(root string) []string {
+func siblingScopeNames(deps Deps, root string) []string {
 	var out []string
-	for name, entry := range e.reg.Scopes {
+	for name, entry := range deps.Reg.Scopes {
 		if sgr, ok := gitroot.RepoRoot(entry.Dir); ok && sgr == root {
 			out = append(out, name)
 		}
@@ -156,22 +156,22 @@ func (e *engine) siblingScopeNames(root string) []string {
 }
 
 // acquireSyncLocks: scope locks first (name order), then git-root — reverse would deadlock write verbs.
-func (e *engine) acquireSyncLocks(t syncTarget) (func(), error) {
+func acquireSyncLocks(deps Deps, t Target) (func(), error) {
 	var locks []*flock.Lock
 	release := func() {
 		for i := len(locks) - 1; i >= 0; i-- {
 			_ = locks[i].Release()
 		}
 	}
-	for _, p := range t.participants {
-		l, err := acquireScopeLock(p.dir)
+	for _, p := range t.Participants {
+		l, err := scopefile.AcquireLock(p.Dir)
 		if err != nil {
 			release()
 			return nil, err
 		}
 		locks = append(locks, l)
 	}
-	gl, err := gitstate.AcquireCommitLock(e.app.StateDir, t.root)
+	gl, err := gitstate.AcquireCommitLock(deps.StateDir, t.Root)
 	if err != nil {
 		release()
 		return nil, err
@@ -181,20 +181,20 @@ func (e *engine) acquireSyncLocks(t syncTarget) (func(), error) {
 }
 
 // drainEdgeVerify: report-and-clear so deferred backstop and step-3 are mutually no-op.
-func (e *engine) drainEdgeVerify(c *cobra.Command, rep *syncReport) error {
+func drainEdgeVerify(deps Deps, r Reporter, rep *syncReport) error {
 	if len(rep.collidedIDs) == 0 {
 		return nil
 	}
 	ids := rep.collidedIDs
 	rep.collidedIDs = nil
-	return e.reportEdgeVerify(c, ids)
+	return integrity.ReportEdgeVerify(integrityDeps(deps), r, ids)
 }
 
-func (e *engine) reportPaused(c *cobra.Command, rep *syncReport) {
-	stderrln(c, fmt.Sprintf("%s: rebase paused for a human — resolve the file(s) above in place, then run pj sync again", rep.label))
+func reportPaused(r Reporter, rep *syncReport) {
+	r.Err(fmt.Sprintf("%s: rebase paused for a human — resolve the file(s) above in place, then run pj sync again", rep.label))
 }
 
-func (e *engine) reportSuccess(c *cobra.Command, rep *syncReport) {
+func reportSuccess(r Reporter, rep *syncReport) {
 	var parts []string
 	if rep.snapshotN > 0 {
 		parts = append(parts, fmt.Sprintf("snapshot %d path(s)", rep.snapshotN))
@@ -211,13 +211,13 @@ func (e *engine) reportSuccess(c *cobra.Command, rep *syncReport) {
 	if rep.residueN > 0 {
 		parts = append(parts, fmt.Sprintf("%d non-allowlist path(s) left", rep.residueN))
 	}
-	stderrln(c, fmt.Sprintf("pj sync %s: %s", rep.label, strings.Join(parts, ", ")))
+	r.Err(fmt.Sprintf("pj sync %s: %s", rep.label, strings.Join(parts, ", ")))
 }
 
-func participantLabel(parts []participant) string {
+func participantLabel(parts []Participant) string {
 	names := make([]string, len(parts))
 	for i, p := range parts {
-		names[i] = p.name
+		names[i] = p.Name
 	}
 	return strings.Join(names, ", ")
 }
