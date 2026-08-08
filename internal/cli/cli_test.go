@@ -159,6 +159,30 @@ func helpSection(help, title string) string {
 	return b.String()
 }
 
+func TestRootVersion(t *testing.T) {
+	app := newApp(t)
+	for _, args := range [][]string{{"--version"}, {"-v"}} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			out, errOut, err := run(t, app, args...)
+			if err != nil {
+				t.Fatalf("version %v: %v", args, err)
+			}
+			if errOut != "" {
+				t.Errorf("stderr must be empty, got %q", errOut)
+			}
+			if !strings.Contains(out, "tk version") {
+				t.Errorf("missing 'tk version' in %q", out)
+			}
+			if !strings.Contains(out, "https://github.com/p3bot/tk") {
+				t.Errorf("missing repo URL in %q", out)
+			}
+			if !strings.Contains(out, "/issues/new") {
+				t.Errorf("missing issues URL in %q", out)
+			}
+		})
+	}
+}
+
 func TestRootHelpGroups(t *testing.T) {
 	app := newApp(t)
 

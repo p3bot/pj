@@ -14,6 +14,17 @@ import (
 	"github.com/p3bot/tk/internal/xdg"
 )
 
+// Build-time variables set via ldflags (same pattern as start).
+var (
+	cliVersion = "dev"
+	repoURL    = "https://github.com/p3bot/tk"
+)
+
+var versionTemplate = fmt.Sprintf(`tk version %s
+%s
+%s/issues/new
+`, cliVersion, repoURL, repoURL)
+
 // App carries process-wide CUE context and XDG config/state directories.
 type App struct {
 	Ctx       *cue.Context
@@ -66,6 +77,7 @@ func newRootCmd(app *App) *cobra.Command {
 		Use:           "tk",
 		Short:         "Agent ticket management CLI",
 		Long:          "tk tracks feature work as plain markdown files, one ticket per file.",
+		Version:       cliVersion,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          usageArgs(cobra.NoArgs),
@@ -73,6 +85,7 @@ func newRootCmd(app *App) *cobra.Command {
 			return c.Help()
 		},
 	}
+	root.SetVersionTemplate(versionTemplate)
 	// Flag-parse failures → exit 2.
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
 		return &ExitError{Code: exitUsage, Err: err}
