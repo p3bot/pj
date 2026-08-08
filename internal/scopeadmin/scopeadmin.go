@@ -71,13 +71,11 @@ func (a *Admin) Init(p InitParams) (string, error) {
 
 	// Derive git-root without creating the dir so a failed init leaves nothing behind.
 	gitRoot, inRepo := gitroot.RepoRootForNew(p.Dir)
-	codeRoot, err := resolveCodeRoot(p.Dir, p.CodeRoot, p.CodeRootGiven, gitRoot, inRepo)
-	if err != nil {
-		return "", err
-	}
+	codeRoot := resolveCodeRoot(p.Dir, p.CodeRoot, p.CodeRootGiven, gitRoot, inRepo)
 
 	name := p.Name
 	if p.AutoName {
+		var err error
 		name, err = scope.AutoName(filepath.Base(codeRoot))
 		if err != nil {
 			return "", fmt.Errorf("--auto-name: %w", err)
@@ -156,10 +154,7 @@ func (a *Admin) Import(p ImportParams) (string, error) {
 	}
 
 	gitRoot, inRepo := gitroot.RepoRoot(p.Dir)
-	codeRoot, err := resolveCodeRoot(p.Dir, p.CodeRoot, p.CodeRootGiven, gitRoot, inRepo)
-	if err != nil {
-		return "", err
-	}
+	codeRoot := resolveCodeRoot(p.Dir, p.CodeRoot, p.CodeRootGiven, gitRoot, inRepo)
 
 	lock, err := xdg.AcquireConfigLock(a.configDir)
 	if err != nil {
@@ -397,18 +392,17 @@ func DeriveMode(autoCommit, inRepo bool) string {
 }
 
 // resolveCodeRoot applies the init/import code-root default matrix.
-// An explicit code-root inside a git repo must resolve within that same repo.
-func resolveCodeRoot(dir, codeRoot string, given bool, gitRoot string, inRepo bool) (string, error) {
+// Explicit --code-root is stored as-is: ambient cwd match only. Git durability
+// always derives from dir, so a foreign code-root (tickets repo ≠ product tree)
+// is valid and deliberate — same as rebind --code-root.
+func resolveCodeRoot(dir, codeRoot string, given bool, gitRoot string, inRepo bool) string {
 	if given {
-		if inRepo && !pathutil.UnderOrEqual(codeRoot, gitRoot) {
-			return "", fmt.Errorf("--code-root %s is not inside the git repository %s that holds the dir — a code-root is where the scope is ambient; keep it inside the repo, or omit it to default to the repo root", codeRoot, gitRoot)
-		}
-		return codeRoot, nil
+		return codeRoot
 	}
 	if inRepo {
-		return gitRoot, nil
+		return gitRoot
 	}
-	return dir, nil
+	return dir
 }
 
 // ensureGitignore makes sure <dir>/.gitignore ignores .tk.lock without disturbing other entries.

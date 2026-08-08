@@ -11,6 +11,7 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/p3bot/tk/internal/pathutil"
 	"github.com/p3bot/tk/internal/registry"
+	"github.com/p3bot/tk/internal/resolve"
 	"github.com/p3bot/tk/internal/scopeconfig"
 	"github.com/p3bot/tk/internal/testgit"
 	"github.com/p3bot/tk/internal/token"
@@ -116,15 +117,33 @@ func TestInitPreexistingTkCue(t *testing.T) {
 	}
 }
 
-func TestInitCodeRootOutsideRepo(t *testing.T) {
+func TestInitForeignCodeRoot(t *testing.T) {
+	// Tickets dir in its own git repo; ambient code-root may be a foreign product tree.
 	h := newHarness(t)
-	repo := filepath.Join(t.TempDir(), "repo")
+	repo := filepath.Join(t.TempDir(), "tickets")
 	gitInit(t, repo)
 	dir := filepath.Join(repo, ".agents", "tk")
-	outside := filepath.Join(t.TempDir(), "elsewhere")
-	_, err := h.admin.Init(InitParams{Dir: dir, Name: "x", CodeRoot: outside, CodeRootGiven: true})
-	if err == nil || !strings.Contains(err.Error(), "not inside the git repository") {
-		t.Fatalf("expected code-root-outside-repo error, got %v", err)
+	outside := filepath.Join(t.TempDir(), "product")
+	if err := os.MkdirAll(outside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.admin.Init(InitParams{Dir: dir, Name: "x", CodeRoot: outside, CodeRootGiven: true}); err != nil {
+		t.Fatalf("Init with foreign code-root: %v", err)
+	}
+	reg := h.reg(t)
+	if got := reg.Scopes["x"].Root; got != pathutil.Canonical(outside) {
+		t.Errorf("code-root = %q want foreign product tree %q", got, pathutil.Canonical(outside))
+	}
+	if got := reg.Scopes["x"].Dir; got != pathutil.Canonical(dir) {
+		t.Errorf("dir = %q want tickets dir %q", got, pathutil.Canonical(dir))
+	}
+	cwd := pathutil.Canonical(filepath.Join(outside, "pkg"))
+	got, err := resolve.Resolve(h.ctx, reg, resolve.Options{Cwd: cwd})
+	if err != nil {
+		t.Fatalf("ambient resolve under product tree: %v", err)
+	}
+	if got.Name != "x" || got.Source != resolve.SourceCwd {
+		t.Errorf("ambient = name=%q source=%q want name=x source=%s", got.Name, got.Source, resolve.SourceCwd)
 	}
 }
 
@@ -238,6 +257,43 @@ func TestImportReadsConfigAndGuards(t *testing.T) {
 	_, err := h.admin.Import(ImportParams{Dir: bad})
 	if err == nil || !strings.HasPrefix(err.Error(), token.ConfigUnparseable) {
 		t.Fatalf("expected config_unparseable on import, got %v", err)
+	}
+}
+
+func TestImportForeignCodeRoot(t *testing.T) {
+	// External ticket store (own git repo) + product tree ambient — single-step import.
+	h := newHarness(t)
+	tickets := filepath.Join(t.TempDir(), "tickets")
+	gitInit(t, tickets)
+	dir := filepath.Join(tickets, "fm")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "tk.cue"), []byte("name: \"fm\"\nautoCommit: true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	product := filepath.Join(t.TempDir(), "fieldmonkeys")
+	if err := os.MkdirAll(product, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.admin.Import(ImportParams{Dir: dir, CodeRoot: product, CodeRootGiven: true}); err != nil {
+		t.Fatalf("Import with foreign code-root: %v", err)
+	}
+	reg := h.reg(t)
+	entry := reg.Scopes["fm"]
+	if entry.Root != pathutil.Canonical(product) {
+		t.Errorf("root = %q want product %q", entry.Root, pathutil.Canonical(product))
+	}
+	if entry.Dir != pathutil.Canonical(dir) {
+		t.Errorf("dir = %q want tickets dir %q", entry.Dir, pathutil.Canonical(dir))
+	}
+	cwd := pathutil.Canonical(filepath.Join(product, "cmd", "app"))
+	got, err := resolve.Resolve(h.ctx, reg, resolve.Options{Cwd: cwd})
+	if err != nil {
+		t.Fatalf("ambient resolve under product tree: %v", err)
+	}
+	if got.Name != "fm" || got.Source != resolve.SourceCwd {
+		t.Errorf("ambient = name=%q source=%q want name=fm source=%s", got.Name, got.Source, resolve.SourceCwd)
 	}
 }
 

@@ -21,9 +21,10 @@ func newScopeInitCmd(app *App) *cobra.Command {
 			".gitignore covering .tk.lock, and register the scope on this machine.\n\n" +
 			"Exactly one of --name or --auto-name is required — the name is never\n" +
 			"silently defaulted. The code-root defaults to the enclosing git repo root\n" +
-			"inside a repo, else the dir; --code-root overrides it (and must stay inside\n" +
-			"the repo when the dir is in one). In a dedicated tk repo, pass --auto-commit\n" +
-			"(omitting it registers repo-driven). init never prompts and never runs git.",
+			"inside a repo, else the dir; --code-root overrides it (any path: ambient\n" +
+			"cwd match only — git durability always follows the scope dir). In a\n" +
+			"dedicated tk repo, pass --auto-commit (omitting it registers repo-driven).\n" +
+			"init never prompts and never runs git.",
 		Args: usageArgs(cobra.ExactArgs(1)),
 		RunE: func(c *cobra.Command, args []string) error {
 			switch {
