@@ -65,7 +65,7 @@ func (e *engine) completeStateDurability(ctx context.Context, c *cobra.Command, 
 	if err := selfcommit.Commit(ctx, req); err != nil {
 		return fmt.Errorf("self-commit %s: %w", scope, err)
 	}
-	e.pjDrivenSyncNeeded(ctx, c, dir, root)
+	e.tkDrivenSyncNeeded(ctx, c, dir, root)
 	return nil
 }
 
@@ -78,13 +78,13 @@ func (e *engine) createDurability(ctx context.Context, c *cobra.Command, dir str
 	if !autoCommit || !hasRoot {
 		return
 	}
-	e.pjDrivenSyncNeeded(ctx, c, dir, root)
+	e.tkDrivenSyncNeeded(ctx, c, dir, root)
 }
 
-// pjDrivenSyncNeeded emits at most one sync_needed: line after a tk-driven write.
+// tkDrivenSyncNeeded emits at most one sync_needed: line after a tk-driven write.
 // Priority when several conditions hold: push failed, then dirty, then unpushed.
 // Reason strings are catalogue-stable: "push failed", "dirty", "unpushed".
-func (e *engine) pjDrivenSyncNeeded(ctx context.Context, c *cobra.Command, dir, root string) {
+func (e *engine) tkDrivenSyncNeeded(ctx context.Context, c *cobra.Command, dir, root string) {
 	if _, present := gitstate.ReadLastPushError(e.app.StateDir, root); present {
 		stderrln(c, token.Line(token.SyncNeeded, "push failed"))
 		return

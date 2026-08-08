@@ -573,7 +573,7 @@ func TestRepoDrivenWriteQuiet(t *testing.T) {
 	}
 }
 
-func TestPjDrivenCreateSyncNeededDirty(t *testing.T) {
+func TestTkDrivenCreateSyncNeededDirty(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
 	initGitScope(t, app, "wc", true)
@@ -593,7 +593,7 @@ func TestPjDrivenCreateSyncNeededDirty(t *testing.T) {
 	}
 }
 
-func TestPjDrivenSelfCommitSyncNeededUnpushed(t *testing.T) {
+func TestTkDrivenSelfCommitSyncNeededUnpushed(t *testing.T) {
 	requireGit(t)
 	remote := newBareRemote(t)
 	m := cloneMachine(t, remote)
@@ -620,7 +620,7 @@ func TestPjDrivenSelfCommitSyncNeededUnpushed(t *testing.T) {
 	}
 }
 
-func TestPjDrivenWriteSyncNeededPushFailed(t *testing.T) {
+func TestTkDrivenWriteSyncNeededPushFailed(t *testing.T) {
 	requireGit(t)
 	remote := newBareRemote(t)
 	m := cloneMachine(t, remote)

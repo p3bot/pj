@@ -104,7 +104,7 @@ func TestInitExactlyOneName(t *testing.T) {
 	}
 }
 
-func TestInitPreexistingPjCue(t *testing.T) {
+func TestInitPreexistingTkCue(t *testing.T) {
 	h := newHarness(t)
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "tk.cue"), []byte("name: \"x\"\nautoCommit: false\n"), 0o644); err != nil {
@@ -376,8 +376,8 @@ func TestListModesAndDiagnostics(t *testing.T) {
 	}
 	repo := filepath.Join(base, "repo")
 	gitInit(t, repo)
-	pjd := filepath.Join(repo, ".agents", "tk")
-	if _, err := h.admin.Init(InitParams{Dir: pjd, Name: "pd", AutoCommit: true, AutoCommitGiven: true}); err != nil {
+	pdDir := filepath.Join(repo, ".agents", "tk")
+	if _, err := h.admin.Init(InitParams{Dir: pdDir, Name: "pd", AutoCommit: true, AutoCommitGiven: true}); err != nil {
 		t.Fatal(err)
 	}
 	repo2 := filepath.Join(base, "repo2")
@@ -409,7 +409,7 @@ func TestListModesAndDiagnostics(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(plain, "tk.cue"), []byte("name: \"plnew\"\nautoCommit: false\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(pjd, "tk.cue"), []byte("name: \"pd\" broken:::"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(pdDir, "tk.cue"), []byte("name: \"pd\" broken:::"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.RemoveAll(rpd); err != nil {

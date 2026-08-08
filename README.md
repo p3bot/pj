@@ -70,30 +70,6 @@ tk scope list          # bare `tk scope` and `tk scopes` also run list
   non-zero. There is no `--json` and no colour on stdout. `NO_COLOR` suppresses
   all ANSI.
 
-## Upgrading (from pj)
-
-`tk` is a hard cut from the former `pj` product name. There is no dual-read of
-old wire names. Operator steps on a machine that still has `pj` installed:
-
-1. Install `tk` (`go install github.com/p3bot/tk/cmd/tk@latest`, build from
-   source, or `brew install p3bot/tap/tk` once the operator has tagged a
-   post-cutover release and filled the formula `url` / `sha256`).
-2. Rename on-disk scope wires that still use the old product names:
-   `pj.cue` → `tk.cue`, and any `.gitignore` / lock entry `.pj.lock` → `.tk.lock`.
-   (This product tree already ships `tk.cue` / `.tk.lock` under `.agents/tk/`.)
-3. Use a fresh XDG state directory under `tk`
-   (`${XDG_STATE_HOME:-~/.local/state}/tk/`). Do not copy or rename `index.db`
-   from the old `pj` state dir — the schema table is now `tickets`, and cutover
-   rebuilds from markdown via re-import.
-4. Switch shell profiles and automation from `PJ_SCOPE` to `TK_SCOPE`.
-5. Re-import or rebind scopes so the registry and index are built under `tk`
-   (`tk scope import` / `tk scope rebind` as needed). Optional:
-   `tk doctor --reindex`.
-6. Reinstall the agent skill (`tk skill uninstall` then `tk skill install`, or
-   install fresh). Retire old `pj` skill copies.
-7. Retire the `pj` binary and formula (`brew uninstall p3bot/tap/pj` if present).
-   The old `pj` XDG config/state dirs may be deleted at convenience.
-
 ## Development
 
 | Task | Command |

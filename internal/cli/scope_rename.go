@@ -61,12 +61,12 @@ func runScopeRename(app *App, c *cobra.Command, oldName, newName string) error {
 	dir := entry.Dir
 
 	// Resolve by registry key <old> (name_drift exemption for interrupted rename).
-	pjName, err := scopeconfig.ReadName(app.Ctx, dir)
+	cueName, err := scopeconfig.ReadName(app.Ctx, dir)
 	if err != nil {
 		return fmt.Errorf("cannot rename %q: its tk.cue is unreadable: %w", oldName, err)
 	}
-	if pjName != oldName && pjName != newName {
-		return fmt.Errorf("cannot rename %q to %q: its tk.cue name is %q — this is name drift, recover with tk scope forget %s && tk scope import %s", oldName, newName, pjName, oldName, dir)
+	if cueName != oldName && cueName != newName {
+		return fmt.Errorf("cannot rename %q to %q: its tk.cue name is %q — this is name drift, recover with tk scope forget %s && tk scope import %s", oldName, newName, cueName, oldName, dir)
 	}
 
 	schema, err := scopeconfig.Load(app.Ctx, dir)
@@ -108,7 +108,7 @@ func runScopeRename(app *App, c *cobra.Command, oldName, newName string) error {
 		return err
 	}
 	// tk.cue name last: crash before → re-run finishes leftovers; after → name_drift window.
-	if pjName != newName {
+	if cueName != newName {
 		if err := scopeconfig.RewriteName(dir, newName); err != nil {
 			return err
 		}

@@ -116,10 +116,10 @@ func syncPreflight(deps Deps, r Reporter, root string) bool {
 	seenTrue, seenFalse := false, false
 	for _, name := range siblingScopeNames(deps, root) {
 		dir := deps.Reg.Scopes[name].Dir
-		if pjName, err := scopeconfig.ReadName(deps.Cue, dir); err == nil && pjName != name {
+		if cueName, err := scopeconfig.ReadName(deps.Cue, dir); err == nil && cueName != name {
 			r.Err(token.Line(token.NameDrift, fmt.Sprintf(
 				"%s (%s): registry key %q but tk.cue name is %q — recover with tk scope forget %s then tk scope import; the whole git-root %s is refused",
-				name, dir, name, pjName, name, root)))
+				name, dir, name, cueName, name, root)))
 			refuse = true
 			continue
 		}

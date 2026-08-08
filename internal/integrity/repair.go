@@ -124,8 +124,8 @@ func repairPreflight(deps Deps, rep Reporter, scope, dir string, res *reconcile.
 		rep.Err(fmt.Sprintf("skipping %s: dir unreachable", scope))
 		return nil, nil
 	}
-	if pjName, err := scopeconfig.ReadName(deps.Cue, dir); err == nil && pjName != scope {
-		rep.Err(token.Line(token.NameDrift, fmt.Sprintf("skipping %s: registry key %q but tk.cue name is %q — recover with tk scope forget/import", scope, scope, pjName)))
+	if cueName, err := scopeconfig.ReadName(deps.Cue, dir); err == nil && cueName != scope {
+		rep.Err(token.Line(token.NameDrift, fmt.Sprintf("skipping %s: registry key %q but tk.cue name is %q — recover with tk scope forget/import", scope, scope, cueName)))
 		return nil, nil
 	}
 	if _, bad := res.ConfigErrs[scope]; bad {

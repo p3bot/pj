@@ -81,7 +81,7 @@ func freshLoader() SchemaLoader {
 	}
 }
 
-func pjcue(extra string) string {
+func tkcue(extra string) string {
 	return "name: \"wc\"\nautoCommit: true\n" + extra
 }
 
@@ -183,7 +183,7 @@ func TestCleanTwoSidedFrontmatterStaged(t *testing.T) {
 	featBody := "L1\nL2\nL3\nL4\nL5\nL6\nF7\n"
 
 	f := setup(t,
-		pjcue(""), "",
+		tkcue(""), "",
 		proj(fmBase, body), proj(fmMain, mainBody), proj(fmFeat, featBody),
 		"2026-06-01T00:00:00Z")
 
@@ -222,7 +222,7 @@ func TestBodyConflictUnstaged(t *testing.T) {
 	main := proj(fmMain, "a\nMAIN\nc\n")
 	feat := proj(fmBase, "a\nFEAT\nc\n")
 
-	f := setup(t, pjcue(""), "", base, main, feat,
+	f := setup(t, tkcue(""), "", base, main, feat,
 		"2026-02-01T00:00:00Z")
 
 	out := resolve(t, f)
@@ -246,7 +246,7 @@ func TestDeleteEditHandoffMapping(t *testing.T) {
 	base := proj("id: wc-ab2c\nstatus: todo\norder: \"a0\"\n", "body\n")
 	feat := proj("id: wc-ab2c\nstatus: done\norder: \"a0\"\n", "edited\n")
 
-	f := setup(t, pjcue(""), "", base, "", feat,
+	f := setup(t, tkcue(""), "", base, "", feat,
 		"2026-02-01T00:00:00Z")
 
 	before, _ := os.ReadFile(filepath.Join(f.repo, f.projRel))
@@ -273,7 +273,7 @@ func TestFailClosedImmutableDisagreement(t *testing.T) {
 	main := proj("id: wc-zzzz\nstatus: todo\norder: \"a0\"\n", "b\n")
 	feat := proj("id: wc-yyyy\nstatus: todo\norder: \"a0\"\n", "b\n")
 
-	f := setup(t, pjcue(""), "", base, main, feat,
+	f := setup(t, tkcue(""), "", base, main, feat,
 		"2026-02-01T00:00:00Z")
 
 	out := resolve(t, f)
@@ -292,7 +292,7 @@ func TestAddAddRenameTwoFiles(t *testing.T) {
 	mainFile := proj("id: wc-ab2c\nstatus: todo\norder: \"a0\"\ncreated: 2026-01-01T00:00:00Z\n", "MAIN body\n")
 	featFile := proj("id: wc-ab2c\nstatus: todo\norder: \"a0\"\ncreated: 2026-06-01T00:00:00Z\n", "FEAT body\n")
 
-	f := setup(t, pjcue(""), "", "", mainFile, featFile,
+	f := setup(t, tkcue(""), "", "", mainFile, featFile,
 		"2026-02-01T00:00:00Z")
 
 	out := resolve(t, f)
@@ -325,7 +325,7 @@ func TestPerFileAuthorDateNotBranchTip(t *testing.T) {
 	requireGit(t)
 	repo := newRepo(t)
 	scopeDir := filepath.Join(repo, "wc")
-	writeF(t, filepath.Join(scopeDir, "tk.cue"), pjcue(""))
+	writeF(t, filepath.Join(scopeDir, "tk.cue"), tkcue(""))
 	aPath := filepath.Join(repo, "wc", "wc-ab2c-a.md")
 	bPath := filepath.Join(repo, "wc", "wc-cd3e-b.md")
 	writeF(t, aPath, proj("id: wc-ab2c\nstatus: todo\norder: \"a0\"\nsummary: BASE\ncreated: 2026-01-01T00:00:00Z\n", "x\n"))
@@ -372,9 +372,9 @@ func TestSchemaFromOnDiskStrings(t *testing.T) {
 	fmMain := "id: wc-ab2c\nstatus: todo\norder: \"a0\"\nreviewers: [alice, bob]\n"
 	fmFeat := "id: wc-ab2c\nstatus: todo\norder: \"a0\"\nreviewers: [alice, carol]\n"
 	// Only main's tk.cue declares reviewers as strings; it lands in the on-disk schema.
-	cueMain := pjcue("fields: reviewers: type: \"strings\"\n")
+	cueMain := tkcue("fields: reviewers: type: \"strings\"\n")
 
-	f := setup(t, pjcue(""), cueMain,
+	f := setup(t, tkcue(""), cueMain,
 		proj(fmBase, "b\n"), proj(fmMain, "b\n"), proj(fmFeat, "b\n"),
 		"2026-02-01T00:00:00Z")
 
@@ -403,7 +403,7 @@ func TestOccupiedAccumulatesAcrossAddAdds(t *testing.T) {
 	requireGit(t)
 	repo := newRepo(t)
 	scopeDir := filepath.Join(repo, "wc")
-	writeF(t, filepath.Join(scopeDir, "tk.cue"), pjcue(""))
+	writeF(t, filepath.Join(scopeDir, "tk.cue"), tkcue(""))
 	writeF(t, filepath.Join(repo, "seed.txt"), "seed\n")
 	commitAll(t, repo, "seed", "2026-01-01T00:00:00Z")
 	mainBranch := gitCapture(t, repo, "rev-parse", "--abbrev-ref", "HEAD")
@@ -453,7 +453,7 @@ func TestOperationalErrorDistinctFromFailClosed(t *testing.T) {
 	base := proj("id: wc-ab2c\nstatus: todo\norder: \"a0\"\n", "b\n")
 	main := proj("id: wc-ab2c\nstatus: done\norder: \"a0\"\n", "b\n")
 	feat := proj("id: wc-ab2c\nstatus: in-progress\norder: \"a0\"\n", "b\n")
-	f := setup(t, pjcue(""), "", base, main, feat,
+	f := setup(t, tkcue(""), "", base, main, feat,
 		"2026-02-01T00:00:00Z")
 
 	d := New(f.repo, func(string) (*scopeconfig.Schema, error) {

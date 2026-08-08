@@ -236,12 +236,12 @@ func (a *Admin) Rebind(p RebindParams) (dir string, changed bool, err error) {
 	}
 
 	// New dir must hold a tk.cue whose name equals --name (rebind is not name repair).
-	pjName, err := scopeconfig.ReadName(a.ctx, p.Dir)
+	cueName, err := scopeconfig.ReadName(a.ctx, p.Dir)
 	if err != nil {
 		return "", false, fmt.Errorf("cannot rebind %q to %s: %w", p.Name, p.Dir, err)
 	}
-	if pjName != p.Name {
-		return "", false, fmt.Errorf("refusing to rebind %q to %s: its tk.cue name is %q, not %q — rebind moves paths, it does not repair a name", p.Name, p.Dir, pjName, p.Name)
+	if cueName != p.Name {
+		return "", false, fmt.Errorf("refusing to rebind %q to %s: its tk.cue name is %q, not %q — rebind moves paths, it does not repair a name", p.Name, p.Dir, cueName, p.Name)
 	}
 
 	if p.CodeRootGiven {
@@ -356,8 +356,8 @@ func (a *Admin) List() (*Listing, error) {
 		driftName := ""
 		if cfgErr == nil {
 			driftName = schema.Name
-		} else if pjName, nameErr := scopeconfig.ReadName(a.ctx, entry.Dir); nameErr == nil {
-			driftName = pjName
+		} else if cueName, nameErr := scopeconfig.ReadName(a.ctx, entry.Dir); nameErr == nil {
+			driftName = cueName
 		}
 		if driftName != "" && driftName != name {
 			out.Diagnostics = append(out.Diagnostics,

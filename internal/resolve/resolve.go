@@ -55,10 +55,10 @@ func (e *UnknownScopeError) Error() string {
 
 // DriftError is returned when a resolved scope's registry key disagrees with on-disk tk.cue name.
 type DriftError struct {
-	Key    string
-	PjName string
-	Dir    string
-	line   string
+	Key     string
+	CueName string
+	Dir     string
+	line    string
 }
 
 func (e *DriftError) Error() string { return e.line }
@@ -106,13 +106,13 @@ func longestPrefix(reg *registry.Registry, cwd string) (string, registry.Entry, 
 // resolvedOrDrift returns the scope unless on-disk name disagrees with the registry key.
 // Unreadable tk.cue still resolves (reads stay available; write path gates config).
 func resolvedOrDrift(ctx *cue.Context, name string, entry registry.Entry, source string) (*Resolved, error) {
-	pjName, err := scopeconfig.ReadName(ctx, entry.Dir)
-	if err == nil && pjName != name {
+	cueName, err := scopeconfig.ReadName(ctx, entry.Dir)
+	if err == nil && cueName != name {
 		return nil, &DriftError{
-			Key:    name,
-			PjName: pjName,
-			Dir:    entry.Dir,
-			line:   DriftLine(name, pjName, entry.Dir, SuggestCodeRoot(entry.Dir, entry.Root)),
+			Key:     name,
+			CueName: cueName,
+			Dir:     entry.Dir,
+			line:    DriftLine(name, cueName, entry.Dir, SuggestCodeRoot(entry.Dir, entry.Root)),
 		}
 	}
 	return &Resolved{Name: name, Entry: entry, Source: source}, nil
@@ -120,12 +120,12 @@ func resolvedOrDrift(ctx *cue.Context, name string, entry registry.Entry, source
 
 // DriftLine formats the name_drift stderr line with forget+import recovery.
 // Shared by the resolver and scope list so recovery wording never forks.
-func DriftLine(key, pjName, dir, codeRoot string) string {
+func DriftLine(key, cueName, dir, codeRoot string) string {
 	rec := fmt.Sprintf("tk scope forget %s && tk scope import %s", key, dir)
 	if codeRoot != "" {
 		rec += " --code-root " + codeRoot
 	}
-	return token.Line(token.NameDrift, fmt.Sprintf("registry key %q but tk.cue name is %q at %s — run: %s", key, pjName, dir, rec))
+	return token.Line(token.NameDrift, fmt.Sprintf("registry key %q but tk.cue name is %q at %s — run: %s", key, cueName, dir, rec))
 }
 
 // SuggestCodeRoot returns the code-root for a recovery suggestion, or "" when root is the default for dir.

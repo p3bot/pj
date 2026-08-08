@@ -120,8 +120,8 @@ func (d *diagnoser) scope(scope string) error {
 		d.add(token.Line(token.UnreachableScope, fmt.Sprintf("%s: dir %s could not be read — rows left in place", scope, dir)))
 		return nil
 	}
-	if pjName, err := scopeconfig.ReadName(d.deps.Cue, dir); err == nil && pjName != scope {
-		d.add(resolve.DriftLine(scope, pjName, dir, resolve.SuggestCodeRoot(dir, entry.Root)))
+	if cueName, err := scopeconfig.ReadName(d.deps.Cue, dir); err == nil && cueName != scope {
+		d.add(resolve.DriftLine(scope, cueName, dir, resolve.SuggestCodeRoot(dir, entry.Root)))
 		return nil
 	}
 
