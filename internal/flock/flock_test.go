@@ -8,7 +8,7 @@ import (
 )
 
 func TestAcquireReleaseRoundTrip(t *testing.T) {
-	path := filepath.Join(t.TempDir(), ".pj.lock")
+	path := filepath.Join(t.TempDir(), ".tk.lock")
 	lock, err := Acquire(path)
 	if err != nil {
 		t.Fatal(err)
@@ -25,7 +25,7 @@ func TestAcquireReleaseRoundTrip(t *testing.T) {
 }
 
 func TestExclusiveSerialisesHolders(t *testing.T) {
-	path := filepath.Join(t.TempDir(), ".pj.lock")
+	path := filepath.Join(t.TempDir(), ".tk.lock")
 	first, err := Acquire(path)
 	if err != nil {
 		t.Fatal(err)

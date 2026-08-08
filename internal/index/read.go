@@ -16,13 +16,13 @@ var ErrSearchQuery = errors.New("malformed full-text search query")
 // sqliteError is SQLITE_ERROR; within Search (static SQL, one MATCH param) it means a bad query.
 const sqliteError = 1
 
-// projectColumns is the fixed list scanProject expects; Body is never selected.
-const projectColumns = `path, scope, id, short_id, status, order_key, title, summary, created,
+// ticketColumns is the fixed list scanTicket expects; Body is never selected.
+const ticketColumns = `path, scope, id, short_id, status, order_key, title, summary, created,
     tags, custom, status_conflict, archived, parse_error, parse_msg, schema_error, mtime_ns, size`
 
-func scanProject(sc interface{ Scan(...any) error }) (*Project, error) {
+func scanTicket(sc interface{ Scan(...any) error }) (*Ticket, error) {
 	var (
-		p                      Project
+		p                      Ticket
 		tags, custom, conflict string
 		archived, perr, serr   int
 	)
@@ -47,40 +47,40 @@ func scanProject(sc interface{ Scan(...any) error }) (*Project, error) {
 	return &p, nil
 }
 
-// AllProjects returns every project row machine-wide.
-func (d *DB) AllProjects() ([]*Project, error) {
-	return d.queryProjects(`SELECT ` + projectColumns + ` FROM projects`)
+// AllTickets returns every ticket row machine-wide.
+func (d *DB) AllTickets() ([]*Ticket, error) {
+	return d.queryTickets(`SELECT ` + ticketColumns + ` FROM tickets`)
 }
 
-// ScopeProjects returns every project row in one scope.
-func (d *DB) ScopeProjects(scope string) ([]*Project, error) {
-	return d.queryProjects(`SELECT `+projectColumns+` FROM projects WHERE scope = ?`, scope)
+// ScopeTickets returns every ticket row in one scope.
+func (d *DB) ScopeTickets(scope string) ([]*Ticket, error) {
+	return d.queryTickets(`SELECT `+ticketColumns+` FROM tickets WHERE scope = ?`, scope)
 }
 
-// ProjectsByID returns rows in a scope with the given full id (may be >1 under collision).
-func (d *DB) ProjectsByID(scope, id string) ([]*Project, error) {
-	return d.queryProjects(`SELECT `+projectColumns+` FROM projects WHERE scope = ? AND id = ?`, scope, id)
+// TicketsByID returns rows in a scope with the given full id (may be >1 under collision).
+func (d *DB) TicketsByID(scope, id string) ([]*Ticket, error) {
+	return d.queryTickets(`SELECT `+ticketColumns+` FROM tickets WHERE scope = ? AND id = ?`, scope, id)
 }
 
-// ProjectsByShortID returns rows in a scope with the given short id.
-func (d *DB) ProjectsByShortID(scope, shortID string) ([]*Project, error) {
-	return d.queryProjects(`SELECT `+projectColumns+` FROM projects WHERE scope = ? AND short_id = ?`, scope, shortID)
+// TicketsByShortID returns rows in a scope with the given short id.
+func (d *DB) TicketsByShortID(scope, shortID string) ([]*Ticket, error) {
+	return d.queryTickets(`SELECT `+ticketColumns+` FROM tickets WHERE scope = ? AND short_id = ?`, scope, shortID)
 }
 
-// ProjectsByFullID returns every row machine-wide with the given full id.
-func (d *DB) ProjectsByFullID(id string) ([]*Project, error) {
-	return d.queryProjects(`SELECT `+projectColumns+` FROM projects WHERE id = ?`, id)
+// TicketsByFullID returns every row machine-wide with the given full id.
+func (d *DB) TicketsByFullID(id string) ([]*Ticket, error) {
+	return d.queryTickets(`SELECT `+ticketColumns+` FROM tickets WHERE id = ?`, id)
 }
 
-func (d *DB) queryProjects(q string, args ...any) ([]*Project, error) {
+func (d *DB) queryTickets(q string, args ...any) ([]*Ticket, error) {
 	rows, err := d.sql.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []*Project
+	var out []*Ticket
 	for rows.Next() {
-		p, err := scanProject(rows)
+		p, err := scanTicket(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -91,14 +91,14 @@ func (d *DB) queryProjects(q string, args ...any) ([]*Project, error) {
 
 // SearchHit is one FTS result with its bm25 score (smaller is better).
 type SearchHit struct {
-	Project *Project
-	Score   float64
+	Ticket *Ticket
+	Score  float64
 }
 
 // Search runs FTS5 MATCH over titles and bodies (bm25, id tie-break). Empty scope is machine-wide.
 func (d *DB) Search(scope, match string) ([]SearchHit, error) {
-	q := `SELECT ` + prefixed("p.", projectColumns) + `, bm25(fts) AS score
-          FROM fts JOIN projects p ON p.rowid = fts.rowid
+	q := `SELECT ` + prefixed("p.", ticketColumns) + `, bm25(fts) AS score
+          FROM fts JOIN tickets p ON p.rowid = fts.rowid
           WHERE fts MATCH ?`
 	args := []any{match}
 	if scope != "" {
@@ -134,7 +134,7 @@ func isQuerySyntaxErr(err error) bool {
 
 func scanSearchHit(rows *sql.Rows) (SearchHit, error) {
 	var (
-		p                      Project
+		p                      Ticket
 		tags, custom, conflict string
 		archived, perr, serr   int
 		score                  float64
@@ -157,7 +157,7 @@ func scanSearchHit(rows *sql.Rows) (SearchHit, error) {
 			return SearchHit{}, err
 		}
 	}
-	return SearchHit{Project: &p, Score: score}, nil
+	return SearchHit{Ticket: &p, Score: score}, nil
 }
 
 // AllEdges returns every edge machine-wide.
@@ -201,7 +201,7 @@ func unmarshalStrings(s string, dst *[]string) error {
 	return json.Unmarshal([]byte(s), dst)
 }
 
-// prefixed rewrites a comma-separated column list so each bare column gets alias (keeps projectColumns authoritative).
+// prefixed rewrites a comma-separated column list so each bare column gets alias (keeps ticketColumns authoritative).
 func prefixed(alias, cols string) string {
 	parts := strings.Split(cols, ",")
 	for i, c := range parts {

@@ -3,11 +3,11 @@ package scopeadmin
 import (
 	"fmt"
 
-	"github.com/p3bot/pj/internal/gitroot"
-	"github.com/p3bot/pj/internal/pathutil"
-	"github.com/p3bot/pj/internal/registry"
-	"github.com/p3bot/pj/internal/scopeconfig"
-	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/tk/internal/gitroot"
+	"github.com/p3bot/tk/internal/pathutil"
+	"github.com/p3bot/tk/internal/registry"
+	"github.com/p3bot/tk/internal/scopeconfig"
+	"github.com/p3bot/tk/internal/token"
 )
 
 // checkNameCollision rejects a name already registered. No rename-on-import: the
@@ -19,7 +19,7 @@ func checkNameCollision(reg *registry.Registry, name string, derived bool) error
 	if derived {
 		return fmt.Errorf("derived scope name %q is already registered — pass --name to choose another", name)
 	}
-	return fmt.Errorf("scope name %q is already registered — names are machine-unique; rename at the source (pj scope rename) rather than re-registering", name)
+	return fmt.Errorf("scope name %q is already registered — names are machine-unique; rename at the source (tk scope rename) rather than re-registering", name)
 }
 
 // checkCodeRootCollision rejects a code-root identical to another scope's.
@@ -44,7 +44,7 @@ func checkDirDisjoint(reg *registry.Registry, dir, exclude string) error {
 			continue
 		}
 		if pathutil.Overlap(dir, e.Dir) {
-			return fmt.Errorf("scope dir %s overlaps scope %q's dir %s — dirs must be mutually disjoint; choose a sibling path (e.g. .agents/pj-teamB), not one nested under an existing scope", dir, name, e.Dir)
+			return fmt.Errorf("scope dir %s overlaps scope %q's dir %s — dirs must be mutually disjoint; choose a sibling path (e.g. .agents/tk-teamB), not one nested under an existing scope", dir, name, e.Dir)
 		}
 	}
 	return nil
@@ -61,7 +61,7 @@ type consensus struct {
 
 // siblingConsensus evaluates autoCommit of every registered scope sharing the
 // candidate's git-root (pre-derived — init may not have created the dir yet).
-// An unusable sibling pj.cue refuses with config_unparseable; gone dirs drop out.
+// An unusable sibling tk.cue refuses with config_unparseable; gone dirs drop out.
 func siblingConsensus(a *Admin, reg *registry.Registry, gitRoot string, inRepo bool, excludeName string) (consensus, error) {
 	c := consensus{hasGitRoot: inRepo, gitRoot: gitRoot}
 	if !inRepo {
@@ -79,7 +79,7 @@ func siblingConsensus(a *Admin, reg *registry.Registry, gitRoot string, inRepo b
 		if err != nil {
 			if _, isCfg := scopeconfig.AsConfigError(err); isCfg {
 				return c, fmt.Errorf("%s", token.Line(token.ConfigUnparseable,
-					fmt.Sprintf("sibling scope at %s sharing git-root %s has an unparseable pj.cue — fix it before registering here", entry.Dir, gitRoot)))
+					fmt.Sprintf("sibling scope at %s sharing git-root %s has an unparseable tk.cue — fix it before registering here", entry.Dir, gitRoot)))
 			}
 			return c, err
 		}

@@ -7,10 +7,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/index"
-	"github.com/p3bot/pj/internal/registry"
-	"github.com/p3bot/pj/internal/token"
-	"github.com/p3bot/pj/internal/xdg"
+	"github.com/p3bot/tk/internal/index"
+	"github.com/p3bot/tk/internal/registry"
+	"github.com/p3bot/tk/internal/token"
+	"github.com/p3bot/tk/internal/xdg"
 )
 
 func newLensCmd(app *App) *cobra.Command {
@@ -23,7 +23,7 @@ func newLensCmd(app *App) *cobra.Command {
 		Short: "Set, show, or clear the machine-local default tag view for a scope",
 		Long: "A lens is a per-scope, machine-local default tag view. With tags, it sets the\n" +
 			"lens; with --clear it removes it; with no arguments it shows the current lens.\n" +
-			"list and next apply the lens by default (an untagged project is never hidden;\n" +
+			"list and next apply the lens by default (an untagged ticket is never hidden;\n" +
 			"--no-lens bypasses). A lens tag outside the scope's declared knownTags rides a\n" +
 			"schema_warn typo warning but is still allowed.",
 		Args: usageArgs(cobra.ArbitraryArgs),
@@ -106,8 +106,8 @@ func warnUnknownTags(c *cobra.Command, e *engine, scope, dir string, tags []stri
 	}
 }
 
-// passesLens: empty lens shows all; untagged projects are never hidden.
-func passesLens(p *index.Project, lens []string) bool {
+// passesLens: empty lens shows all; untagged tickets are never hidden.
+func passesLens(p *index.Ticket, lens []string) bool {
 	if len(lens) == 0 || len(p.Tags) == 0 {
 		return true
 	}

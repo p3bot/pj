@@ -1,8 +1,8 @@
 // Package resolve implements ambient scope resolution. Precedence is
-// --scope > PJ_SCOPE > longest-prefix code-root, against the registry only —
-// never a filesystem probe for an unregistered pj.cue. An explicit override
+// --scope > TK_SCOPE > longest-prefix code-root, against the registry only —
+// never a filesystem probe for an unregistered tk.cue. An explicit override
 // naming an unregistered scope fails closed; a resolved scope whose registry
-// key disagrees with on-disk pj.cue name is name-drift.
+// key disagrees with on-disk tk.cue name is name-drift.
 package resolve
 
 import (
@@ -10,17 +10,17 @@ import (
 	"fmt"
 
 	"cuelang.org/go/cue"
-	"github.com/p3bot/pj/internal/gitroot"
-	"github.com/p3bot/pj/internal/pathutil"
-	"github.com/p3bot/pj/internal/registry"
-	"github.com/p3bot/pj/internal/scopeconfig"
-	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/tk/internal/gitroot"
+	"github.com/p3bot/tk/internal/pathutil"
+	"github.com/p3bot/tk/internal/registry"
+	"github.com/p3bot/tk/internal/scopeconfig"
+	"github.com/p3bot/tk/internal/token"
 )
 
 // How a scope was chosen — closed labels for the status dashboard's `resolved` field.
 const (
 	SourceFlag = "flag" // --scope
-	SourceEnv  = "env"  // PJ_SCOPE
+	SourceEnv  = "env"  // TK_SCOPE
 	SourceCwd  = "cwd"  // longest-prefix code-root of cwd
 )
 
@@ -35,14 +35,14 @@ type Resolved struct {
 type Options struct {
 	// ScopeFlag is the --scope override (highest precedence). Empty when unset.
 	ScopeFlag string
-	// EnvScope is the PJ_SCOPE override. Empty when unset.
+	// EnvScope is the TK_SCOPE override. Empty when unset.
 	EnvScope string
 	// Cwd must be canonical (absolute, symlink-resolved) to match stored roots.
 	Cwd string
 }
 
 // ErrNoScope is returned when no override is set and no code-root matches cwd.
-var ErrNoScope = errors.New("no ambient scope: pass --scope <name>, set PJ_SCOPE, or run inside a registered code-root (see pj scope init/import)")
+var ErrNoScope = errors.New("no ambient scope: pass --scope <name>, set TK_SCOPE, or run inside a registered code-root (see tk scope init/import)")
 
 // UnknownScopeError is returned when an explicit override names an unregistered scope.
 type UnknownScopeError struct {
@@ -50,10 +50,10 @@ type UnknownScopeError struct {
 }
 
 func (e *UnknownScopeError) Error() string {
-	return fmt.Sprintf("unknown scope: %q is not registered (see pj scope import)", e.Name)
+	return fmt.Sprintf("unknown scope: %q is not registered (see tk scope import)", e.Name)
 }
 
-// DriftError is returned when a resolved scope's registry key disagrees with on-disk pj.cue name.
+// DriftError is returned when a resolved scope's registry key disagrees with on-disk tk.cue name.
 type DriftError struct {
 	Key    string
 	PjName string
@@ -104,7 +104,7 @@ func longestPrefix(reg *registry.Registry, cwd string) (string, registry.Entry, 
 }
 
 // resolvedOrDrift returns the scope unless on-disk name disagrees with the registry key.
-// Unreadable pj.cue still resolves (reads stay available; write path gates config).
+// Unreadable tk.cue still resolves (reads stay available; write path gates config).
 func resolvedOrDrift(ctx *cue.Context, name string, entry registry.Entry, source string) (*Resolved, error) {
 	pjName, err := scopeconfig.ReadName(ctx, entry.Dir)
 	if err == nil && pjName != name {
@@ -121,11 +121,11 @@ func resolvedOrDrift(ctx *cue.Context, name string, entry registry.Entry, source
 // DriftLine formats the name_drift stderr line with forget+import recovery.
 // Shared by the resolver and scope list so recovery wording never forks.
 func DriftLine(key, pjName, dir, codeRoot string) string {
-	rec := fmt.Sprintf("pj scope forget %s && pj scope import %s", key, dir)
+	rec := fmt.Sprintf("tk scope forget %s && tk scope import %s", key, dir)
 	if codeRoot != "" {
 		rec += " --code-root " + codeRoot
 	}
-	return token.Line(token.NameDrift, fmt.Sprintf("registry key %q but pj.cue name is %q at %s — run: %s", key, pjName, dir, rec))
+	return token.Line(token.NameDrift, fmt.Sprintf("registry key %q but tk.cue name is %q at %s — run: %s", key, pjName, dir, rec))
 }
 
 // SuggestCodeRoot returns the code-root for a recovery suggestion, or "" when root is the default for dir.

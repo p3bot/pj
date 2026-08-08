@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/integrity"
-	"github.com/p3bot/pj/internal/resolve"
+	"github.com/p3bot/tk/internal/integrity"
+	"github.com/p3bot/tk/internal/resolve"
 )
 
 // doctorFlags: bare doctor diagnoses only; --repair / --re-space-order mutate; --reindex rebuilds.
@@ -31,9 +31,9 @@ func newDoctorCmd(app *App) *cobra.Command {
 		Short: "Diagnose integrity, and optionally repair, across scopes",
 		Long: "Diagnose every integrity class over the ambient scope (or every registered\n" +
 			"scope when there is none), reporting each with its stable token. Bare doctor\n" +
-			"never mutates project files or pj.cue. --repair fixes id collisions, equal order\n" +
+			"never mutates ticket files or tk.cue. --repair fixes id collisions, equal order\n" +
 			"keys, and archive layout drift; --re-space-order shortens a band of over-long\n" +
-			"order keys; both need a scope (ambient, PJ_SCOPE, or --all) and refuse on a\n" +
+			"order keys; both need a scope (ambient, TK_SCOPE, or --all) and refuse on a\n" +
 			"mid-rebase auto-commit git-root. --reindex rebuilds the index from files. There\n" +
 			"is no --scope flag on doctor.",
 		Args: usageArgs(cobra.NoArgs),
@@ -41,7 +41,7 @@ func newDoctorCmd(app *App) *cobra.Command {
 			return runDoctor(app, c, f)
 		},
 	}
-	cmd.Flags().BoolVar(&f.reindex, "reindex", false, "rebuild the index from files (never mutates project files)")
+	cmd.Flags().BoolVar(&f.reindex, "reindex", false, "rebuild the index from files (never mutates ticket files)")
 	cmd.Flags().BoolVar(&f.repair, "repair", false, "repair id collisions, equal order keys, and archive layout drift")
 	cmd.Flags().BoolVar(&f.reSpaceOrder, "re-space-order", false, "re-space a band of pathologically long order keys")
 	cmd.Flags().BoolVar(&f.all, "all", false, "act on every registered scope (mutating flags only)")
@@ -93,7 +93,7 @@ func runDoctor(app *App, c *cobra.Command, f doctorFlags) error {
 		stdoutln(c, line)
 	}
 	if len(report) == 0 {
-		stderrln(c, "pj doctor: no integrity issues found")
+		stderrln(c, "tk doctor: no integrity issues found")
 	}
 	return nil
 }
@@ -138,7 +138,7 @@ func (e *engine) doctorScopes(mutating, all bool) (report, mutate []string, err 
 	case ok:
 		mutate = []string{name}
 	default:
-		return nil, nil, usageErrorf("pj doctor --repair / --re-space-order needs a scope to act on: run inside a registered code-root, set PJ_SCOPE=<name>, or pass --all")
+		return nil, nil, usageErrorf("tk doctor --repair / --re-space-order needs a scope to act on: run inside a registered code-root, set TK_SCOPE=<name>, or pass --all")
 	}
 	return report, mutate, nil
 }

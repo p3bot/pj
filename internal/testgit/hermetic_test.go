@@ -58,7 +58,7 @@ func TestHermeticAllowsCommitDespiteHostileGlobal(t *testing.T) {
 	repo := t.TempDir()
 	Run(t, repo, "init")
 	Run(t, repo, "config", "user.email", "a@b.c")
-	Run(t, repo, "config", "user.name", "pj-test")
+	Run(t, repo, "config", "user.name", "tk-test")
 	// Intentionally do not set commit.gpgsign=false: global true must not apply.
 	if err := os.WriteFile(filepath.Join(repo, "f"), []byte("x\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -81,7 +81,7 @@ func TestCombinedAllowFailureReturnsOutputAndError(t *testing.T) {
 	_ = out // stderr may explain the empty history; callers discard it on error
 	// Success path still returns trimmed output.
 	Run(t, repo, "config", "user.email", "a@b.c")
-	Run(t, repo, "config", "user.name", "pj-test")
+	Run(t, repo, "config", "user.name", "tk-test")
 	if err := os.WriteFile(filepath.Join(repo, "f"), []byte("x\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

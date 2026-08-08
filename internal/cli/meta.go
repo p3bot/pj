@@ -8,14 +8,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/p3bot/pj/internal/scopefile"
+	"github.com/p3bot/tk/internal/scopefile"
 
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/frontmatter"
-	"github.com/p3bot/pj/internal/scopeconfig"
-	"github.com/p3bot/pj/internal/title"
-	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/tk/internal/frontmatter"
+	"github.com/p3bot/tk/internal/scopeconfig"
+	"github.com/p3bot/tk/internal/title"
+	"github.com/p3bot/tk/internal/token"
 )
 
 type metaOp int
@@ -64,8 +64,8 @@ var builtinMetaKeyOrder = []string{
 func newMetaCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "meta",
-		Short: "Read and mutate project frontmatter fields",
-		Long: "Read and mutate project frontmatter without $EDITOR.\n\n" +
+		Short: "Read and mutate ticket frontmatter fields",
+		Long: "Read and mutate ticket frontmatter without $EDITOR.\n\n" +
 			"  get  <id> [key]           full header or a single key value\n" +
 			"  set  <id> <key> <value>   scalar keys (summary, custom string/int/bool)\n" +
 			"  add  <id> <key> <value>   multi-value keys (depends, related, tags, links, custom strings)\n" +
@@ -84,7 +84,7 @@ func newMetaCmd(app *App) *cobra.Command {
 		Args: cobra.ArbitraryArgs,
 		RunE: func(c *cobra.Command, args []string) error {
 			if len(args) > 0 {
-				return usageErrorf("unknown meta subcommand %q; run `pj meta --help` for get, set, add, rm", args[0])
+				return usageErrorf("unknown meta subcommand %q; run `tk meta --help` for get, set, add, rm", args[0])
 			}
 			return c.Help()
 		},
@@ -102,7 +102,7 @@ func newMetaGetCmd(app *App) *cobra.Command {
 	var scope string
 	cmd := &cobra.Command{
 		Use:   "get <id> [key] [--scope S]",
-		Short: "Print project frontmatter (full header or one key)",
+		Short: "Print ticket frontmatter (full header or one key)",
 		Long: "Without a key: print title, path, whole-file lines/words/characters (wc-style\n" +
 			"order), a blank line, and the raw frontmatter interior exactly as stored\n" +
 			"(key order, quoting, comments, customs preserved). Counts cover the entire\n" +
@@ -138,7 +138,7 @@ func newMetaSetCmd(app *App) *cobra.Command {
 			"type string, int, or bool. Empty value omits the key (clear). Multi-value keys\n" +
 			"(depends, related, tags/tag, links/link, custom strings) require meta add/rm.\n" +
 			"Value - reads stdin (optional final newline stripped). Embedded newlines are\n" +
-			"usage exit 2. Prints the absolute project path on success.",
+			"usage exit 2. Prints the absolute ticket path on success.",
 		Args: usageArgs(cobra.ExactArgs(3)),
 		RunE: func(c *cobra.Command, args []string) error {
 			return runMetaMutate(app, c, metaOpSet, args[0], args[1], args[2], scope)
@@ -159,7 +159,7 @@ func newMetaAddCmd(app *App) *cobra.Command {
 			"short ids normalise to full ids in the subject scope. depends add refuses self\n" +
 			"(depends_self:), same-scope missing (depends_dangling:), and cross-scope\n" +
 			"unresolvable targets (depends_unresolvable:). related has no existence check.\n" +
-			"Value - reads stdin. Prints the absolute project path on success.",
+			"Value - reads stdin. Prints the absolute ticket path on success.",
 		Args: usageArgs(cobra.ExactArgs(3)),
 		RunE: func(c *cobra.Command, args []string) error {
 			return runMetaMutate(app, c, metaOpAdd, args[0], args[1], args[2], scope)
@@ -179,7 +179,7 @@ func newMetaRmCmd(app *App) *cobra.Command {
 			"absent). Legal keys: depends, related, tags (alias: tag), links (alias: link),\n" +
 			"and custom fields of type strings. Value is required — this removes one list\n" +
 			"entry, not the whole key. depends/related short ids normalise to full ids\n" +
-			"before compare. Value - reads stdin. Prints the absolute project path on success.",
+			"before compare. Value - reads stdin. Prints the absolute ticket path on success.",
 		Args: usageArgs(cobra.ExactArgs(3)),
 		RunE: func(c *cobra.Command, args []string) error {
 			return runMetaMutate(app, c, metaOpRm, args[0], args[1], args[2], scope)
@@ -198,7 +198,7 @@ func runMetaGet(app *App, c *cobra.Command, idArg, key, scope string) error {
 	}
 	defer e.close()
 
-	r, err := e.resolveProject(c, idArg, scope)
+	r, err := e.resolveTicket(c, idArg, scope)
 	if err != nil {
 		return err
 	}
@@ -217,7 +217,7 @@ func runMetaGet(app *App, c *cobra.Command, idArg, key, scope string) error {
 	interior, body, present := frontmatter.Split(data)
 	if !present {
 		stderrln(c, token.Line(token.ParseError, fmt.Sprintf("%s: no extractable frontmatter block", p.ID)))
-		return fmt.Errorf("project %s has no readable frontmatter", p.ID)
+		return fmt.Errorf("ticket %s has no readable frontmatter", p.ID)
 	}
 
 	if key == "" {
@@ -284,7 +284,7 @@ func runMetaMutate(app *App, c *cobra.Command, op metaOp, idArg, key, valueArg, 
 
 	form, ok := parseIDArg(idArg)
 	if !ok {
-		return usageErrorf("%q is not a valid project id", idArg)
+		return usageErrorf("%q is not a valid ticket id", idArg)
 	}
 
 	value, err := loadMetaValue(c, valueArg)
@@ -307,7 +307,7 @@ func runMetaMutate(app *App, c *cobra.Command, op metaOp, idArg, key, valueArg, 
 	}
 	entry, registered := e.reg.Scopes[scope]
 	if !registered {
-		return fmt.Errorf("unknown project id %q: scope %q is not registered here", idArg, scope)
+		return fmt.Errorf("unknown ticket id %q: scope %q is not registered here", idArg, scope)
 	}
 	dir := entry.Dir
 
@@ -371,21 +371,21 @@ func runMetaMutate(app *App, c *cobra.Command, op metaOp, idArg, key, valueArg, 
 		}
 	}
 
-	m, body, err := readProjectFile(p.Path)
+	m, body, err := readTicketFile(p.Path)
 	if err != nil {
 		return err
 	}
 	if err := applyMetaMutation(m, op, key, value, class, field); err != nil {
 		return err
 	}
-	if err := writeProjectFile(p.Path, m, body); err != nil {
+	if err := writeTicketFile(p.Path, m, body); err != nil {
 		return err
 	}
 	if err := e.rec.SyncPaths(scope, writtenPaths(p.Path, "")); err != nil {
 		return err
 	}
 
-	message := fmt.Sprintf("pj: %s meta %s %s", p.ID, op, key)
+	message := fmt.Sprintf("tk: %s meta %s %s", p.ID, op, key)
 	if err := e.completeStateDurability(ctx, c, scope, dir, autoCommit, message, p.Path, "", root, hasRoot); err != nil {
 		return err
 	}
@@ -421,7 +421,7 @@ func loadMetaValue(c *cobra.Command, valueArg string) (string, error) {
 func normaliseEdgeValue(subjectScope, value string) (string, error) {
 	form, ok := parseIDArg(value)
 	if !ok {
-		return "", usageErrorf("%q is not a valid project id", value)
+		return "", usageErrorf("%q is not a valid ticket id", value)
 	}
 	if form == idShort {
 		return subjectScope + "-" + value, nil
@@ -443,7 +443,7 @@ func (e *engine) checkDependsAdd(subjectID, subjectScope, targetFull string) err
 		}
 		if !ok {
 			return fmt.Errorf("%s", token.Line(token.DependsDangling,
-				fmt.Sprintf("%s depends on %s which has no project in this scope", subjectID, targetFull)))
+				fmt.Sprintf("%s depends on %s which has no ticket in this scope", subjectID, targetFull)))
 		}
 		return nil
 	}
@@ -474,7 +474,7 @@ func (e *engine) checkDependsAdd(subjectID, subjectScope, targetFull string) err
 
 // nonQuarantinedExists: quarantine-only counts as absent for depends write checks.
 func (e *engine) nonQuarantinedExists(scope, fullID string) (bool, error) {
-	rows, err := e.db.ProjectsByID(scope, fullID)
+	rows, err := e.db.TicketsByID(scope, fullID)
 	if err != nil {
 		return false, err
 	}
@@ -518,9 +518,9 @@ func unknownMetaKeyError(key string, schema *scopeconfig.Schema) error {
 func immutableMetaKeyError(key string) error {
 	switch key {
 	case frontmatter.KeyStatus:
-		return usageErrorf("key %q is immutable via meta; use pj mark", key)
+		return usageErrorf("key %q is immutable via meta; use tk mark", key)
 	case frontmatter.KeyOrder:
-		return usageErrorf("key %q is immutable via meta; use pj reorder", key)
+		return usageErrorf("key %q is immutable via meta; use tk reorder", key)
 	default:
 		return usageErrorf("key %q is immutable via meta", key)
 	}

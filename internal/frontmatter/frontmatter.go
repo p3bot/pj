@@ -1,4 +1,4 @@
-// Package frontmatter models a project file's leading YAML frontmatter.
+// Package frontmatter models a ticket file's leading YAML frontmatter.
 // Split returns fence interior bytes verbatim; Parse/Serialize use a typed model.
 // Undeclared keys are preserved in declaration order. Serialize always quotes order
 // so mixed digit/letter keys are not YAML-coerced to numbers.
@@ -211,7 +211,7 @@ func appendList(items yaml.MapSlice, key string, list []string) yaml.MapSlice {
 	return append(items, yaml.MapItem{Key: key, Value: flowStrings(list)})
 }
 
-// Compose assembles a full project file from serialized frontmatter interior and body.
+// Compose assembles a full ticket file from serialized frontmatter interior and body.
 func Compose(interior, body []byte) []byte {
 	var b bytes.Buffer
 	b.Grow(len("---\n---\n") + len(interior) + len(body))

@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/index"
+	"github.com/p3bot/tk/internal/index"
 )
 
 func newSearchCmd(app *App) *cobra.Command {
@@ -64,7 +64,7 @@ func runSearch(app *App, c *cobra.Command, args []string, scope string) error {
 		return fmt.Errorf("search: %w", err)
 	}
 	for _, h := range hits {
-		p := h.Project
+		p := h.Ticket
 		stdoutln(c, tsvLine(p.ID, p.Status, p.Title, p.Summary, p.Path))
 	}
 	return nil

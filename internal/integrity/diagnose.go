@@ -16,21 +16,21 @@ import (
 
 	"cuelang.org/go/cue"
 
-	"github.com/p3bot/pj/internal/frontmatter"
-	"github.com/p3bot/pj/internal/git"
-	"github.com/p3bot/pj/internal/gitroot"
-	"github.com/p3bot/pj/internal/gitstate"
-	"github.com/p3bot/pj/internal/id"
-	"github.com/p3bot/pj/internal/index"
-	"github.com/p3bot/pj/internal/order"
-	"github.com/p3bot/pj/internal/reconcile"
-	"github.com/p3bot/pj/internal/registry"
-	"github.com/p3bot/pj/internal/repair"
-	"github.com/p3bot/pj/internal/resolve"
-	"github.com/p3bot/pj/internal/scopeconfig"
-	"github.com/p3bot/pj/internal/scopefile"
-	"github.com/p3bot/pj/internal/status"
-	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/tk/internal/frontmatter"
+	"github.com/p3bot/tk/internal/git"
+	"github.com/p3bot/tk/internal/gitroot"
+	"github.com/p3bot/tk/internal/gitstate"
+	"github.com/p3bot/tk/internal/id"
+	"github.com/p3bot/tk/internal/index"
+	"github.com/p3bot/tk/internal/order"
+	"github.com/p3bot/tk/internal/reconcile"
+	"github.com/p3bot/tk/internal/registry"
+	"github.com/p3bot/tk/internal/repair"
+	"github.com/p3bot/tk/internal/resolve"
+	"github.com/p3bot/tk/internal/scopeconfig"
+	"github.com/p3bot/tk/internal/scopefile"
+	"github.com/p3bot/tk/internal/status"
+	"github.com/p3bot/tk/internal/token"
 )
 
 const staleInProgress = 72 * time.Hour
@@ -48,7 +48,7 @@ type Deps struct {
 }
 
 // Diagnose reports integrity token lines for scopes over a post-reconcile result.
-// Never mutates project files.
+// Never mutates ticket files.
 func Diagnose(deps Deps, scopes []string, res *reconcile.Result) ([]string, error) {
 	d, err := newDiagnoser(deps, res)
 	if err != nil {
@@ -67,7 +67,7 @@ type diagnoser struct {
 	res       *reconcile.Result
 	now       time.Time
 	hasRow    map[string]bool
-	rowByID   map[string]*index.Project
+	rowByID   map[string]*index.Ticket
 	edges     []index.Edge
 	schemaFor map[string]*scopeconfig.Schema
 	seenRoot  map[string]bool
@@ -79,7 +79,7 @@ type diagnoser struct {
 }
 
 func newDiagnoser(deps Deps, res *reconcile.Result) (*diagnoser, error) {
-	all, err := deps.DB.AllProjects()
+	all, err := deps.DB.AllTickets()
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func newDiagnoser(deps Deps, res *reconcile.Result) (*diagnoser, error) {
 	}
 	d := &diagnoser{
 		deps: deps, res: res, now: time.Now(),
-		hasRow: map[string]bool{}, rowByID: map[string]*index.Project{},
+		hasRow: map[string]bool{}, rowByID: map[string]*index.Ticket{},
 		edges: edges, schemaFor: map[string]*scopeconfig.Schema{}, seenRoot: map[string]bool{},
 		registered: registered, cfgReported: map[string]bool{},
 	}
@@ -108,7 +108,7 @@ func newDiagnoser(deps Deps, res *reconcile.Result) (*diagnoser, error) {
 
 func (d *diagnoser) add(line string) { d.lines = append(d.lines, line) }
 
-// scope short-circuits project checks on unreachable/drifted scopes (still emits tokens).
+// scope short-circuits ticket checks on unreachable/drifted scopes (still emits tokens).
 func (d *diagnoser) scope(scope string) error {
 	entry, ok := d.deps.Reg.Scopes[scope]
 	if !ok {
@@ -130,7 +130,7 @@ func (d *diagnoser) scope(scope string) error {
 		d.configUnparseable(scope, cfgErr)
 	}
 
-	rows, err := d.deps.DB.ScopeProjects(scope)
+	rows, err := d.deps.DB.ScopeTickets(scope)
 	if err != nil {
 		return err
 	}
@@ -155,19 +155,19 @@ func (d *diagnoser) collisions(scope string) error {
 		return err
 	}
 	for _, col := range dups {
-		d.add(token.Line(token.DuplicateID, fmt.Sprintf("%s claimed by %s — run pj doctor --repair", col.Key, strings.Join(col.Members, ", "))))
+		d.add(token.Line(token.DuplicateID, fmt.Sprintf("%s claimed by %s — run tk doctor --repair", col.Key, strings.Join(col.Members, ", "))))
 	}
 	eq, err := d.deps.DB.EqualOrders([]string{scope})
 	if err != nil {
 		return err
 	}
 	for _, col := range eq {
-		d.add(token.Line(token.EqualOrder, fmt.Sprintf("%s share order %q: %s — run pj doctor --repair", scope, col.Key, strings.Join(col.Members, ", "))))
+		d.add(token.Line(token.EqualOrder, fmt.Sprintf("%s share order %q: %s — run tk doctor --repair", scope, col.Key, strings.Join(col.Members, ", "))))
 	}
 	return nil
 }
 
-func (d *diagnoser) perRow(dir string, rows []*index.Project, schema *scopeconfig.Schema, autoCommit, autoCommitKnown bool) {
+func (d *diagnoser) perRow(dir string, rows []*index.Ticket, schema *scopeconfig.Schema, autoCommit, autoCommitKnown bool) {
 	custom := schemaCustom(schema)
 	for _, p := range rows {
 		if p.ParseError {
@@ -178,11 +178,11 @@ func (d *diagnoser) perRow(dir string, rows []*index.Project, schema *scopeconfi
 		switch {
 		case p.OrderKey == "":
 			// Missing vs explicit "" are indistinguishable after parse.
-			d.add(token.Line(token.SchemaError, fmt.Sprintf("%s has a missing or empty order key (%s) — set a quoted order key, or run pj reorder", p.ID, p.Path)))
+			d.add(token.Line(token.SchemaError, fmt.Sprintf("%s has a missing or empty order key (%s) — set a quoted order key, or run tk reorder", p.ID, p.Path)))
 		case !order.Valid(p.OrderKey):
-			d.add(token.Line(token.SchemaError, fmt.Sprintf("%s has an invalid order key %q (%s) — outside the closed order grammar; set a quoted valid key, or run pj reorder", p.ID, p.OrderKey, p.Path)))
+			d.add(token.Line(token.SchemaError, fmt.Sprintf("%s has an invalid order key %q (%s) — outside the closed order grammar; set a quoted valid key, or run tk reorder", p.ID, p.OrderKey, p.Path)))
 		case len(p.OrderKey) > repair.OrderLongThreshold:
-			d.add(token.Line(token.OrderLong, fmt.Sprintf("%s order key is %d chars (%s) — run pj doctor --re-space-order", p.ID, len(p.OrderKey), p.Path)))
+			d.add(token.Line(token.OrderLong, fmt.Sprintf("%s order key is %d chars (%s) — run tk doctor --re-space-order", p.ID, len(p.OrderKey), p.Path)))
 		}
 		terminal := status.IsTerminal(p.Status, custom)
 		switch {
@@ -199,14 +199,14 @@ func (d *diagnoser) perRow(dir string, rows []*index.Project, schema *scopeconfi
 			d.add(token.Line(token.StaleInProgress, fmt.Sprintf("%s has been in-progress for %s (%s) — inspect; maybe reopen to todo", p.ID, age, p.Path)))
 		}
 		if p.SchemaError {
-			d.add(token.Line(token.SchemaError, fmt.Sprintf("%s has a depends/related entry that is not a legal full project id (%s)", p.ID, p.Path)))
+			d.add(token.Line(token.SchemaError, fmt.Sprintf("%s has a depends/related entry that is not a legal full ticket id (%s)", p.ID, p.Path)))
 		}
 		d.frontmatterChecks(p, schema)
 	}
 }
 
 // statusConflictLine: mid-rebase tail only for known autoCommit; unknown autoCommit omits both tails.
-func (d *diagnoser) statusConflictLine(p *index.Project, dir string, autoCommit bool, autoCommitKnown bool) string {
+func (d *diagnoser) statusConflictLine(p *index.Ticket, dir string, autoCommit bool, autoCommitKnown bool) string {
 	disputed := strings.Join(p.StatusConflict, " vs ")
 	if !autoCommitKnown {
 		return token.Line(token.StatusConflict, fmt.Sprintf("%s disputes %s (%s) — set status and clear status_conflict", p.ID, disputed, p.Path))
@@ -214,13 +214,13 @@ func (d *diagnoser) statusConflictLine(p *index.Project, dir string, autoCommit 
 	// Skip git lookup when not auto-commit — answer cannot change the line.
 	if autoCommit {
 		if root, ok := scopefile.GitRoot(dir); ok && git.MidRebase(d.deps.Ctx, root) {
-			return token.Line(token.StatusConflict, fmt.Sprintf("%s disputes %s (%s) — resolve in file, then pj sync", p.ID, disputed, p.Path))
+			return token.Line(token.StatusConflict, fmt.Sprintf("%s disputes %s (%s) — resolve in file, then tk sync", p.ID, disputed, p.Path))
 		}
 	}
 	return token.Line(token.StatusConflict, fmt.Sprintf("%s disputes %s (%s) — stale residue: set status and clear status_conflict", p.ID, disputed, p.Path))
 }
 
-func (d *diagnoser) frontmatterChecks(p *index.Project, schema *scopeconfig.Schema) {
+func (d *diagnoser) frontmatterChecks(p *index.Ticket, schema *scopeconfig.Schema) {
 	data, err := os.ReadFile(p.Path)
 	if err != nil {
 		return
@@ -239,10 +239,10 @@ func (d *diagnoser) frontmatterChecks(p *index.Project, schema *scopeconfig.Sche
 	switch {
 	case m.ID == "" || !strings.HasPrefix(base, m.ID+"-") && strings.TrimSuffix(base, ".md") != m.ID:
 		d.add(fmt.Sprintf("filename/id mismatch: %s does not begin with its frontmatter id %q", base, m.ID))
-	case !id.IsFullProjectID(m.ID):
-		d.add(fmt.Sprintf("filename/id mismatch: %s has a non-project-shaped id %q", base, m.ID))
-	case !scopefile.LooksLikeProject(base):
-		d.add(fmt.Sprintf("filename/id mismatch: %s is not a project file shape (<id>-<slug>.md) — rename it to a valid slug", base))
+	case !id.IsFullTicketID(m.ID):
+		d.add(fmt.Sprintf("filename/id mismatch: %s has a non-ticket-shaped id %q", base, m.ID))
+	case !scopefile.LooksLikeTicket(base):
+		d.add(fmt.Sprintf("filename/id mismatch: %s is not a ticket file shape (<id>-<slug>.md) — rename it to a valid slug", base))
 	}
 	// Token-less prose: must not open with "word:" (closed-token shape).
 	if !validRFC3339(m.Created) {
@@ -264,8 +264,8 @@ func (d *diagnoser) frontmatterChecks(p *index.Project, schema *scopeconfig.Sche
 		}
 	}
 	for _, link := range m.Links {
-		if id.IsFullProjectID(link) {
-			d.add(token.Line(token.SchemaWarn, fmt.Sprintf("%s links entry %q is project-id-shaped — use related/depends for project ids (%s)", p.ID, link, p.Path)))
+		if id.IsFullTicketID(link) {
+			d.add(token.Line(token.SchemaWarn, fmt.Sprintf("%s links entry %q is ticket-id-shaped — use related/depends for ticket ids (%s)", p.ID, link, p.Path)))
 		}
 	}
 	if schema != nil {
@@ -367,7 +367,7 @@ func (d *diagnoser) edgeClasses(scope string) {
 		}
 		if ed.ToScope == scope {
 			if !d.hasRow[ed.ToID] {
-				d.add(token.Line(token.DependsDangling, fmt.Sprintf("%s depends on %s which has no project in this scope", ed.FromID, ed.ToID)))
+				d.add(token.Line(token.DependsDangling, fmt.Sprintf("%s depends on %s which has no ticket in this scope", ed.FromID, ed.ToID)))
 			}
 		} else if !d.registered[ed.ToScope] || !d.hasRow[ed.ToID] {
 			d.add(token.Line(token.DependsUnresolvable, fmt.Sprintf("%s depends on cross-scope %s which is not resolvable here", ed.FromID, ed.ToID)))
@@ -434,7 +434,7 @@ func (d *diagnoser) scopeIDs(scope string) []string {
 	return out
 }
 
-// autoCommitFor: unparseable pj.cue makes autoCommit unknown, not false.
+// autoCommitFor: unparseable tk.cue makes autoCommit unknown, not false.
 func (d *diagnoser) autoCommitFor(scope string, schema *scopeconfig.Schema) (value bool, known bool) {
 	if _, unusable := d.res.ConfigErrs[scope]; unusable {
 		return false, false
@@ -459,11 +459,11 @@ func (d *diagnoser) repoHealth(scope, dir string, schema *scopeconfig.Schema) er
 	switch {
 	case autoCommit:
 		if !hasRoot || !git.HasUpstream(d.deps.Ctx, root) {
-			d.add(token.Line(token.SyncDisabled, fmt.Sprintf("%s: no git repository with an upstream — set one up, then pj sync", scope)))
+			d.add(token.Line(token.SyncDisabled, fmt.Sprintf("%s: no git repository with an upstream — set one up, then tk sync", scope)))
 		}
 		if hasRoot {
 			if detail, ok := gitstate.ReadLastPushError(d.deps.StateDir, root); ok {
-				d.add(token.Line(token.LastPushError, fmt.Sprintf("%s: last push failed (%s) — fix the remote/auth, then pj sync", scope, detail)))
+				d.add(token.Line(token.LastPushError, fmt.Sprintf("%s: last push failed (%s) — fix the remote/auth, then tk sync", scope, detail)))
 			}
 		}
 	case hasRoot: // repo-driven
@@ -514,7 +514,7 @@ func (d *diagnoser) configUnparseable(scope string, cfgErr *scopeconfig.ConfigEr
 		return
 	}
 	d.cfgReported[scope] = true
-	d.add(token.Line(token.ConfigUnparseable, fmt.Sprintf("%s (%s): %s — fix pj.cue", scope, cfgErr.Dir, cfgErr.Reason)))
+	d.add(token.Line(token.ConfigUnparseable, fmt.Sprintf("%s (%s): %s — fix tk.cue", scope, cfgErr.Dir, cfgErr.Reason)))
 }
 
 func (d *diagnoser) residue(scope, dir string) {

@@ -8,11 +8,11 @@ import (
 
 	"cuelang.org/go/cue"
 
-	"github.com/p3bot/pj/internal/index"
-	"github.com/p3bot/pj/internal/integrity"
-	"github.com/p3bot/pj/internal/reconcile"
-	"github.com/p3bot/pj/internal/registry"
-	"github.com/p3bot/pj/internal/scopeconfig"
+	"github.com/p3bot/tk/internal/index"
+	"github.com/p3bot/tk/internal/integrity"
+	"github.com/p3bot/tk/internal/reconcile"
+	"github.com/p3bot/tk/internal/registry"
+	"github.com/p3bot/tk/internal/scopeconfig"
 )
 
 // Deps are machine-local services the sync engine needs.
@@ -108,4 +108,4 @@ func integrityDeps(deps Deps) integrity.Deps {
 }
 
 // ErrNeedsAttention is the process-level failure class when roots need human follow-up.
-var ErrNeedsAttention = errors.New("pj sync: one or more roots need attention (see the lines above)")
+var ErrNeedsAttention = errors.New("tk sync: one or more roots need attention (see the lines above)")

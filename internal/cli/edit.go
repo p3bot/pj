@@ -13,7 +13,7 @@ func newEditCmd(app *App) *cobra.Command {
 	var scope string
 	cmd := &cobra.Command{
 		Use:   "edit <id> [--scope S]",
-		Short: "Open a project's file in $EDITOR",
+		Short: "Open a ticket's file in $EDITOR",
 		Long: "Resolve an id to its path and open it in $EDITOR for human editing. It prints\n" +
 			"nothing on success (not a path-hand-off verb), never rewrites frontmatter, and\n" +
 			"never self-commits — an editor save is an ordinary direct edit. It may open a\n" +
@@ -34,7 +34,7 @@ func runEdit(app *App, c *cobra.Command, idArg, scope string) error {
 	}
 	defer e.close()
 
-	r, err := e.resolveProject(c, idArg, scope)
+	r, err := e.resolveTicket(c, idArg, scope)
 	if err != nil {
 		return err
 	}
@@ -49,7 +49,7 @@ func runEdit(app *App, c *cobra.Command, idArg, scope string) error {
 	// $EDITOR may carry flags; split into program + args.
 	fields := strings.Fields(os.Getenv("EDITOR"))
 	if len(fields) == 0 {
-		return fmt.Errorf("$EDITOR is not set — set it to your editor to use pj edit")
+		return fmt.Errorf("$EDITOR is not set — set it to your editor to use tk edit")
 	}
 	// Share stdio: edit is the human-in-the-loop verb.
 	args := append(append([]string(nil), fields[1:]...), p.Path)

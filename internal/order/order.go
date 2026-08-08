@@ -19,7 +19,7 @@ const digitsAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrst
 // intDigitsAlphabet is the head alphabet (A–Z then a–z): first half negative-length heads, second half positive.
 const intDigitsAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
-// IntegerZero is the order key for an empty board — KeyBetween("", "") / first project.
+// IntegerZero is the order key for an empty board — KeyBetween("", "") / first ticket.
 const IntegerZero = "a0"
 
 // SmallestInteger is the least legal integer part; it cannot be decremented further.

@@ -16,7 +16,7 @@ type RowStat struct {
 
 // ScopeRows returns (mtime, size, id) of every indexed file in a scope, keyed by path.
 func (d *DB) ScopeRows(scope string) (map[string]RowStat, error) {
-	rows, err := d.sql.Query(`SELECT path, id, mtime_ns, size FROM projects WHERE scope = ?`, scope)
+	rows, err := d.sql.Query(`SELECT path, id, mtime_ns, size FROM tickets WHERE scope = ?`, scope)
 	if err != nil {
 		return nil, fmt.Errorf("read scope rows for %q: %w", scope, err)
 	}
@@ -33,15 +33,15 @@ func (d *DB) ScopeRows(scope string) (map[string]RowStat, error) {
 	return out, rows.Err()
 }
 
-// UpsertProject writes one project row and refreshes FTS with no edges.
-// Callers with depends/related must use UpsertProjectWithEdges or edges are cleared.
-func (d *DB) UpsertProject(p *Project) error {
-	return d.UpsertProjectWithEdges(p, nil)
+// UpsertTicket writes one ticket row and refreshes FTS with no edges.
+// Callers with depends/related must use UpsertTicketWithEdges or edges are cleared.
+func (d *DB) UpsertTicket(p *Ticket) error {
+	return d.UpsertTicketWithEdges(p, nil)
 }
 
-// upsertProjectTx writes project/edges/fts inside a transaction. Atomicity is per-file
+// upsertTicketTx writes ticket/edges/fts inside a transaction. Atomicity is per-file
 // only: the store is rebuildable, so a crash mid-scope self-heals on the next reconcile.
-func upsertProjectTx(tx *sql.Tx, p *Project) error {
+func upsertTicketTx(tx *sql.Tx, p *Ticket) error {
 	tagsJSON, err := marshalStrings(p.Tags)
 	if err != nil {
 		return err
@@ -56,7 +56,7 @@ func upsertProjectTx(tx *sql.Tx, p *Project) error {
 	}
 
 	_, err = tx.Exec(`
-INSERT INTO projects (path, scope, id, short_id, status, order_key, title, summary, created,
+INSERT INTO tickets (path, scope, id, short_id, status, order_key, title, summary, created,
                       tags, custom, status_conflict, archived, parse_error, parse_msg, schema_error, mtime_ns, size)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(path) DO UPDATE SET
@@ -69,11 +69,11 @@ ON CONFLICT(path) DO UPDATE SET
 		tagsJSON, customJSON, conflictJSON, boolToInt(p.Archived), boolToInt(p.ParseError),
 		p.ParseMsg, boolToInt(p.SchemaError), p.MtimeNS, p.Size)
 	if err != nil {
-		return fmt.Errorf("upsert project %s: %w", p.Path, err)
+		return fmt.Errorf("upsert ticket %s: %w", p.Path, err)
 	}
 
 	var rowid int64
-	if err := tx.QueryRow(`SELECT rowid FROM projects WHERE path = ?`, p.Path).Scan(&rowid); err != nil {
+	if err := tx.QueryRow(`SELECT rowid FROM tickets WHERE path = ?`, p.Path).Scan(&rowid); err != nil {
 		return fmt.Errorf("resolve rowid for %s: %w", p.Path, err)
 	}
 
@@ -90,15 +90,15 @@ ON CONFLICT(path) DO UPDATE SET
 	return nil
 }
 
-// UpsertProjectWithEdges upserts a project and its full edge list in one transaction.
-func (d *DB) UpsertProjectWithEdges(p *Project, edges []Edge) error {
+// UpsertTicketWithEdges upserts a ticket and its full edge list in one transaction.
+func (d *DB) UpsertTicketWithEdges(p *Ticket, edges []Edge) error {
 	tx, err := d.sql.Begin()
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if err := upsertProjectTx(tx, p); err != nil {
+	if err := upsertTicketTx(tx, p); err != nil {
 		return err
 	}
 	for _, e := range edges {
@@ -119,7 +119,7 @@ func (d *DB) DeleteByPath(path string) error {
 	defer func() { _ = tx.Rollback() }()
 
 	var rowid int64
-	err = tx.QueryRow(`SELECT rowid FROM projects WHERE path = ?`, path).Scan(&rowid)
+	err = tx.QueryRow(`SELECT rowid FROM tickets WHERE path = ?`, path).Scan(&rowid)
 	if errors.Is(err, sql.ErrNoRows) {
 		return tx.Commit()
 	}
@@ -132,7 +132,7 @@ func (d *DB) DeleteByPath(path string) error {
 	if _, err := tx.Exec(`DELETE FROM edges WHERE from_path = ?`, path); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`DELETE FROM projects WHERE path = ?`, path); err != nil {
+	if _, err := tx.Exec(`DELETE FROM tickets WHERE path = ?`, path); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -146,13 +146,13 @@ func (d *DB) DeleteScope(scope string) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if _, err := tx.Exec(`DELETE FROM fts WHERE rowid IN (SELECT rowid FROM projects WHERE scope = ?)`, scope); err != nil {
+	if _, err := tx.Exec(`DELETE FROM fts WHERE rowid IN (SELECT rowid FROM tickets WHERE scope = ?)`, scope); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(`DELETE FROM edges WHERE from_scope = ?`, scope); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`DELETE FROM projects WHERE scope = ?`, scope); err != nil {
+	if _, err := tx.Exec(`DELETE FROM tickets WHERE scope = ?`, scope); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(`DELETE FROM scope_meta WHERE scope = ?`, scope); err != nil {
@@ -166,7 +166,7 @@ func (d *DB) DeleteScope(scope string) error {
 
 // IndexedScopes returns scopes that currently have index rows, meta, or cache entries.
 func (d *DB) IndexedScopes() (map[string]bool, error) {
-	rows, err := d.sql.Query(`SELECT DISTINCT scope FROM projects
+	rows, err := d.sql.Query(`SELECT DISTINCT scope FROM tickets
                               UNION SELECT scope FROM scope_meta
                               UNION SELECT scope FROM config_cache`)
 	if err != nil {
@@ -201,7 +201,7 @@ func (d *DB) SetLastIndex(scope string, ns int64) error {
 	return err
 }
 
-// ConfigCacheEntry is a cached pj.cue evaluation (negative results cached too).
+// ConfigCacheEntry is a cached tk.cue evaluation (negative results cached too).
 type ConfigCacheEntry struct {
 	ClosureJSON string
 	SchemaJSON  string

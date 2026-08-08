@@ -5,25 +5,25 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/p3bot/pj/internal/scopefile"
+	"github.com/p3bot/tk/internal/scopefile"
 
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/status"
+	"github.com/p3bot/tk/internal/status"
 )
 
 func newMarkCmd(app *App) *cobra.Command {
 	var scope string
 	cmd := &cobra.Command{
 		Use:   "mark <id> <status> [--scope S]",
-		Short: "Mark a project's status (blocked / done / in-progress / …)",
-		Long: "Rewrite a project's status. When the new status crosses the terminal boundary\n" +
+		Short: "Mark a ticket's status (blocked / done / in-progress / …)",
+		Long: "Rewrite a ticket's status. When the new status crosses the terminal boundary\n" +
 			"(non-terminal ↔ terminal) the file is renamed between the dir root and archive/\n" +
 			"in the same write, and the post-move absolute path is printed. Statuses are\n" +
 			"labels: any known status (built-in or CUE custom) is accepted; an unknown one is\n" +
 			"a usage error. An auto-commit scope self-commits the change when a git-root\n" +
-			"exists. A quarantined or duplicate-id project is refused with no write.\n" +
-			"For a scope pulse (counts, next, integrity), use `pj status`.",
+			"exists. A quarantined or duplicate-id ticket is refused with no write.\n" +
+			"For a scope pulse (counts, next, integrity), use `tk status`.",
 		Args: usageArgs(cobra.ExactArgs(2)),
 		RunE: func(c *cobra.Command, args []string) error {
 			return runMark(app, c, args[0], args[1], scope)
@@ -36,7 +36,7 @@ func newMarkCmd(app *App) *cobra.Command {
 func runMark(app *App, c *cobra.Command, idArg, newStatus, scopeFlag string) error {
 	form, ok := parseIDArg(idArg)
 	if !ok {
-		return usageErrorf("%q is not a valid project id", idArg)
+		return usageErrorf("%q is not a valid ticket id", idArg)
 	}
 
 	e, err := app.openEngine(c)
@@ -51,7 +51,7 @@ func runMark(app *App, c *cobra.Command, idArg, newStatus, scopeFlag string) err
 	}
 	entry, registered := e.reg.Scopes[scope]
 	if !registered {
-		return fmt.Errorf("unknown project id %q: scope %q is not registered here", idArg, scope)
+		return fmt.Errorf("unknown ticket id %q: scope %q is not registered here", idArg, scope)
 	}
 	dir := entry.Dir
 
@@ -86,7 +86,7 @@ func runMark(app *App, c *cobra.Command, idArg, newStatus, scopeFlag string) err
 		return err
 	}
 
-	m, body, err := readProjectFile(p.Path)
+	m, body, err := readTicketFile(p.Path)
 	if err != nil {
 		return err
 	}
@@ -104,7 +104,7 @@ func runMark(app *App, c *cobra.Command, idArg, newStatus, scopeFlag string) err
 	}
 
 	// Write then rename: crash never leaves two same-id files (layout drift, not a collision).
-	if err := writeProjectFile(p.Path, m, body); err != nil {
+	if err := writeTicketFile(p.Path, m, body); err != nil {
 		return err
 	}
 	if oldPath != "" && oldPath != newPath {
@@ -117,7 +117,7 @@ func runMark(app *App, c *cobra.Command, idArg, newStatus, scopeFlag string) err
 	}
 
 	// Keep historical "-> status" commit subject shape.
-	message := fmt.Sprintf("pj: %s -> %s", p.ID, newStatus)
+	message := fmt.Sprintf("tk: %s -> %s", p.ID, newStatus)
 	if err := e.completeStateDurability(ctx, c, scope, dir, autoCommit, message, newPath, oldPath, root, hasRoot); err != nil {
 		return err
 	}

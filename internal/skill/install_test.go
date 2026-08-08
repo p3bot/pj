@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/p3bot/pj/internal/skill"
+	"github.com/p3bot/tk/internal/skill"
 )
 
 func TestWriteInstallAndPresent(t *testing.T) {
@@ -67,7 +67,7 @@ func TestWriteInstallRootIsSymlinkToDir(t *testing.T) {
 	if !skill.Present(link) {
 		t.Fatal("Present through symlink root")
 	}
-	if _, err := os.Stat(filepath.Join(realDir, "pj", "SKILL.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(realDir, "tk", "SKILL.md")); err != nil {
 		t.Fatalf("expected file under real dir: %v", err)
 	}
 	if written != skill.FilePath(link) {
@@ -109,9 +109,9 @@ func TestRemoveOwnedKeepsExtraAndWrongName(t *testing.T) {
 	if _, err := skill.WriteInstall(root); err != nil {
 		t.Fatal(err)
 	}
-	// Hand-edited body still uninstalls when name is pj.
+	// Hand-edited body still uninstalls when name is tk.
 	path := skill.FilePath(root)
-	if err := os.WriteFile(path, []byte("---\nname: pj\n---\n\n# edited\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("---\nname: tk\n---\n\n# edited\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	res, err := skill.RemoveOwned(root)

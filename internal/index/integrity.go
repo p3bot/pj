@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// Collision is a group of project rows in one scope that share a key that must be
+// Collision is a group of ticket rows in one scope that share a key that must be
 // unique (full id or order key). Members are sorted paths for stable warnings.
 type Collision struct {
 	Scope   string
@@ -19,7 +19,7 @@ func (d *DB) DuplicateIDs(scopes []string) ([]Collision, error) {
 	return d.collisions(scopes, "id", `1`)
 }
 
-// EqualOrders returns non-empty order keys shared by two or more projects in the given scopes.
+// EqualOrders returns non-empty order keys shared by two or more tickets in the given scopes.
 func (d *DB) EqualOrders(scopes []string) ([]Collision, error) {
 	return d.collisions(scopes, "order_key", `order_key <> ''`)
 }
@@ -30,7 +30,7 @@ func (d *DB) collisions(scopes []string, keyCol, extraPred string) ([]Collision,
 		return nil, nil
 	}
 	placeholders, args := inClause(scopes)
-	q := fmt.Sprintf(`SELECT scope, %s AS k, path FROM projects
+	q := fmt.Sprintf(`SELECT scope, %s AS k, path FROM tickets
                       WHERE scope IN (%s) AND %s
                       ORDER BY scope, k, path`, keyCol, placeholders, extraPred)
 	rows, err := d.sql.Query(q, args...)
@@ -76,7 +76,7 @@ func (d *DB) ParseErrorCount(scopes []string) (int, error) {
 	}
 	placeholders, args := inClause(scopes)
 	var n int
-	err := d.sql.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM projects WHERE parse_error = 1 AND scope IN (%s)`, placeholders), args...).Scan(&n)
+	err := d.sql.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM tickets WHERE parse_error = 1 AND scope IN (%s)`, placeholders), args...).Scan(&n)
 	return n, err
 }
 

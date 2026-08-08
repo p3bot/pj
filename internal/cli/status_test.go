@@ -34,14 +34,14 @@ func pulseKeys(out string) []string {
 func TestStatusDashboardKeyOrderAndCounts(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-aa22", "todo", "todo", "a1", "# T\n", false, "")
-	addProject(t, dir, "wc-ab23", "review", "review", "a2", "# R\n", false, "")
-	addProject(t, dir, "wc-ac24", "ip", "in-progress", "a3", "# I\n", false, "")
-	addProject(t, dir, "wc-ad25", "blocked", "blocked", "a4", "# B\n", false, "")
-	addProject(t, dir, "wc-ae26", "draft", "draft", "a5", "# D\n", false, "")
-	addProject(t, dir, "wc-af27", "backlog", "backlog", "a6", "# L\n", false, "")
-	addProject(t, dir, "wc-ag28", "done", "done", "a7", "# Done\n", true, "")
-	addProject(t, dir, "wc-ah29", "cancel", "cancelled", "a8", "# X\n", true, "")
+	addTicket(t, dir, "wc-aa22", "todo", "todo", "a1", "# T\n", false, "")
+	addTicket(t, dir, "wc-ab23", "review", "review", "a2", "# R\n", false, "")
+	addTicket(t, dir, "wc-ac24", "ip", "in-progress", "a3", "# I\n", false, "")
+	addTicket(t, dir, "wc-ad25", "blocked", "blocked", "a4", "# B\n", false, "")
+	addTicket(t, dir, "wc-ae26", "draft", "draft", "a5", "# D\n", false, "")
+	addTicket(t, dir, "wc-af27", "backlog", "backlog", "a6", "# L\n", false, "")
+	addTicket(t, dir, "wc-ag28", "done", "done", "a7", "# Done\n", true, "")
+	addTicket(t, dir, "wc-ah29", "cancel", "cancelled", "a8", "# X\n", true, "")
 
 	out, errOut, err := run(t, app, "status", "--scope", "wc")
 	if err != nil {
@@ -79,7 +79,7 @@ func TestStatusDashboardKeyOrderAndCounts(t *testing.T) {
 		t.Errorf("lens should be empty, got %q", p["lens"])
 	}
 	if p["total"] != "8" {
-		t.Errorf("total = %q want 8 (all parseable projects, not bare-list only)", p["total"])
+		t.Errorf("total = %q want 8 (all parseable tickets, not bare-list only)", p["total"])
 	}
 	if p["todo"] != "1" || p["review"] != "1" || p["in-progress"] != "1" ||
 		p["blocked"] != "1" || p["draft"] != "1" || p["backlog"] != "1" {
@@ -120,8 +120,8 @@ func TestStatusDashboardKeyOrderAndCounts(t *testing.T) {
 func TestStatusEmptyNextExitsZero(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	// Only a blocked project — nothing next-eligible.
-	addProject(t, dir, "wc-aa22", "b", "blocked", "a0", "# B\n", false, "")
+	// Only a blocked ticket — nothing next-eligible.
+	addTicket(t, dir, "wc-aa22", "b", "blocked", "a0", "# B\n", false, "")
 
 	out, _, err := run(t, app, "status", "--scope", "wc")
 	if err != nil {
@@ -156,8 +156,8 @@ func TestStatusPositionalsAreUsage(t *testing.T) {
 func TestStatusAttributeKeyBareValue(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-aa22", "todo", "todo", "a1", "# T\n", false, "")
-	addProject(t, dir, "wc-ac24", "ip", "in-progress", "a3", "# I\n", false, "")
+	addTicket(t, dir, "wc-aa22", "todo", "todo", "a1", "# T\n", false, "")
+	addTicket(t, dir, "wc-ac24", "ip", "in-progress", "a3", "# I\n", false, "")
 
 	full, _, err := run(t, app, "status", "--scope", "wc")
 	if err != nil {
@@ -201,7 +201,7 @@ func TestStatusAttributeEmptyValue(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
 	// Only blocked — next empty; no claimed/in-progress.
-	addProject(t, dir, "wc-aa22", "b", "blocked", "a0", "# B\n", false, "")
+	addTicket(t, dir, "wc-aa22", "b", "blocked", "a0", "# B\n", false, "")
 
 	out, _, err := run(t, app, "status", "next", "--scope", "wc")
 	if err != nil {
@@ -262,8 +262,8 @@ func TestStatusAttributeUnknownKey(t *testing.T) {
 func TestStatusAttributeKeepsStderrDiagnostics(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-aa22", "fe", "todo", "a0", "# FE\n", false, "tags: [frontend]\n")
-	addProject(t, dir, "wc-ab23", "be", "todo", "a1", "# BE\n", false, "tags: [backend]\n")
+	addTicket(t, dir, "wc-aa22", "fe", "todo", "a0", "# FE\n", false, "tags: [frontend]\n")
+	addTicket(t, dir, "wc-ab23", "be", "todo", "a1", "# BE\n", false, "tags: [backend]\n")
 
 	if _, _, err := run(t, app, "lens", "frontend", "--scope", "wc"); err != nil {
 		t.Fatalf("lens: %v", err)
@@ -286,11 +286,11 @@ func TestStatusAttributeKeepsStderrDiagnostics(t *testing.T) {
 func TestStatusLensFiltersWorkingBoard(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-aa22", "fe", "todo", "a0", "# FE\n", false, "tags: [frontend]\n")
-	addProject(t, dir, "wc-ab23", "be", "todo", "a1", "# BE\n", false, "tags: [backend]\n")
-	addProject(t, dir, "wc-ac24", "ip", "in-progress", "a2", "# IP\n", false, "tags: [backend]\n")
-	addProject(t, dir, "wc-ad25", "bl", "blocked", "a3", "# BL\n", false, "tags: [frontend]\n")
-	addProject(t, dir, "wc-ae26", "done", "done", "a4", "# D\n", true, "tags: [backend]\n")
+	addTicket(t, dir, "wc-aa22", "fe", "todo", "a0", "# FE\n", false, "tags: [frontend]\n")
+	addTicket(t, dir, "wc-ab23", "be", "todo", "a1", "# BE\n", false, "tags: [backend]\n")
+	addTicket(t, dir, "wc-ac24", "ip", "in-progress", "a2", "# IP\n", false, "tags: [backend]\n")
+	addTicket(t, dir, "wc-ad25", "bl", "blocked", "a3", "# BL\n", false, "tags: [frontend]\n")
+	addTicket(t, dir, "wc-ae26", "done", "done", "a4", "# D\n", true, "tags: [backend]\n")
 
 	if _, _, err := run(t, app, "lens", "frontend", "--scope", "wc"); err != nil {
 		t.Fatalf("lens: %v", err)
@@ -330,7 +330,7 @@ func TestStatusLensFiltersWorkingBoard(t *testing.T) {
 		t.Fatalf("next: %v", err)
 	}
 	if !strings.Contains(nextOut, "wc-aa22") {
-		t.Errorf("pj next should match status next, got %q", nextOut)
+		t.Errorf("tk next should match status next, got %q", nextOut)
 	}
 }
 
@@ -339,8 +339,8 @@ func TestStatusNextUsesReconcileClosure(t *testing.T) {
 	up := initScope(t, app, "up")
 	wc := initScope(t, app, "wc")
 	// Ambient wc depends on up; only after up is terminal is wc next-eligible.
-	addProject(t, up, "up-aa22", "core", "done", "a0", "# Core\n", true, "")
-	addProject(t, wc, "wc-bb22", "feat", "todo", "a0", "# Feature\n", false, "depends: [up-aa22]\n")
+	addTicket(t, up, "up-aa22", "core", "done", "a0", "# Core\n", true, "")
+	addTicket(t, wc, "wc-bb22", "feat", "todo", "a0", "# Feature\n", false, "depends: [up-aa22]\n")
 
 	out, _, err := run(t, app, "status", "--scope", "wc")
 	if err != nil {
@@ -355,15 +355,15 @@ func TestStatusNextUsesReconcileClosure(t *testing.T) {
 		t.Fatalf("next: %v", err)
 	}
 	if !strings.Contains(nextOut, "wc-bb22") {
-		t.Errorf("pj next should agree, got %q", nextOut)
+		t.Errorf("tk next should agree, got %q", nextOut)
 	}
 }
 
 func TestStatusNextTokensMatchBareNext(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-aa22", "ready", "todo", "a0", "# Ready\n", false, "")
-	addProject(t, dir, "wc-ab23", "held", "todo", "a1", "# Held\n", false, "depends: [wc-zz99]\n")
+	addTicket(t, dir, "wc-aa22", "ready", "todo", "a0", "# Ready\n", false, "")
+	addTicket(t, dir, "wc-ab23", "held", "todo", "a1", "# Held\n", false, "depends: [wc-zz99]\n")
 
 	_, statusErr, err := run(t, app, "status", "--scope", "wc")
 	if err != nil {
@@ -399,9 +399,9 @@ func tokenLines(errOut string) []string {
 func TestStatusDanglingEdgeCount(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-aa22", "a", "todo", "a0", "# A\n", false, "depends: [wc-zz99]\n")
-	addProject(t, dir, "wc-ab23", "b", "todo", "a1", "# B\n", false, "depends: [wc-zz99]\n")
-	addProject(t, dir, "wc-ac24", "c", "todo", "a2", "# C\n", false, "depends: [other-xx00]\n")
+	addTicket(t, dir, "wc-aa22", "a", "todo", "a0", "# A\n", false, "depends: [wc-zz99]\n")
+	addTicket(t, dir, "wc-ab23", "b", "todo", "a1", "# B\n", false, "depends: [wc-zz99]\n")
+	addTicket(t, dir, "wc-ac24", "c", "todo", "a2", "# C\n", false, "depends: [other-xx00]\n")
 
 	out, _, err := run(t, app, "status", "--scope", "wc")
 	if err != nil {
@@ -417,9 +417,9 @@ func TestStatusIntegrityAmbientOnly(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
 	other := initScope(t, app, "ot")
-	addProject(t, dir, "wc-aa22", "ok", "todo", "a0", "# Ok\n", false, "depends: [ot-bb22]\n")
-	addProject(t, other, "ot-bb22", "one", "done", "a0", "# One\n", true, "")
-	addProject(t, other, "ot-bb22", "two", "done", "a1", "# Two\n", true, "")
+	addTicket(t, dir, "wc-aa22", "ok", "todo", "a0", "# Ok\n", false, "depends: [ot-bb22]\n")
+	addTicket(t, other, "ot-bb22", "one", "done", "a0", "# One\n", true, "")
+	addTicket(t, other, "ot-bb22", "two", "done", "a1", "# Two\n", true, "")
 
 	out, _, err := run(t, app, "status", "--scope", "wc")
 	if err != nil {
@@ -430,7 +430,7 @@ func TestStatusIntegrityAmbientOnly(t *testing.T) {
 		t.Errorf("depended-on duplicate must not flip ambient integrity, got %q", p["integrity"])
 	}
 
-	addProject(t, dir, "wc-aa22", "dup", "todo", "a2", "# Dup\n", false, "")
+	addTicket(t, dir, "wc-aa22", "dup", "todo", "a2", "# Dup\n", false, "")
 	out, _, err = run(t, app, "status", "--scope", "wc")
 	if err != nil {
 		t.Fatalf("status after ambient dup: %v", err)
@@ -460,8 +460,8 @@ func TestStatusIntegrityHardClasses(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	addProject(t, dir, "wc-ab23", "a", "todo", "a0", "# A\n", false, "")
-	addProject(t, dir, "wc-ac24", "b", "todo", "a0", "# B\n", false, "")
+	addTicket(t, dir, "wc-ab23", "a", "todo", "a0", "# A\n", false, "")
+	addTicket(t, dir, "wc-ac24", "b", "todo", "a0", "# B\n", false, "")
 	out, _, err = run(t, app, "status", "--scope", "wc")
 	if err != nil {
 		t.Fatalf("status equal_order: %v", err)
@@ -476,7 +476,7 @@ func TestStatusIntegrityHardClasses(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	addProject(t, dir, "wc-ad25", "done", "done", "a1", "# Done\n", false, "")
+	addTicket(t, dir, "wc-ad25", "done", "done", "a1", "# Done\n", false, "")
 	out, _, err = run(t, app, "status", "--scope", "wc")
 	if err != nil {
 		t.Fatalf("status archive drift: %v", err)
@@ -488,7 +488,7 @@ func TestStatusIntegrityHardClasses(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	addProject(t, dir, "wc-ae26", "todo", "todo", "a2", "# Todo\n", true, "")
+	addTicket(t, dir, "wc-ae26", "todo", "todo", "a2", "# Todo\n", true, "")
 	out, _, err = run(t, app, "status", "--scope", "wc")
 	if err != nil {
 		t.Fatalf("status archive_non_terminal: %v", err)
@@ -502,7 +502,7 @@ func TestStatusIntegrityIgnoresSoftSchemaWarn(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
 	// Self-related is a soft doctor schema_warn class, not a post-reconcile integrity class.
-	addProject(t, dir, "wc-aa22", "t", "todo", "a0", "# T\n", false, "related: [wc-aa22]\n")
+	addTicket(t, dir, "wc-aa22", "t", "todo", "a0", "# T\n", false, "related: [wc-aa22]\n")
 
 	out, _, err := run(t, app, "status", "--scope", "wc")
 	if err != nil {
@@ -512,7 +512,7 @@ func TestStatusIntegrityIgnoresSoftSchemaWarn(t *testing.T) {
 		t.Errorf("soft schema_warn class alone must leave integrity ok, got %q", parsePulse(out)["integrity"])
 	}
 	// Same fixture: doctor must surface schema_warn so the soft class is real, not assumed.
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	docOut, _, err := run(t, app, "doctor")
 	if err != nil {
 		t.Fatalf("doctor: %v", err)
@@ -526,11 +526,11 @@ func TestStatusTotalIncludesBacklogAndCustom(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
 	cue := "name: \"wc\"\nautoCommit: false\nstatuses: {\n  polishing: {category: \"active\"}\n}\n"
-	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte(cue), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "tk.cue"), []byte(cue), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	addProject(t, dir, "wc-aa22", "p", "polishing", "a0", "# P\n", false, "")
-	addProject(t, dir, "wc-ab23", "b", "backlog", "a1", "# B\n", false, "")
+	addTicket(t, dir, "wc-aa22", "p", "polishing", "a0", "# P\n", false, "")
+	addTicket(t, dir, "wc-ab23", "b", "backlog", "a1", "# B\n", false, "")
 
 	out, _, err := run(t, app, "status", "--scope", "wc")
 	if err != nil {
@@ -556,9 +556,9 @@ func TestStatusClaimedSorted(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
 	// Higher order first on disk; claimed must sort (order, id).
-	addProject(t, dir, "wc-zz99", "late", "in-progress", "a2", "# Late\n", false, "")
-	addProject(t, dir, "wc-aa22", "early", "in-progress", "a0", "# Early\n", false, "")
-	addProject(t, dir, "wc-ab23", "mid", "in-progress", "a1", "# Mid\n", false, "")
+	addTicket(t, dir, "wc-zz99", "late", "in-progress", "a2", "# Late\n", false, "")
+	addTicket(t, dir, "wc-aa22", "early", "in-progress", "a0", "# Early\n", false, "")
+	addTicket(t, dir, "wc-ab23", "mid", "in-progress", "a1", "# Mid\n", false, "")
 
 	out, _, err := run(t, app, "status", "--scope", "wc")
 	if err != nil {
@@ -573,7 +573,7 @@ func TestStatusLensEmptiedNextExitsZero(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
 	// Only backend-tagged todos; frontend lens empties the ready queue.
-	addProject(t, dir, "wc-aa22", "be", "todo", "a0", "# BE\n", false, "tags: [backend]\n")
+	addTicket(t, dir, "wc-aa22", "be", "todo", "a0", "# BE\n", false, "tags: [backend]\n")
 	if _, _, err := run(t, app, "lens", "frontend", "--scope", "wc"); err != nil {
 		t.Fatalf("lens: %v", err)
 	}
@@ -596,9 +596,9 @@ func TestStatusLensEmptiedNextExitsZero(t *testing.T) {
 func TestStatusModeUnparseableIsPlainFiles(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-aa22", "t", "todo", "a0", "# T\n", false, "")
+	addTicket(t, dir, "wc-aa22", "t", "todo", "a0", "# T\n", false, "")
 	bad := "name: \"wc\"\nautoCommit: false\nfields: {x: {type: \"float\"}}\n"
-	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte(bad), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "tk.cue"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -618,12 +618,12 @@ func TestStatusModeUnparseableIsPlainFiles(t *testing.T) {
 	}
 }
 
-func TestStatusModePjDrivenUncommittedZero(t *testing.T) {
+func TestStatusModeTkDrivenUncommittedZero(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
 	dir, _ := initGitScope(t, app, "wc", true)
-	addProject(t, dir, "wc-aa22", "t", "todo", "a0", "# T\n", false, "")
-	if err := os.WriteFile(filepath.Join(dir, "pj.cue"),
+	addTicket(t, dir, "wc-aa22", "t", "todo", "a0", "# T\n", false, "")
+	if err := os.WriteFile(filepath.Join(dir, "tk.cue"),
 		[]byte("name: \"wc\"\nautoCommit: true\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -633,32 +633,32 @@ func TestStatusModePjDrivenUncommittedZero(t *testing.T) {
 		t.Fatalf("status: %v", err)
 	}
 	p := parsePulse(out)
-	if p["mode"] != "pj-driven" {
-		t.Errorf("mode = %q want pj-driven", p["mode"])
+	if p["mode"] != "tk-driven" {
+		t.Errorf("mode = %q want tk-driven", p["mode"])
 	}
 	if p["uncommitted"] != "0" {
-		t.Errorf("pj-driven uncommitted must be 0, got %q", p["uncommitted"])
+		t.Errorf("tk-driven uncommitted must be 0, got %q", p["uncommitted"])
 	}
 }
 
-func TestStatusModePjDrivenPlanned(t *testing.T) {
+func TestStatusModeTkDrivenPlanned(t *testing.T) {
 	app := newApp(t)
 	dir := filepath.Join(t.TempDir(), "wc")
 	if _, _, err := run(t, app, "scope", "init", dir, "--name", "wc", "--auto-commit"); err != nil {
 		t.Fatalf("init planned auto-commit: %v", err)
 	}
-	addProject(t, dir, "wc-aa22", "t", "todo", "a0", "# T\n", false, "")
+	addTicket(t, dir, "wc-aa22", "t", "todo", "a0", "# T\n", false, "")
 
 	out, _, err := run(t, app, "status", "--scope", "wc")
 	if err != nil {
 		t.Fatalf("status: %v", err)
 	}
 	p := parsePulse(out)
-	if p["mode"] != "pj-driven" {
-		t.Errorf("planned auto-commit mode = %q want pj-driven", p["mode"])
+	if p["mode"] != "tk-driven" {
+		t.Errorf("planned auto-commit mode = %q want tk-driven", p["mode"])
 	}
 	if p["uncommitted"] != "0" {
-		t.Errorf("planned pj-driven uncommitted must be 0, got %q", p["uncommitted"])
+		t.Errorf("planned tk-driven uncommitted must be 0, got %q", p["uncommitted"])
 	}
 }
 
@@ -666,7 +666,7 @@ func TestStatusModeRepoDrivenDirtyCount(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
 	dir, _ := initGitScope(t, app, "rd", false)
-	addProject(t, dir, "rd-aa22", "t", "todo", "a0", "# T\n", false, "")
+	addTicket(t, dir, "rd-aa22", "t", "todo", "a0", "# T\n", false, "")
 
 	out, _, err := run(t, app, "status", "--scope", "rd")
 	if err != nil {
@@ -684,7 +684,7 @@ func TestStatusModeRepoDrivenDirtyCount(t *testing.T) {
 func TestStatusResolvedSources(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-aa22", "t", "todo", "a0", "# T\n", false, "")
+	addTicket(t, dir, "wc-aa22", "t", "todo", "a0", "# T\n", false, "")
 
 	out, _, err := run(t, app, "status", "--scope", "wc")
 	if err != nil {
@@ -694,7 +694,7 @@ func TestStatusResolvedSources(t *testing.T) {
 		t.Errorf("want flag, got %q", parsePulse(out)["resolved"])
 	}
 
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	out, _, err = run(t, app, "status")
 	if err != nil {
 		t.Fatal(err)
@@ -703,7 +703,7 @@ func TestStatusResolvedSources(t *testing.T) {
 		t.Errorf("want env, got %q", parsePulse(out)["resolved"])
 	}
 
-	t.Setenv("PJ_SCOPE", "")
+	t.Setenv("TK_SCOPE", "")
 	t.Chdir(dir)
 	out, _, err = run(t, app, "status")
 	if err != nil {

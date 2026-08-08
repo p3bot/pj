@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/p3bot/pj/internal/gitstate"
+	"github.com/p3bot/tk/internal/gitstate"
 )
 
 // An empty auto-commit eligible set is not a failure: exit 0 with a note.
@@ -52,7 +52,7 @@ func TestSyncPushFailureRecordsAndClearsLastPushError(t *testing.T) {
 	remote := newBareRemote(t)
 	m := cloneMachine(t, remote)
 	dir := m.initScopeAutoCommit(t)
-	addProject(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
 
 	// Hermetic clears templates, so .git/hooks is often absent after init.
 	hooksDir := filepath.Join(m.clone, ".git", "hooks")
@@ -96,8 +96,8 @@ func TestSyncAllLoneUnparseableConfigSurfaces(t *testing.T) {
 	if _, _, err := run(t, app, "scope", "init", dir, "--name", "wc", "--auto-commit"); err != nil {
 		t.Fatalf("init auto-commit scope: %v", err)
 	}
-	// Break pj.cue after registration: a field type the schema rejects, so it will not parse.
-	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte("name: \"wc\"\nautoCommit: true\nfields: {x: {type: \"float\"}}\n"), 0o644); err != nil {
+	// Break tk.cue after registration: a field type the schema rejects, so it will not parse.
+	if err := os.WriteFile(filepath.Join(dir, "tk.cue"), []byte("name: \"wc\"\nautoCommit: true\nfields: {x: {type: \"float\"}}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -122,8 +122,8 @@ func TestSyncAmbientUnparseableConfigNoRepoRefusesOnConfig(t *testing.T) {
 	if _, _, err := run(t, app, "scope", "init", dir, "--name", "wc", "--auto-commit"); err != nil {
 		t.Fatalf("init auto-commit scope: %v", err)
 	}
-	// Break pj.cue after registration: a field type the schema rejects.
-	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte("name: \"wc\"\nautoCommit: true\nfields: {x: {type: \"float\"}}\n"), 0o644); err != nil {
+	// Break tk.cue after registration: a field type the schema rejects.
+	if err := os.WriteFile(filepath.Join(dir, "tk.cue"), []byte("name: \"wc\"\nautoCommit: true\nfields: {x: {type: \"float\"}}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -133,10 +133,10 @@ func TestSyncAmbientUnparseableConfigNoRepoRefusesOnConfig(t *testing.T) {
 	}
 	all := err.Error() + errOut
 	if !strings.Contains(all, "config_unparseable:") {
-		t.Errorf("the broken pj.cue should be named by config_unparseable, got %v / %q", err, errOut)
+		t.Errorf("the broken tk.cue should be named by config_unparseable, got %v / %q", err, errOut)
 	}
 	if strings.Contains(all, "sync_disabled:") {
-		t.Errorf("a broken pj.cue must not be reported as a missing git repository, got %v / %q", err, errOut)
+		t.Errorf("a broken tk.cue must not be reported as a missing git repository, got %v / %q", err, errOut)
 	}
 }
 
@@ -176,7 +176,7 @@ func TestSyncAllWinsOverAmbientSelector(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
 	initGitScope(t, app, "rd", false)
-	t.Setenv("PJ_SCOPE", "rd")
+	t.Setenv("TK_SCOPE", "rd")
 	_, errOut, err := run(t, app, "sync", "--all")
 	if err != nil {
 		t.Fatalf("--all with a non-auto-commit ambient must not refuse: %v", err)
@@ -222,7 +222,7 @@ func TestSyncPreflightRefusesAutoCommitMismatch(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
 	dir, repo := initGitScope(t, app, "wc", true)
-	addProject(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
 	sib := filepath.Join(repo, "sib")
 	if err := os.MkdirAll(sib, 0o755); err != nil {
 		t.Fatal(err)
@@ -231,7 +231,7 @@ func TestSyncPreflightRefusesAutoCommitMismatch(t *testing.T) {
 		t.Fatalf("init sibling: %v", err)
 	}
 	// Diverge autoCommit after registration — exactly what init would have refused.
-	if err := os.WriteFile(filepath.Join(sib, "pj.cue"), []byte("name: \"sib\"\nautoCommit: false\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(sib, "tk.cue"), []byte("name: \"sib\"\nautoCommit: false\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, errOut, err := run(t, app, "sync", "--scope", "wc")
@@ -243,12 +243,12 @@ func TestSyncPreflightRefusesAutoCommitMismatch(t *testing.T) {
 	}
 }
 
-// Preflight refuses the whole git-root for an unparseable sibling pj.cue.
+// Preflight refuses the whole git-root for an unparseable sibling tk.cue.
 func TestSyncPreflightRefusesUnparseableSibling(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
 	dir, repo := initGitScope(t, app, "wc", true)
-	addProject(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
 	sib := filepath.Join(repo, "sib")
 	if err := os.MkdirAll(sib, 0o755); err != nil {
 		t.Fatal(err)
@@ -256,7 +256,7 @@ func TestSyncPreflightRefusesUnparseableSibling(t *testing.T) {
 	if _, _, err := run(t, app, "scope", "init", sib, "--name", "sib", "--code-root", sib, "--auto-commit"); err != nil {
 		t.Fatalf("init sibling: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(sib, "pj.cue"), []byte("name: \"sib\"\nautoCommit: true\nfields: {x: {type: \"float\"}}\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(sib, "tk.cue"), []byte("name: \"sib\"\nautoCommit: true\nfields: {x: {type: \"float\"}}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, errOut, err := run(t, app, "sync", "--scope", "wc")
@@ -273,7 +273,7 @@ func TestSyncPreflightRefusesNameDriftedSibling(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
 	dir, repo := initGitScope(t, app, "wc", true)
-	addProject(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
 	sib := filepath.Join(repo, "sib")
 	if err := os.MkdirAll(sib, 0o755); err != nil {
 		t.Fatal(err)
@@ -281,15 +281,15 @@ func TestSyncPreflightRefusesNameDriftedSibling(t *testing.T) {
 	if _, _, err := run(t, app, "scope", "init", sib, "--name", "sib", "--code-root", sib, "--auto-commit"); err != nil {
 		t.Fatalf("init sibling: %v", err)
 	}
-	// Rewrite pj.cue's name so the registry key (sib) and the on-disk name (drifted) disagree.
-	if err := os.WriteFile(filepath.Join(sib, "pj.cue"), []byte("name: \"drifted\"\nautoCommit: true\n"), 0o644); err != nil {
+	// Rewrite tk.cue's name so the registry key (sib) and the on-disk name (drifted) disagree.
+	if err := os.WriteFile(filepath.Join(sib, "tk.cue"), []byte("name: \"drifted\"\nautoCommit: true\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, errOut, err := run(t, app, "sync", "--scope", "wc")
 	if ExitCodeFromError(err) != exitFailure {
 		t.Fatalf("drifted sibling preflight must refuse non-zero, got %v", err)
 	}
-	if !strings.Contains(errOut, "name_drift:") || !strings.Contains(errOut, "pj scope forget") {
+	if !strings.Contains(errOut, "name_drift:") || !strings.Contains(errOut, "tk scope forget") {
 		t.Errorf("drifted sibling should ride name_drift with the recovery, got %q", errOut)
 	}
 }
@@ -299,7 +299,7 @@ func TestSyncSnapshotsAllowlistWarnsResidueAndPushes(t *testing.T) {
 	remote := newBareRemote(t)
 	m := cloneMachine(t, remote)
 	dir := m.initScopeAutoCommit(t)
-	addProject(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
 	if err := os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("# handoff\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -312,10 +312,10 @@ func TestSyncSnapshotsAllowlistWarnsResidueAndPushes(t *testing.T) {
 		t.Errorf("AGENTS.md residue should ride non_allowlist, got %q", errOut)
 	}
 	if !remoteHas(t, remote, "wc/wc-ab2c-alpha.md") {
-		t.Error("the project file should be pushed")
+		t.Error("the ticket file should be pushed")
 	}
-	if !remoteHas(t, remote, "wc/pj.cue") {
-		t.Error("pj.cue should be pushed")
+	if !remoteHas(t, remote, "wc/tk.cue") {
+		t.Error("tk.cue should be pushed")
 	}
 	if remoteHas(t, remote, "wc/AGENTS.md") {
 		t.Error("AGENTS.md must never be committed or pushed")
@@ -363,20 +363,20 @@ func TestSyncTwoScopesShareGitRootSnapshotOneCommit(t *testing.T) {
 			t.Fatalf("init %s: %v", name, err)
 		}
 	}
-	addProject(t, wcDir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
-	addProject(t, xyDir, "xy-cd3e", "beta", "todo", "a0", "# Beta\n", false, "")
+	addTicket(t, wcDir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
+	addTicket(t, xyDir, "xy-cd3e", "beta", "todo", "a0", "# Beta\n", false, "")
 
 	if _, errOut, err := m.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("two-scope sync should complete: %v (stderr %q)", err, errOut)
 	}
 
-	if got := topCommit(t, m.clone); !strings.HasPrefix(got, "pj: sync ") {
+	if got := topCommit(t, m.clone); !strings.HasPrefix(got, "tk: sync ") {
 		t.Errorf("both dirs should ride one snapshot commit, got %q", got)
 	}
 	if !remoteHas(t, remote, "wc/wc-ab2c-alpha.md") {
-		t.Error("wc's project should be pushed")
+		t.Error("wc's ticket should be pushed")
 	}
 	if !remoteHas(t, remote, "xy/xy-cd3e-beta.md") {
-		t.Error("xy's project should be pushed in the same sync")
+		t.Error("xy's ticket should be pushed in the same sync")
 	}
 }

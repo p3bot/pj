@@ -9,7 +9,7 @@ import (
 
 	"github.com/p3bot/agentdex"
 
-	"github.com/p3bot/pj/internal/skill"
+	"github.com/p3bot/tk/internal/skill"
 )
 
 // Minimal agentdex catalog schema (mirrors agentdex catalog/schema.cue).
@@ -96,10 +96,10 @@ func skillEnvHome(home string) func(string) (string, bool) {
 func skillApp(t *testing.T, home, wd string, installed ...string) *App {
 	t.Helper()
 	const (
-		binAlpha = "pj-fixture-alpha"
-		binBeta  = "pj-fixture-beta"
-		binGamma = "pj-fixture-gamma"
-		binDelta = "pj-fixture-delta"
+		binAlpha = "tk-fixture-alpha"
+		binBeta  = "tk-fixture-beta"
+		binGamma = "tk-fixture-gamma"
+		binDelta = "tk-fixture-delta"
 	)
 	body := `
 agents: "alpha-cli": {
@@ -146,7 +146,7 @@ agents: "delta-agent": {
 }
 agents: "epsilon-alt": {
 	name: "Epsilon Alt Only"
-	bin:  "pj-fixture-epsilon"
+	bin:  "tk-fixture-epsilon"
 	config: {global: "~/.epsilon", local: ".epsilon"}
 	skills: {
 		global: {alternatives: ["~/.epsilon/skills"]}
@@ -166,7 +166,7 @@ agents: "epsilon-alt": {
 		return "", exec.ErrNotFound
 	}
 	// Map installed names to bins: pass basename list
-	// installed should be full bin names like pj-fixture-alpha
+	// installed should be full bin names like tk-fixture-alpha
 	app := newApp(t)
 	app.AgentdexOpts = []agentdex.Option{
 		agentdex.WithCatalogDir(catalogDir),
@@ -183,7 +183,7 @@ func TestSkillPrintsContractNoScope(t *testing.T) {
 	app := newApp(t)
 	out, errOut, err := run(t, app, "skill")
 	if err != nil {
-		t.Fatalf("pj skill: %v", err)
+		t.Fatalf("tk skill: %v", err)
 	}
 	if errOut != "" {
 		t.Errorf("skill must write nothing to stderr, got %q", errOut)
@@ -207,7 +207,7 @@ func TestSkillPrintsContractNoScope(t *testing.T) {
 func TestSkillInstallDefaultPrimary(t *testing.T) {
 	home := t.TempDir()
 	wd := t.TempDir()
-	app := skillApp(t, home, wd, "pj-fixture-alpha", "pj-fixture-gamma")
+	app := skillApp(t, home, wd, "tk-fixture-alpha", "tk-fixture-gamma")
 
 	out, errOut, err := run(t, app, "skill", "install")
 	if err != nil {
@@ -215,8 +215,8 @@ func TestSkillInstallDefaultPrimary(t *testing.T) {
 	}
 	// alpha Primary = native ~/.alpha/skills; gamma Primary = agents ~/.agents/skills
 	// Printed alphabetically: .agents before .alpha
-	alphaFile := filepath.Join(home, ".alpha", "skills", "pj", "SKILL.md")
-	gammaFile := filepath.Join(home, ".agents", "skills", "pj", "SKILL.md")
+	alphaFile := filepath.Join(home, ".alpha", "skills", "tk", "SKILL.md")
+	gammaFile := filepath.Join(home, ".agents", "skills", "tk", "SKILL.md")
 	lines := nonEmptyLines(out)
 	if len(lines) != 2 {
 		t.Fatalf("want 2 install paths, got %q", out)
@@ -239,14 +239,14 @@ func TestSkillInstallNamedNativeElseShared(t *testing.T) {
 	home := t.TempDir()
 	wd := t.TempDir()
 	// Only gamma installed for default-set elsewhere; install delta by name (!Found OK)
-	app := skillApp(t, home, wd, "pj-fixture-gamma")
+	app := skillApp(t, home, wd, "tk-fixture-gamma")
 
 	out, _, err := run(t, app, "skill", "install", "delta-agent")
 	if err != nil {
 		t.Fatal(err)
 	}
 	// delta has no native → Shared ~/.agents/skills
-	want := filepath.Join(home, ".agents", "skills", "pj", "SKILL.md")
+	want := filepath.Join(home, ".agents", "skills", "tk", "SKILL.md")
 	if strings.TrimSpace(out) != want {
 		t.Fatalf("out = %q want %q", out, want)
 	}
@@ -255,7 +255,7 @@ func TestSkillInstallNamedNativeElseShared(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantAlpha := filepath.Join(home, ".alpha", "skills", "pj", "SKILL.md")
+	wantAlpha := filepath.Join(home, ".alpha", "skills", "tk", "SKILL.md")
 	if strings.TrimSpace(out) != wantAlpha {
 		t.Fatalf("alpha out = %q want %q", out, wantAlpha)
 	}
@@ -264,18 +264,18 @@ func TestSkillInstallNamedNativeElseShared(t *testing.T) {
 func TestSkillInstallLocal(t *testing.T) {
 	home := t.TempDir()
 	wd := t.TempDir()
-	app := skillApp(t, home, wd, "pj-fixture-alpha")
+	app := skillApp(t, home, wd, "tk-fixture-alpha")
 
 	out, _, err := run(t, app, "skill", "install", "--local")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(wd, ".alpha", "skills", "pj", "SKILL.md")
+	want := filepath.Join(wd, ".alpha", "skills", "tk", "SKILL.md")
 	if strings.TrimSpace(out) != want {
 		t.Fatalf("out = %q want %q", out, want)
 	}
 	// global not written
-	if _, err := os.Stat(filepath.Join(home, ".alpha", "skills", "pj", "SKILL.md")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(home, ".alpha", "skills", "tk", "SKILL.md")); !os.IsNotExist(err) {
 		t.Fatal("global should not be written with --local")
 	}
 }
@@ -303,7 +303,7 @@ func TestSkillUninstallEmptyDefaultSet(t *testing.T) {
 func TestSkillInstallUnknownAndNoSkills(t *testing.T) {
 	home := t.TempDir()
 	wd := t.TempDir()
-	app := skillApp(t, home, wd, "pj-fixture-alpha")
+	app := skillApp(t, home, wd, "tk-fixture-alpha")
 
 	_, _, err := run(t, app, "skill", "install", "no-such-agent")
 	if ExitCodeFromError(err) != exitUsage {
@@ -320,7 +320,7 @@ func TestSkillInstallNamedNoWritablePath(t *testing.T) {
 	// Native else Shared — both empty → exit 2, no write.
 	home := t.TempDir()
 	wd := t.TempDir()
-	app := skillApp(t, home, wd, "pj-fixture-alpha")
+	app := skillApp(t, home, wd, "tk-fixture-alpha")
 
 	_, _, err := run(t, app, "skill", "install", "epsilon-alt")
 	if ExitCodeFromError(err) != exitUsage {
@@ -329,7 +329,7 @@ func TestSkillInstallNamedNoWritablePath(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "writable") {
 		t.Fatalf("want writable-path error, got %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(home, ".epsilon", "skills", "pj", "SKILL.md")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(home, ".epsilon", "skills", "tk", "SKILL.md")); !os.IsNotExist(err) {
 		t.Fatal("named install must not write when Native and Shared are empty")
 	}
 }
@@ -347,7 +347,7 @@ func TestSkillInstallDedupeShared(t *testing.T) {
 	if len(lines) != 1 {
 		t.Fatalf("want 1 path for shared de-dupe, got %q", out)
 	}
-	want := filepath.Join(home, ".agents", "skills", "pj", "SKILL.md")
+	want := filepath.Join(home, ".agents", "skills", "tk", "SKILL.md")
 	if lines[0] != want {
 		t.Fatalf("path = %q want %q", lines[0], want)
 	}
@@ -356,7 +356,7 @@ func TestSkillInstallDedupeShared(t *testing.T) {
 func TestSkillList(t *testing.T) {
 	home := t.TempDir()
 	wd := t.TempDir()
-	app := skillApp(t, home, wd, "pj-fixture-alpha", "pj-fixture-gamma", "pj-fixture-delta")
+	app := skillApp(t, home, wd, "tk-fixture-alpha", "tk-fixture-gamma", "tk-fixture-delta")
 
 	// empty list when nothing installed on disk
 	out, errOut, err := run(t, app, "skill", "list")
@@ -383,8 +383,8 @@ func TestSkillList(t *testing.T) {
 	if len(lines) != 2 {
 		t.Fatalf("list lines = %q", out)
 	}
-	shared := filepath.Join(home, ".agents", "skills", "pj", "SKILL.md")
-	alpha := filepath.Join(home, ".alpha", "skills", "pj", "SKILL.md")
+	shared := filepath.Join(home, ".agents", "skills", "tk", "SKILL.md")
+	alpha := filepath.Join(home, ".alpha", "skills", "tk", "SKILL.md")
 	parts0 := strings.SplitN(lines[0], "\t", 2)
 	parts1 := strings.SplitN(lines[1], "\t", 2)
 	if parts0[0] != shared || parts1[0] != alpha {
@@ -415,7 +415,7 @@ func TestSkillListEmptyDefaultSet(t *testing.T) {
 func TestSkillListLocal(t *testing.T) {
 	home := t.TempDir()
 	wd := t.TempDir()
-	app := skillApp(t, home, wd, "pj-fixture-alpha")
+	app := skillApp(t, home, wd, "tk-fixture-alpha")
 	if _, _, err := run(t, app, "skill", "install", "--local"); err != nil {
 		t.Fatal(err)
 	}
@@ -423,7 +423,7 @@ func TestSkillListLocal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(wd, ".alpha", "skills", "pj", "SKILL.md")
+	want := filepath.Join(wd, ".alpha", "skills", "tk", "SKILL.md")
 	if !strings.Contains(out, want) {
 		t.Fatalf("list --local missing %s in %q", want, out)
 	}
@@ -443,11 +443,11 @@ func TestSkillListLocal(t *testing.T) {
 func TestSkillUninstallLocal(t *testing.T) {
 	home := t.TempDir()
 	wd := t.TempDir()
-	app := skillApp(t, home, wd, "pj-fixture-alpha")
+	app := skillApp(t, home, wd, "tk-fixture-alpha")
 	if _, _, err := run(t, app, "skill", "install", "--local"); err != nil {
 		t.Fatal(err)
 	}
-	localDir := filepath.Join(wd, ".alpha", "skills", "pj")
+	localDir := filepath.Join(wd, ".alpha", "skills", "tk")
 	out, _, err := run(t, app, "skill", "uninstall", "--local")
 	if err != nil {
 		t.Fatal(err)
@@ -463,11 +463,11 @@ func TestSkillUninstallLocal(t *testing.T) {
 func TestSkillUninstallMultiTenantKeep(t *testing.T) {
 	home := t.TempDir()
 	wd := t.TempDir()
-	app := skillApp(t, home, wd, "pj-fixture-gamma", "pj-fixture-delta")
+	app := skillApp(t, home, wd, "tk-fixture-gamma", "tk-fixture-delta")
 	if _, _, err := run(t, app, "skill", "install"); err != nil {
 		t.Fatal(err)
 	}
-	sharedDir := filepath.Join(home, ".agents", "skills", "pj")
+	sharedDir := filepath.Join(home, ".agents", "skills", "tk")
 
 	// Uninstall only gamma: delta still claims shared path → keep
 	out, _, err := run(t, app, "skill", "uninstall", "gamma-agent")
@@ -501,8 +501,8 @@ func TestSkillUninstallMultiTenantAbsent(t *testing.T) {
 	home := t.TempDir()
 	wd := t.TempDir()
 	// Both installed, nothing written on disk.
-	app := skillApp(t, home, wd, "pj-fixture-gamma", "pj-fixture-delta")
-	sharedDir := filepath.Join(home, ".agents", "skills", "pj")
+	app := skillApp(t, home, wd, "tk-fixture-gamma", "tk-fixture-delta")
+	sharedDir := filepath.Join(home, ".agents", "skills", "tk")
 	out, _, err := run(t, app, "skill", "uninstall", "gamma-agent")
 	if err != nil {
 		t.Fatal(err)
@@ -521,11 +521,11 @@ func TestSkillUninstallMultiTenantAbsent(t *testing.T) {
 func TestSkillUninstallPurity(t *testing.T) {
 	home := t.TempDir()
 	wd := t.TempDir()
-	app := skillApp(t, home, wd, "pj-fixture-alpha")
+	app := skillApp(t, home, wd, "tk-fixture-alpha")
 	if _, _, err := run(t, app, "skill", "install", "alpha-cli"); err != nil {
 		t.Fatal(err)
 	}
-	dir := filepath.Join(home, ".alpha", "skills", "pj")
+	dir := filepath.Join(home, ".alpha", "skills", "tk")
 	if err := os.WriteFile(filepath.Join(dir, "extra.md"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -544,19 +544,19 @@ func TestSkillUninstallPurity(t *testing.T) {
 func TestSkillUninstallEditedBodyStillRemoves(t *testing.T) {
 	home := t.TempDir()
 	wd := t.TempDir()
-	app := skillApp(t, home, wd, "pj-fixture-alpha")
+	app := skillApp(t, home, wd, "tk-fixture-alpha")
 	if _, _, err := run(t, app, "skill", "install", "alpha-cli"); err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(home, ".alpha", "skills", "pj", "SKILL.md")
-	if err := os.WriteFile(path, []byte("---\nname: pj\ndescription: hand edit\n---\n\n# hand\n"), 0o644); err != nil {
+	path := filepath.Join(home, ".alpha", "skills", "tk", "SKILL.md")
+	if err := os.WriteFile(path, []byte("---\nname: tk\ndescription: hand edit\n---\n\n# hand\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	out, _, err := run(t, app, "skill", "uninstall", "alpha-cli")
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir := filepath.Join(home, ".alpha", "skills", "pj")
+	dir := filepath.Join(home, ".alpha", "skills", "tk")
 	if !strings.Contains(out, "removed\t"+dir) {
 		t.Fatalf("want removed, got %q", out)
 	}
@@ -582,7 +582,7 @@ func TestSkillCatalogInvalid(t *testing.T) {
 	if ExitCodeFromError(err) == exitUsage {
 		t.Fatalf("catalog failure should not be usage exit, got %d", ExitCodeFromError(err))
 	}
-	if !strings.Contains(err.Error(), "pj skill") {
+	if !strings.Contains(err.Error(), "tk skill") {
 		t.Fatalf("message should point at manual install: %v", err)
 	}
 }
@@ -615,7 +615,7 @@ func TestScopeInitWritesNoAgentsMD(t *testing.T) {
 	}
 	for _, e := range entries {
 		switch e.Name() {
-		case "pj.cue", ".gitignore":
+		case "tk.cue", ".gitignore":
 		default:
 			t.Errorf("unexpected init artefact %q", e.Name())
 		}

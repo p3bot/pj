@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/p3bot/pj/internal/flock"
-	"github.com/p3bot/pj/internal/pathutil"
+	"github.com/p3bot/tk/internal/flock"
+	"github.com/p3bot/tk/internal/pathutil"
 )
 
 const lastPushErrorFile = "last-push-error"

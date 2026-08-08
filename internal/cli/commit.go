@@ -7,15 +7,15 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/git"
-	"github.com/p3bot/pj/internal/gitstate"
-	"github.com/p3bot/pj/internal/reconcile"
-	"github.com/p3bot/pj/internal/scopefile"
-	"github.com/p3bot/pj/internal/selfcommit"
-	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/tk/internal/git"
+	"github.com/p3bot/tk/internal/gitstate"
+	"github.com/p3bot/tk/internal/reconcile"
+	"github.com/p3bot/tk/internal/scopefile"
+	"github.com/p3bot/tk/internal/selfcommit"
+	"github.com/p3bot/tk/internal/token"
 )
 
-// refuseUnusableScope refuses writes when the dir is unreachable or pj.cue is unusable.
+// refuseUnusableScope refuses writes when the dir is unreachable or tk.cue is unusable.
 func refuseUnusableScope(res *reconcile.Result, scope, dir string) error {
 	if res.Unreachable[scope] {
 		return fmt.Errorf("%s", token.Line(token.UnreachableScope,
@@ -23,7 +23,7 @@ func refuseUnusableScope(res *reconcile.Result, scope, dir string) error {
 	}
 	if cfgErr, ok := res.ConfigErrs[scope]; ok {
 		return fmt.Errorf("%s", token.Line(token.ConfigUnparseable,
-			fmt.Sprintf("%s (%s): %s — fix pj.cue before writing", scope, cfgErr.Dir, cfgErr.Reason)))
+			fmt.Sprintf("%s (%s): %s — fix tk.cue before writing", scope, cfgErr.Dir, cfgErr.Reason)))
 	}
 	return nil
 }
@@ -40,7 +40,7 @@ func checkMidRebase(ctx context.Context, scope string, autoCommit bool, root str
 	if files := git.UnmergedFiles(ctx, root); len(files) > 0 {
 		where = strings.Join(files, ", ")
 	}
-	return fmt.Errorf("%s is mid-sync-conflict in shared repo %s — resolve %s then run pj sync",
+	return fmt.Errorf("%s is mid-sync-conflict in shared repo %s — resolve %s then run tk sync",
 		scope, root, where)
 }
 
@@ -70,10 +70,10 @@ func (e *engine) completeStateDurability(ctx context.Context, c *cobra.Command, 
 }
 
 // createDurability: create never self-commits; terminal scaffolds get a durability note.
-// Repo-driven writes stay quiet; pj-driven with a git-root may ride sync_needed:.
+// Repo-driven writes stay quiet; tk-driven with a git-root may ride sync_needed:.
 func (e *engine) createDurability(ctx context.Context, c *cobra.Command, dir string, autoCommit, terminal bool, fullID, root string, hasRoot bool) {
 	if terminal {
-		stderrln(c, fmt.Sprintf("note: %s scaffolded under archive/ — a terminal create is not git-durable until pj sync (auto-commit) or a host commit", fullID))
+		stderrln(c, fmt.Sprintf("note: %s scaffolded under archive/ — a terminal create is not git-durable until tk sync (auto-commit) or a host commit", fullID))
 	}
 	if !autoCommit || !hasRoot {
 		return
@@ -81,7 +81,7 @@ func (e *engine) createDurability(ctx context.Context, c *cobra.Command, dir str
 	e.pjDrivenSyncNeeded(ctx, c, dir, root)
 }
 
-// pjDrivenSyncNeeded emits at most one sync_needed: line after a pj-driven write.
+// pjDrivenSyncNeeded emits at most one sync_needed: line after a tk-driven write.
 // Priority when several conditions hold: push failed, then dirty, then unpushed.
 // Reason strings are catalogue-stable: "push failed", "dirty", "unpushed".
 func (e *engine) pjDrivenSyncNeeded(ctx context.Context, c *cobra.Command, dir, root string) {

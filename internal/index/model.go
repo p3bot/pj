@@ -1,7 +1,7 @@
 package index
 
-// Project is one materialized project row (derived from a single file; Path is the physical key).
-type Project struct {
+// Ticket is one materialized ticket row (derived from a single file; Path is the physical key).
+type Ticket struct {
 	Path     string
 	Scope    string
 	ID       string // full id; on parse error, from the filename prefix
@@ -20,7 +20,7 @@ type Project struct {
 	// ParseError marks a quarantine row (id from filename; body still FTS-indexed).
 	ParseError bool
 	ParseMsg   string
-	// SchemaError is true when a depends/related entry failed IsFullProjectID.
+	// SchemaError is true when a depends/related entry failed IsFullTicketID.
 	SchemaError bool
 	// Body populates FTS on write only; not stored as a column and not read back.
 	Body    []byte

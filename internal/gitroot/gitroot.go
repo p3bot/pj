@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/p3bot/pj/internal/pathutil"
+	"github.com/p3bot/tk/internal/pathutil"
 )
 
 // RepoRoot returns the cleaned, symlink-resolved absolute path of the git repository containing dir.

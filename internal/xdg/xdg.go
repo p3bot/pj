@@ -1,7 +1,7 @@
-// Package xdg resolves pj's machine-local XDG config/state dirs and the
+// Package xdg resolves tk's machine-local XDG config/state dirs and the
 // machine-global flock over the config tier.
 //
-// Config uses ${XDG_CONFIG_HOME:-~/.config}/pj directly rather than
+// Config uses ${XDG_CONFIG_HOME:-~/.config}/tk directly rather than
 // os.UserConfigDir, which returns the wrong location on macOS.
 package xdg
 
@@ -12,30 +12,30 @@ import (
 	"syscall"
 )
 
-const lockName = ".pj.lock"
+const lockName = ".tk.lock"
 
-// ConfigDir returns $XDG_CONFIG_HOME/pj or ~/.config/pj. Path is not created.
+// ConfigDir returns $XDG_CONFIG_HOME/tk or ~/.config/tk. Path is not created.
 func ConfigDir() (string, error) {
 	if base := os.Getenv("XDG_CONFIG_HOME"); base != "" {
-		return filepath.Join(base, "pj"), nil
+		return filepath.Join(base, "tk"), nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("resolve home directory for XDG config: %w", err)
 	}
-	return filepath.Join(home, ".config", "pj"), nil
+	return filepath.Join(home, ".config", "tk"), nil
 }
 
-// StateDir returns $XDG_STATE_HOME/pj or ~/.local/state/pj (SQLite index; not synced).
+// StateDir returns $XDG_STATE_HOME/tk or ~/.local/state/tk (SQLite index; not synced).
 func StateDir() (string, error) {
 	if base := os.Getenv("XDG_STATE_HOME"); base != "" {
-		return filepath.Join(base, "pj"), nil
+		return filepath.Join(base, "tk"), nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("resolve home directory for XDG state: %w", err)
 	}
-	return filepath.Join(home, ".local", "state", "pj"), nil
+	return filepath.Join(home, ".local", "state", "tk"), nil
 }
 
 // Lock is a held machine-global flock over the XDG config tier.
@@ -43,7 +43,7 @@ type Lock struct {
 	f *os.File
 }
 
-// AcquireConfigLock takes the exclusive flock at <configDir>/.pj.lock, creating
+// AcquireConfigLock takes the exclusive flock at <configDir>/.tk.lock, creating
 // the directory if needed. Hold across the full registry read-modify-write so two
 // concurrent registrations cannot both pass a check the other's write then invalidates.
 func AcquireConfigLock(configDir string) (*Lock, error) {

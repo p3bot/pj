@@ -8,13 +8,13 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue/cuecontext"
-	"github.com/p3bot/pj/internal/status"
+	"github.com/p3bot/tk/internal/status"
 )
 
 func writeCfg(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "tk.cue"), []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return dir
@@ -126,7 +126,7 @@ func TestLoadAbsent(t *testing.T) {
 	ctx := cuecontext.New()
 	_, err := Load(ctx, t.TempDir())
 	if _, ok := AsConfigError(err); !ok {
-		t.Fatalf("absent pj.cue should be a *ConfigError, got %v", err)
+		t.Fatalf("absent tk.cue should be a *ConfigError, got %v", err)
 	}
 }
 
@@ -145,7 +145,7 @@ func TestReadName(t *testing.T) {
 
 	bad := writeCfg(t, `name: "wc" broken:::`)
 	if _, err := ReadName(ctx, bad); err == nil {
-		t.Error("expected error on uncompilable pj.cue")
+		t.Error("expected error on uncompilable tk.cue")
 	}
 
 	illegal := writeCfg(t, `name: "WC"`+"\nautoCommit: true")

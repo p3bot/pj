@@ -8,13 +8,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/p3bot/pj/internal/fmmerge"
-	"github.com/p3bot/pj/internal/frontmatter"
-	"github.com/p3bot/pj/internal/git"
-	"github.com/p3bot/pj/internal/rebasedriver"
-	"github.com/p3bot/pj/internal/scopeconfig"
-	"github.com/p3bot/pj/internal/scopefile"
-	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/tk/internal/fmmerge"
+	"github.com/p3bot/tk/internal/frontmatter"
+	"github.com/p3bot/tk/internal/git"
+	"github.com/p3bot/tk/internal/rebasedriver"
+	"github.com/p3bot/tk/internal/scopeconfig"
+	"github.com/p3bot/tk/internal/scopefile"
+	"github.com/p3bot/tk/internal/token"
 )
 
 type integrateResult int
@@ -34,10 +34,10 @@ const (
 	kindOther conflictKind = iota
 	kindSchema
 	kindIgnore
-	kindProject
+	kindTicket
 )
 
-// isConfig: pj.cue or .gitignore; only kindSchema gates .md merges.
+// isConfig: tk.cue or .gitignore; only kindSchema gates .md merges.
 func (k conflictKind) isConfig() bool { return k == kindSchema || k == kindIgnore }
 
 type conflictItem struct {
@@ -102,7 +102,7 @@ func runStops(deps Deps, r Reporter, t Target, driver *rebasedriver.Driver, rep 
 	}
 }
 
-// driveStop: schema-before-data; only conflicted pj.cue fail-closes project .md.
+// driveStop: schema-before-data; only conflicted tk.cue fail-closes ticket .md.
 func driveStop(deps Deps, r Reporter, t Target, driver *rebasedriver.Driver, rep *syncReport) (bool, error) {
 	ctx := deps.Ctx
 	items := classifyStop(ctx, t)
@@ -139,35 +139,35 @@ func driveStop(deps Deps, r Reporter, t Target, driver *rebasedriver.Driver, rep
 	return allStaged, nil
 }
 
-// reportConflictedConfig: config_unparseable only for pj.cue, never .gitignore.
+// reportConflictedConfig: config_unparseable only for tk.cue, never .gitignore.
 func reportConflictedConfig(r Reporter, it conflictItem, deletedSide string) {
 	if deletedSide != "" {
 		if it.kind == kindSchema {
 			r.Err(token.Line(token.ConfigUnparseable, fmt.Sprintf(
-				"%s: delete/edit conflict: %s was deleted on %s while the other side edited it — edit %s or git add it to keep as-is, then run pj sync (making the deletion win takes the scope out of pj's hands first: while a registered scope has no schema, sync refuses the root)",
+				"%s: delete/edit conflict: %s was deleted on %s while the other side edited it — edit %s or git add it to keep as-is, then run tk sync (making the deletion win takes the scope out of tk's hands first: while a registered scope has no schema, sync refuses the root)",
 				it.owner.Name, it.path, deletedSide, it.path)))
 			return
 		}
 		r.Err(fmt.Sprintf(
-			"delete/edit conflict: %s was deleted on %s while the other side edited it — remove %s, edit it, or git add it to keep as-is, then run pj sync",
+			"delete/edit conflict: %s was deleted on %s while the other side edited it — remove %s, edit it, or git add it to keep as-is, then run tk sync",
 			it.path, deletedSide, it.path))
 		return
 	}
 	if it.kind == kindSchema {
 		r.Err(token.Line(token.ConfigUnparseable, fmt.Sprintf(
-			"%s: conflicted pj.cue — resolve %s in place, then run pj sync", it.owner.Name, it.path)))
+			"%s: conflicted tk.cue — resolve %s in place, then run tk sync", it.owner.Name, it.path)))
 		return
 	}
 	r.Err(fmt.Sprintf(
-		"conflicted .gitignore: resolve the conflict markers in %s, then run pj sync", it.path))
+		"conflicted .gitignore: resolve the conflict markers in %s, then run tk sync", it.path))
 }
 
 func mdItemBlocked(r Reporter, it conflictItem, schemaConflicted map[string]bool, allStaged *bool) bool {
 	switch it.kind {
 	case kindOther:
-		// A path pj cannot classify or own: leave the rebase paused and name it, so the closing "resolve the file(s)
+		// A path tk cannot classify or own: leave the rebase paused and name it, so the closing "resolve the file(s)
 		r.Err(fmt.Sprintf(
-			"unresolvable conflict: resolve the conflict markers in %s, then run pj sync", it.path))
+			"unresolvable conflict: resolve the conflict markers in %s, then run tk sync", it.path))
 		*allStaged = false
 		return true
 	case kindSchema, kindIgnore:
@@ -175,7 +175,7 @@ func mdItemBlocked(r Reporter, it conflictItem, schemaConflicted map[string]bool
 	}
 	if schemaConflicted[it.owner.Dir] {
 		r.Err(token.Line(token.ConfigUnparseable, fmt.Sprintf(
-			"%s: %s not merged — its scope's pj.cue is conflicted; resolve pj.cue first", it.owner.Name, it.path)))
+			"%s: %s not merged — its scope's tk.cue is conflicted; resolve tk.cue first", it.owner.Name, it.path)))
 		*allStaged = false
 		return true
 	}
@@ -217,7 +217,7 @@ func resolveResumeStop(deps Deps, r Reporter, t Target, driver *rebasedriver.Dri
 			if acted {
 				continue
 			}
-			// Unactioned: re-report and, for pj.cue, keep the scope's project .md fail-closed.
+			// Unactioned: re-report and, for tk.cue, keep the scope's ticket .md fail-closed.
 			if it.kind == kindSchema {
 				schemaConflicted[it.owner.Dir] = true
 			}
@@ -271,7 +271,7 @@ func resolveResumeStop(deps Deps, r Reporter, t Target, driver *rebasedriver.Dri
 		}
 		if FrontmatterHasStatusConflict(it.abs) {
 			r.Err(token.Line(token.StatusConflict, fmt.Sprintf(
-				"%s: unresolved status_conflict — set status to one value and delete status_conflict in %s, then run pj sync", it.owner.Name, it.path)))
+				"%s: unresolved status_conflict — set status to one value and delete status_conflict in %s, then run tk sync", it.owner.Name, it.path)))
 			allStaged = false
 			continue
 		}
@@ -295,21 +295,21 @@ func applyDriverOutcome(r Reporter, o rebasedriver.Outcome, rep *syncReport) boo
 			o.Rename.OldID, o.Rename.NewID, o.Rename.NewPath))
 		return true
 	case rebasedriver.ClassBodyConflict:
-		r.Err(fmt.Sprintf("body conflict: resolve the merge markers in the body of %s, then run pj sync", o.Path))
+		r.Err(fmt.Sprintf("body conflict: resolve the merge markers in the body of %s, then run tk sync", o.Path))
 		return false
 	case rebasedriver.ClassStatusDispute:
 		r.Err(token.Line(token.StatusConflict, fmt.Sprintf(
-			"%s: %s — set status to one value and delete status_conflict in %s, then run pj sync",
+			"%s: %s — set status to one value and delete status_conflict in %s, then run tk sync",
 			o.Path, strings.Join(o.StatusConflict, " vs "), o.Path)))
 		return false
 	case rebasedriver.ClassDeleteEdit:
 		r.Err(fmt.Sprintf(
-			"delete/edit conflict: %s was deleted on %s while the other side edited it (status %q) — remove %s, edit it, or git add it to keep as-is, then run pj sync",
+			"delete/edit conflict: %s was deleted on %s while the other side edited it (status %q) — remove %s, edit it, or git add it to keep as-is, then run tk sync",
 			o.Path, deleteEditStageLabel(sideToStage(o.DeleteEdit.Deleted)), o.DeleteEdit.SurvivingStatus, o.Path))
 		return false
 	case rebasedriver.ClassFailClosed:
 		r.Err(token.Line(token.ConfigUnparseable, fmt.Sprintf(
-			"%s: merge failed closed on key %q (%s) — resolve %s in place, then run pj sync",
+			"%s: merge failed closed on key %q (%s) — resolve %s in place, then run tk sync",
 			o.Path, o.FailClosed.Key, o.FailClosed.Reason, o.Path)))
 		return false
 	default:
@@ -317,7 +317,7 @@ func applyDriverOutcome(r Reporter, o rebasedriver.Outcome, rep *syncReport) boo
 	}
 }
 
-// newDriver loads schema from on-disk pj.cue at call time, never a pre-fetch snapshot.
+// newDriver loads schema from on-disk tk.cue at call time, never a pre-fetch snapshot.
 func newDriver(deps Deps, t Target) *rebasedriver.Driver {
 	dirToScope := make(map[string]string, len(t.Participants))
 	for _, p := range t.Participants {
@@ -355,12 +355,12 @@ func classifyConflict(abs string, p Participant) conflictKind {
 		return kindOther
 	}
 	switch filepath.Base(abs) {
-	case "pj.cue":
+	case "tk.cue":
 		return kindSchema
 	case ".gitignore":
 		return kindIgnore
 	default:
-		return kindProject
+		return kindTicket
 	}
 }
 

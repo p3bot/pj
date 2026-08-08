@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/p3bot/pj/internal/testgit"
+	"github.com/p3bot/tk/internal/testgit"
 )
 
 func gitOut(t *testing.T, dir string, args ...string) string {

@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/p3bot/pj/internal/frontmatter"
-	"github.com/p3bot/pj/internal/scopeconfig"
-	"github.com/p3bot/pj/internal/status"
+	"github.com/p3bot/tk/internal/frontmatter"
+	"github.com/p3bot/tk/internal/scopeconfig"
+	"github.com/p3bot/tk/internal/status"
 )
 
 // testSchema has a custom done-category status, active status, strings field, and int field.

@@ -9,27 +9,27 @@ import (
 
 	"github.com/goccy/go-yaml"
 
-	"github.com/p3bot/pj/internal/atomicfile"
-	"github.com/p3bot/pj/internal/frontmatter"
+	"github.com/p3bot/tk/internal/atomicfile"
+	"github.com/p3bot/tk/internal/frontmatter"
 )
 
 // On-disk skill identity (directory segment and frontmatter name).
 const (
-	ID       = "pj"
+	ID       = "tk"
 	FileName = "SKILL.md"
 )
 
-// DirPath returns the skill directory under a skills root: <root>/pj.
+// DirPath returns the skill directory under a skills root: <root>/tk.
 func DirPath(skillsRoot string) string {
 	return filepath.Join(skillsRoot, ID)
 }
 
-// FilePath returns the skill file path: <root>/pj/SKILL.md.
+// FilePath returns the skill file path: <root>/tk/SKILL.md.
 func FilePath(skillsRoot string) string {
 	return filepath.Join(skillsRoot, ID, FileName)
 }
 
-// WriteInstall writes skill.Text() to <skillsRoot>/pj/SKILL.md, creating
+// WriteInstall writes skill.Text() to <skillsRoot>/tk/SKILL.md, creating
 // directories as needed and overwriting an existing file. Hard-fails when
 // skillsRoot exists and is not a directory.
 func WriteInstall(skillsRoot string) (written string, err error) {
@@ -55,7 +55,7 @@ func ensureSkillsRootDir(skillsRoot string) error {
 	if !os.IsNotExist(err) {
 		return fmt.Errorf("stat skills root %s: %w", skillsRoot, err)
 	}
-	// Missing root is fine: Write creates parents of …/pj/SKILL.md.
+	// Missing root is fine: Write creates parents of …/tk/SKILL.md.
 	return nil
 }
 
@@ -86,13 +86,13 @@ func FrontmatterName(data []byte) (string, error) {
 type UninstallResult int
 
 const (
-	// UninstallRemoved means the owned pure pj/ directory was deleted.
+	// UninstallRemoved means the owned pure tk/ directory was deleted.
 	UninstallRemoved UninstallResult = iota
 	// UninstallAbsent means no skill directory was present at the path.
 	UninstallAbsent
 	// UninstallKeptExtra means the directory has entries other than only SKILL.md.
 	UninstallKeptExtra
-	// UninstallKeptNotOurs means SKILL.md frontmatter name is not pj.
+	// UninstallKeptNotOurs means SKILL.md frontmatter name is not tk.
 	UninstallKeptNotOurs
 	// UninstallKeptUnreadable means SKILL.md frontmatter could not be parsed.
 	UninstallKeptUnreadable
@@ -112,7 +112,7 @@ func (r UninstallResult) String() string {
 	}
 }
 
-// RemoveOwned applies the uninstall purity rules to D = skillsRoot/pj.
+// RemoveOwned applies the uninstall purity rules to D = skillsRoot/tk.
 // Callers enforce multi-tenant blockers before calling; this only handles
 // the filesystem purity checks and removal.
 func RemoveOwned(skillsRoot string) (UninstallResult, error) {
@@ -154,7 +154,7 @@ func RemoveOwned(skillsRoot string) (UninstallResult, error) {
 	return UninstallRemoved, nil
 }
 
-// Present reports whether <skillsRoot>/pj/SKILL.md exists as a regular file.
+// Present reports whether <skillsRoot>/tk/SKILL.md exists as a regular file.
 func Present(skillsRoot string) bool {
 	info, err := os.Stat(FilePath(skillsRoot))
 	return err == nil && info.Mode().IsRegular()

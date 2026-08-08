@@ -1,5 +1,5 @@
-// Package cli is pj's Cobra command tree, exit codes, signals, and output rules.
-// Handlers return errors; cmd/pj/main.go is the sole place that formats and exits.
+// Package cli is tk's Cobra command tree, exit codes, signals, and output rules.
+// Handlers return errors; cmd/tk/main.go is the sole place that formats and exits.
 package cli
 
 import (
@@ -10,8 +10,8 @@ import (
 	"github.com/p3bot/agentdex"
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/scopeadmin"
-	"github.com/p3bot/pj/internal/xdg"
+	"github.com/p3bot/tk/internal/scopeadmin"
+	"github.com/p3bot/tk/internal/xdg"
 )
 
 // App carries process-wide CUE context and XDG config/state directories.
@@ -31,7 +31,7 @@ func (a *App) admin() *scopeadmin.Admin {
 // Execute builds the command tree and runs it.
 func Execute() error {
 	if !supportedOS() {
-		return &ExitError{Code: exitFailure, Err: fmt.Errorf("pj supports macOS and Linux only; this operating system is unsupported")}
+		return &ExitError{Code: exitFailure, Err: fmt.Errorf("tk supports macOS and Linux only; this operating system is unsupported")}
 	}
 
 	configDir, err := xdg.ConfigDir()
@@ -63,9 +63,9 @@ const (
 // newRootCmd builds a fresh tree so flag state cannot leak across test invocations.
 func newRootCmd(app *App) *cobra.Command {
 	root := &cobra.Command{
-		Use:           "pj",
-		Short:         "Agent project management CLI",
-		Long:          "pj tracks feature work as plain markdown files, one project per file.",
+		Use:           "tk",
+		Short:         "Agent ticket management CLI",
+		Long:          "tk tracks feature work as plain markdown files, one ticket per file.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          usageArgs(cobra.NoArgs),

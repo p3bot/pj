@@ -5,18 +5,18 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/p3bot/pj/internal/atomicfile"
-	"github.com/p3bot/pj/internal/frontmatter"
-	"github.com/p3bot/pj/internal/index"
-	"github.com/p3bot/pj/internal/order"
-	"github.com/p3bot/pj/internal/scopeconfig"
-	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/tk/internal/atomicfile"
+	"github.com/p3bot/tk/internal/frontmatter"
+	"github.com/p3bot/tk/internal/index"
+	"github.com/p3bot/tk/internal/order"
+	"github.com/p3bot/tk/internal/scopeconfig"
+	"github.com/p3bot/tk/internal/token"
 )
 
-const projectFileMode = 0o644
+const ticketFileMode = 0o644
 
 func atomicWrite(path string, data []byte) error {
-	return atomicfile.Write(path, data, projectFileMode)
+	return atomicfile.Write(path, data, ticketFileMode)
 }
 
 func single(scope, dir string) map[string]string {
@@ -37,7 +37,7 @@ func schemaAutoCommit(s *scopeconfig.Schema) bool {
 }
 
 // maxValidOrder: "" means empty board (open KeyBetween bound); skips invalid/quarantine.
-func maxValidOrder(rows []*index.Project) string {
+func maxValidOrder(rows []*index.Ticket) string {
 	best := ""
 	for _, p := range rows {
 		if p.ParseError || !order.Valid(p.OrderKey) {
@@ -50,8 +50,8 @@ func maxValidOrder(rows []*index.Project) string {
 	return best
 }
 
-// readProjectFile: parse failure here is a mid-write race (quarantine refused upstream).
-func readProjectFile(path string) (*frontmatter.Model, []byte, error) {
+// readTicketFile: parse failure here is a mid-write race (quarantine refused upstream).
+func readTicketFile(path string) (*frontmatter.Model, []byte, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("read %s: %w", path, err)
@@ -67,7 +67,7 @@ func readProjectFile(path string) (*frontmatter.Model, []byte, error) {
 	return m, body, nil
 }
 
-func writeProjectFile(path string, m *frontmatter.Model, body []byte) error {
+func writeTicketFile(path string, m *frontmatter.Model, body []byte) error {
 	interior, err := frontmatter.Serialize(m)
 	if err != nil {
 		return err
@@ -76,13 +76,13 @@ func writeProjectFile(path string, m *frontmatter.Model, body []byte) error {
 }
 
 // resolveSingleRow: 0 → unknown (noun-worded); >1 → duplicate_id; no row-level policy.
-func (e *engine) resolveSingleRow(scope, idArg string, form idForm, noun string) (*index.Project, error) {
-	var rows []*index.Project
+func (e *engine) resolveSingleRow(scope, idArg string, form idForm, noun string) (*index.Ticket, error) {
+	var rows []*index.Ticket
 	var err error
 	if form == idFull {
-		rows, err = e.db.ProjectsByID(scope, idArg)
+		rows, err = e.db.TicketsByID(scope, idArg)
 	} else {
-		rows, err = e.db.ProjectsByShortID(scope, idArg)
+		rows, err = e.db.TicketsByShortID(scope, idArg)
 	}
 	if err != nil {
 		return nil, err
@@ -97,8 +97,8 @@ func (e *engine) resolveSingleRow(scope, idArg string, form idForm, noun string)
 }
 
 // resolveWriteRow also refuses parse_error quarantine.
-func (e *engine) resolveWriteRow(scope, idArg string, form idForm) (*index.Project, error) {
-	p, err := e.resolveSingleRow(scope, idArg, form, "project")
+func (e *engine) resolveWriteRow(scope, idArg string, form idForm) (*index.Ticket, error) {
+	p, err := e.resolveSingleRow(scope, idArg, form, "ticket")
 	if err != nil {
 		return nil, err
 	}

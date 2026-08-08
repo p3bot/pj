@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/index"
+	"github.com/p3bot/tk/internal/index"
 )
 
 func newQueryCmd(app *App) *cobra.Command {
@@ -15,10 +15,10 @@ func newQueryCmd(app *App) *cobra.Command {
 		Short: "Run a read-only SQL query over the index (debug / human ad-hoc)",
 		Long: "Run a read-only SELECT (or read-only EXPLAIN/PRAGMA) over the machine-wide\n" +
 			"index and print tab-separated rows. Writes are rejected — the index is a\n" +
-			"derived cache; durable change is the project files or pj doctor --repair.\n\n" +
+			"derived cache; durable change is the ticket files or tk doctor --repair.\n\n" +
 			"The schema is NOT a stable API: it is rebuilt on any schema_version bump and\n" +
 			"may reshape between releases with no migration. Do not script against it —\n" +
-			"agents use deps / list / search / next / get / meta. `pj query --schema`\n" +
+			"agents use deps / list / search / next / get / meta. `tk query --schema`\n" +
 			"prints the current shape. No ambient --scope flag (filter in SQL).",
 		Args: usageArgs(cobra.ArbitraryArgs),
 		RunE: func(c *cobra.Command, args []string) error {

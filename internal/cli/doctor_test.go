@@ -6,19 +6,19 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/tk/internal/token"
 )
 
-func projectFiles(t *testing.T, dir string) []string {
+func ticketFiles(t *testing.T, dir string) []string {
 	t.Helper()
 	var out []string
 	for _, root := range []string{dir, filepath.Join(dir, "archive")} {
-		out = append(out, projectFilesIn(t, root)...)
+		out = append(out, ticketFilesIn(t, root)...)
 	}
 	return out
 }
 
-func projectFilesIn(t *testing.T, root string) []string {
+func ticketFilesIn(t *testing.T, root string) []string {
 	t.Helper()
 	entries, err := os.ReadDir(root)
 	if err != nil {
@@ -40,12 +40,12 @@ func fileExists(dir, base string) bool {
 
 func TestDoctorBareReportsAndMutatesNothing(t *testing.T) {
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
-	addProject(t, dir, "wc-ab2c", "beta", "todo", "a1", "# Beta\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "beta", "todo", "a1", "# Beta\n", false, "")
 
-	before := projectFiles(t, dir)
+	before := ticketFiles(t, dir)
 	out, _, err := run(t, app, "doctor")
 	if err != nil {
 		t.Fatalf("bare doctor: %v", err)
@@ -56,7 +56,7 @@ func TestDoctorBareReportsAndMutatesNothing(t *testing.T) {
 	if strings.Contains(out, "\x1b") {
 		t.Errorf("token report must never carry ANSI: %q", out)
 	}
-	after := projectFiles(t, dir)
+	after := ticketFiles(t, dir)
 	if len(before) != len(after) || !fileExists(dir, "wc-ab2c-beta.md") {
 		t.Errorf("bare doctor must mutate nothing: before=%v after=%v", before, after)
 	}
@@ -64,11 +64,11 @@ func TestDoctorBareReportsAndMutatesNothing(t *testing.T) {
 
 func TestDoctorRepairDuplicateID(t *testing.T) {
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
-	addProject(t, dir, "wc-ab2c", "beta", "todo", "a1", "# Beta\n", false, "")
-	addProject(t, dir, "wc-de34", "ref", "todo", "a2", "# Ref\n", false, "depends: [wc-ab2c]\n")
+	addTicket(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "beta", "todo", "a1", "# Beta\n", false, "")
+	addTicket(t, dir, "wc-de34", "ref", "todo", "a2", "# Ref\n", false, "depends: [wc-ab2c]\n")
 
 	out, _, err := run(t, app, "doctor", "--repair")
 	if err != nil {
@@ -81,7 +81,7 @@ func TestDoctorRepairDuplicateID(t *testing.T) {
 		t.Errorf("loser file must be renamed away")
 	}
 	if !fileExists(dir, "wc-ab2ca-beta.md") {
-		t.Errorf("loser must take the deterministic extension ab2ca, files=%v", projectFiles(t, dir))
+		t.Errorf("loser must take the deterministic extension ab2ca, files=%v", ticketFiles(t, dir))
 	}
 	if !strings.Contains(out, "repaired duplicate id: wc-ab2c -> wc-ab2ca") {
 		t.Errorf("repair should report the rename, got %q", out)
@@ -98,9 +98,9 @@ func TestDoctorRepairDuplicateID(t *testing.T) {
 
 func TestDoctorFlagsMalformedSlugTail(t *testing.T) {
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "good", "todo", "a0", "# Good\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "good", "todo", "a0", "# Good\n", false, "")
 	bad := "---\nid: wc-de34\nstatus: todo\norder: \"a1\"\ncreated: 2026-01-01T00:00:00Z\n---\n# Bad\n"
 	if err := os.WriteFile(filepath.Join(dir, "wc-de34-Bad__Slug!.md"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
@@ -110,24 +110,24 @@ func TestDoctorFlagsMalformedSlugTail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("doctor: %v", err)
 	}
-	if !strings.Contains(out, "filename/id mismatch: wc-de34-Bad__Slug!.md is not a project file shape") {
+	if !strings.Contains(out, "filename/id mismatch: wc-de34-Bad__Slug!.md is not a ticket file shape") {
 		t.Errorf("malformed slug tail must ride the structural check, got %q", out)
 	}
 	if strings.Contains(out, "wc-ab2c-good.md") {
-		t.Errorf("a valid project filename must not be flagged, got %q", out)
+		t.Errorf("a valid ticket filename must not be flagged, got %q", out)
 	}
 }
 
 func TestDoctorFlagsDuplicateInCustomStringsField(t *testing.T) {
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
 	cfg := "name: \"wc\"\nautoCommit: false\nfields: {areas: {type: \"strings\"}}\n"
-	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte(cfg), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "tk.cue"), []byte(cfg), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	addProject(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "areas: [api, api]\n")
-	addProject(t, dir, "wc-de34", "y", "todo", "a1", "# Y\n", false, "areas: [api, ui]\n")
+	addTicket(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "areas: [api, api]\n")
+	addTicket(t, dir, "wc-de34", "y", "todo", "a1", "# Y\n", false, "areas: [api, ui]\n")
 
 	out, _, err := run(t, app, "doctor")
 	if err != nil {
@@ -143,13 +143,13 @@ func TestDoctorFlagsDuplicateInCustomStringsField(t *testing.T) {
 
 func TestDoctorFlagsNonStringInStringsField(t *testing.T) {
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
 	cfg := "name: \"wc\"\nautoCommit: false\nfields: {areas: {type: \"strings\"}}\n"
-	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte(cfg), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "tk.cue"), []byte(cfg), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	addProject(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "areas: [api, 7]\n")
+	addTicket(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "areas: [api, 7]\n")
 
 	out, _, err := run(t, app, "doctor")
 	if err != nil {
@@ -162,11 +162,11 @@ func TestDoctorFlagsNonStringInStringsField(t *testing.T) {
 
 func TestDoctorSelfDependsIsNotAlsoACycle(t *testing.T) {
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "depends: [wc-ab2c]\n")
-	addProject(t, dir, "wc-de34", "y", "todo", "a1", "# Y\n", false, "depends: [wc-fg56]\n")
-	addProject(t, dir, "wc-fg56", "z", "todo", "a2", "# Z\n", false, "depends: [wc-de34, wc-fg56]\n")
+	addTicket(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "depends: [wc-ab2c]\n")
+	addTicket(t, dir, "wc-de34", "y", "todo", "a1", "# Y\n", false, "depends: [wc-fg56]\n")
+	addTicket(t, dir, "wc-fg56", "z", "todo", "a2", "# Z\n", false, "depends: [wc-de34, wc-fg56]\n")
 
 	out, _, err := run(t, app, "doctor")
 	if err != nil {
@@ -190,15 +190,15 @@ func TestDoctorSelfDependsIsNotAlsoACycle(t *testing.T) {
 
 func TestDoctorReindexWithRepairRebuildsAfterRepairs(t *testing.T) {
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
-	addProject(t, dir, "wc-ab2c", "beta", "todo", "a1", "# Beta\n", false, "")
-	// Seed the index, then delete a file behind pj's back: the end state must not carry the removed row.
+	addTicket(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "beta", "todo", "a1", "# Beta\n", false, "")
+	// Seed the index, then delete a file behind tk's back: the end state must not carry the removed row.
 	if _, _, err := run(t, app, "list"); err != nil {
 		t.Fatalf("seed index: %v", err)
 	}
-	addProject(t, dir, "wc-gh78", "ghost", "todo", "a2", "# Ghost\n", false, "")
+	addTicket(t, dir, "wc-gh78", "ghost", "todo", "a2", "# Ghost\n", false, "")
 	if _, _, err := run(t, app, "list"); err != nil {
 		t.Fatalf("seed ghost: %v", err)
 	}
@@ -231,7 +231,7 @@ func TestDoctorReindexWithRepairRebuildsAfterRepairs(t *testing.T) {
 
 func TestDoctorFlagsInvalidOrderKeys(t *testing.T) {
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
 	write := func(pid, name, orderLine string) {
 		body := "---\nid: " + pid + "\nstatus: todo\n" + orderLine + "created: 2026-01-01T00:00:00Z\n---\n# " + name + "\n"
@@ -268,12 +268,12 @@ func TestDoctorFlagsInvalidOrderKeys(t *testing.T) {
 
 func TestDoctorRepairEdgeVerifyNamesPostRepairReferrers(t *testing.T) {
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# A\n", false, "")
-	addProject(t, dir, "wc-ab2c", "beta", "todo", "a1", "# B\n", false, "")
-	addProject(t, dir, "wc-de34", "gamma", "todo", "a2", "# G\n", false, "depends: [wc-ab2c]\n")
-	addProject(t, dir, "wc-de34", "delta", "todo", "a3", "# D\n", false, "depends: [wc-ab2c]\n")
+	addTicket(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# A\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "beta", "todo", "a1", "# B\n", false, "")
+	addTicket(t, dir, "wc-de34", "gamma", "todo", "a2", "# G\n", false, "depends: [wc-ab2c]\n")
+	addTicket(t, dir, "wc-de34", "delta", "todo", "a3", "# D\n", false, "depends: [wc-ab2c]\n")
 
 	out, _, err := run(t, app, "doctor", "--repair")
 	if err != nil {
@@ -291,7 +291,7 @@ func TestDoctorRepairEdgeVerifyNamesPostRepairReferrers(t *testing.T) {
 	if strings.Count(out, "edge_verify:") != 2 {
 		t.Errorf("expected exactly two edge_verify lines, got %q", out)
 	}
-	// Every reported referrer id resolves to a real project after the run.
+	// Every reported referrer id resolves to a real ticket after the run.
 	for _, id := range []string{"wc-de34", "wc-de34a"} {
 		if _, _, err := run(t, app, "get", id); err != nil {
 			t.Errorf("edge_verify named %s, which does not resolve: %v", id, err)
@@ -301,10 +301,10 @@ func TestDoctorRepairEdgeVerifyNamesPostRepairReferrers(t *testing.T) {
 
 func TestDoctorReindexRepairSeesUnindexedCollision(t *testing.T) {
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
-	addProject(t, dir, "wc-ab2c", "beta", "todo", "a1", "# Beta\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "beta", "todo", "a1", "# Beta\n", false, "")
 
 	out, _, err := run(t, app, "doctor", "--reindex", "--repair")
 	if err != nil {
@@ -314,18 +314,18 @@ func TestDoctorReindexRepairSeesUnindexedCollision(t *testing.T) {
 		t.Fatalf("an on-disk collision absent from the index must still be repaired, got %q", out)
 	}
 	if !fileExists(dir, "wc-ab2ca-beta.md") {
-		t.Errorf("the loser must be renamed on disk, files=%v", projectFiles(t, dir))
+		t.Errorf("the loser must be renamed on disk, files=%v", ticketFiles(t, dir))
 	}
 }
 
 func TestDoctorRepairEqualOrder(t *testing.T) {
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-aaaa", "a", "todo", "a0", "# A\n", false, "")
-	addProject(t, dir, "wc-bbbb", "b", "todo", "a1", "# B\n", false, "")
-	addProject(t, dir, "wc-cccc", "c", "todo", "a1", "# C\n", false, "")
-	addProject(t, dir, "wc-dddd", "d", "todo", "a2", "# D\n", false, "")
+	addTicket(t, dir, "wc-aaaa", "a", "todo", "a0", "# A\n", false, "")
+	addTicket(t, dir, "wc-bbbb", "b", "todo", "a1", "# B\n", false, "")
+	addTicket(t, dir, "wc-cccc", "c", "todo", "a1", "# C\n", false, "")
+	addTicket(t, dir, "wc-dddd", "d", "todo", "a2", "# D\n", false, "")
 
 	if _, _, err := run(t, app, "doctor", "--repair"); err != nil {
 		t.Fatalf("doctor --repair: %v", err)
@@ -344,35 +344,35 @@ func TestDoctorRepairEqualOrder(t *testing.T) {
 
 func TestDoctorRepairArchiveLayoutBothWays(t *testing.T) {
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-aaaa", "done1", "done", "a0", "# Done\n", false, "")
-	addProject(t, dir, "wc-bbbb", "todo1", "todo", "a1", "# Todo\n", true, "")
+	addTicket(t, dir, "wc-aaaa", "done1", "done", "a0", "# Done\n", false, "")
+	addTicket(t, dir, "wc-bbbb", "todo1", "todo", "a1", "# Todo\n", true, "")
 
 	if _, _, err := run(t, app, "doctor", "--repair"); err != nil {
 		t.Fatalf("doctor --repair: %v", err)
 	}
 	if !fileExists(dir, filepath.Join("archive", "wc-aaaa-done1.md")) {
-		t.Errorf("terminal project must move under archive/, files=%v", projectFiles(t, dir))
+		t.Errorf("terminal ticket must move under archive/, files=%v", ticketFiles(t, dir))
 	}
 	if !fileExists(dir, "wc-bbbb-todo1.md") {
-		t.Errorf("non-terminal project must move to dir root, files=%v", projectFiles(t, dir))
+		t.Errorf("non-terminal ticket must move to dir root, files=%v", ticketFiles(t, dir))
 	}
 }
 
-func TestDoctorRepairCollisionAcrossArchiveBoundaryKeepsBothProjects(t *testing.T) {
+func TestDoctorRepairCollisionAcrossArchiveBoundaryKeepsBothTickets(t *testing.T) {
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "alpha", "done", "a0", "# Root copy\n", false, "")
-	addProject(t, dir, "wc-ab2c", "alpha", "todo", "a1", "# Archive copy\n", true, "")
+	addTicket(t, dir, "wc-ab2c", "alpha", "done", "a0", "# Root copy\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "alpha", "todo", "a1", "# Archive copy\n", true, "")
 
 	if _, _, err := run(t, app, "doctor", "--repair"); err != nil {
 		t.Fatalf("doctor --repair: %v", err)
 	}
 	bodies := map[string]bool{}
 	for _, root := range []string{dir, filepath.Join(dir, "archive")} {
-		for _, base := range projectFilesIn(t, root) {
+		for _, base := range ticketFilesIn(t, root) {
 			data, err := os.ReadFile(filepath.Join(root, base))
 			if err != nil {
 				t.Fatal(err)
@@ -381,32 +381,32 @@ func TestDoctorRepairCollisionAcrossArchiveBoundaryKeepsBothProjects(t *testing.
 		}
 	}
 	if !bodies["# Root copy"] || !bodies["# Archive copy"] {
-		t.Fatalf("repair must keep both projects, found bodies %v (files %v)", bodies, projectFiles(t, dir))
+		t.Fatalf("repair must keep both tickets, found bodies %v (files %v)", bodies, ticketFiles(t, dir))
 	}
 	if !fileExists(dir, filepath.Join("archive", "wc-ab2c-alpha.md")) {
-		t.Errorf("the done project must end under archive/, files=%v", projectFiles(t, dir))
+		t.Errorf("the done ticket must end under archive/, files=%v", ticketFiles(t, dir))
 	}
 	if !fileExists(dir, "wc-ab2ca-alpha.md") {
-		t.Errorf("the todo loser must be renamed and left at dir root, files=%v", projectFiles(t, dir))
+		t.Errorf("the todo loser must be renamed and left at dir root, files=%v", ticketFiles(t, dir))
 	}
 }
 
 // --re-space-order shortens an over-long band and is never triggered by --repair.
 func TestDoctorReSpaceOrder(t *testing.T) {
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
 	longKey := "a1" + strings.Repeat("V", 80)
-	addProject(t, dir, "wc-aaaa", "a", "todo", "a0", "# A\n", false, "")
-	addProject(t, dir, "wc-bbbb", "b", "todo", longKey, "# B\n", false, "")
-	addProject(t, dir, "wc-cccc", "c", "todo", "a2", "# C\n", false, "")
+	addTicket(t, dir, "wc-aaaa", "a", "todo", "a0", "# A\n", false, "")
+	addTicket(t, dir, "wc-bbbb", "b", "todo", longKey, "# B\n", false, "")
+	addTicket(t, dir, "wc-cccc", "c", "todo", "a2", "# C\n", false, "")
 
 	out, _, err := run(t, app, "doctor")
 	if err != nil {
 		t.Fatalf("bare doctor: %v", err)
 	}
 	if !strings.Contains(out, "order_long: wc-bbbb") || !strings.Contains(out, filepath.Join(dir, "wc-bbbb-b.md")) {
-		t.Errorf("order_long line should name the project and its path, got %q", out)
+		t.Errorf("order_long line should name the ticket and its path, got %q", out)
 	}
 	// --repair must NOT touch the long key.
 	if _, _, err := run(t, app, "doctor", "--repair"); err != nil {
@@ -430,11 +430,11 @@ func TestDoctorReSpaceOrder(t *testing.T) {
 func TestDoctorMutatingScopeSelection(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# A\n", false, "")
-	addProject(t, dir, "wc-ab2c", "beta", "todo", "a1", "# B\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# A\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "beta", "todo", "a1", "# B\n", false, "")
 
 	// No ambient and no --all: usage error (exit 2) naming the three ways to select.
-	_ = os.Unsetenv("PJ_SCOPE")
+	_ = os.Unsetenv("TK_SCOPE")
 	if _, _, err := run(t, app, "doctor", "--repair"); ExitCodeFromError(err) != exitUsage {
 		t.Errorf("mutating doctor with no scope should exit 2, got %v", err)
 	}
@@ -443,13 +443,13 @@ func TestDoctorMutatingScopeSelection(t *testing.T) {
 		t.Errorf("doctor --repair --all should run, got %v", err)
 	}
 	if !fileExists(dir, "wc-ab2ca-beta.md") {
-		t.Errorf("--all should have repaired the collision, files=%v", projectFiles(t, dir))
+		t.Errorf("--all should have repaired the collision, files=%v", ticketFiles(t, dir))
 	}
 }
 
 func TestDoctorStructuralAndCreatedClasses(t *testing.T) {
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
 	// A file whose frontmatter created is date-only (non-RFC3339) and legal otherwise.
 	fm := "---\nid: wc-ab2c\nstatus: todo\norder: \"a0\"\ncreated: 2026-06-20\n---\n# X\n"
@@ -477,10 +477,10 @@ func TestDoctorStructuralAndCreatedClasses(t *testing.T) {
 
 func TestDoctorSchemaWarnClasses(t *testing.T) {
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
 	extra := "related: [wc-ab2c]\nlinks: [wc-de34]\ntags: [x, x]\n"
-	addProject(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, extra)
+	addTicket(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, extra)
 
 	out, _, err := run(t, app, "doctor")
 	if err != nil {
@@ -493,18 +493,18 @@ func TestDoctorSchemaWarnClasses(t *testing.T) {
 
 func TestDoctorReindexRebuilds(t *testing.T) {
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
-	// --reindex never mutates project files and still reports cleanly.
+	addTicket(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
+	// --reindex never mutates ticket files and still reports cleanly.
 	if _, _, err := run(t, app, "doctor", "--reindex"); err != nil {
 		t.Fatalf("doctor --reindex: %v", err)
 	}
 	if !fileExists(dir, "wc-ab2c-x.md") {
-		t.Errorf("--reindex must not touch project files")
+		t.Errorf("--reindex must not touch ticket files")
 	}
 
-	addProject(t, dir, "wc-de34", "ghost", "todo", "a1", "# Ghost\n", false, "")
+	addTicket(t, dir, "wc-de34", "ghost", "todo", "a1", "# Ghost\n", false, "")
 	if _, _, err := run(t, app, "list"); err != nil {
 		t.Fatalf("seed index: %v", err)
 	}
@@ -522,16 +522,16 @@ func TestDoctorReindexRebuilds(t *testing.T) {
 		t.Errorf("rebuild must drop the row for a removed file, got %q", list)
 	}
 	if !strings.Contains(list, "wc-ab2c") {
-		t.Errorf("rebuild must keep the surviving project, got %q", list)
+		t.Errorf("rebuild must keep the surviving ticket, got %q", list)
 	}
 }
 
 func TestDoctorRepairResumesInterruptedArchiveMove(t *testing.T) {
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "ship", "done", "a0", "# Ship\n", false, "")
-	addProject(t, dir, "wc-ab2c", "ship", "done", "a0", "# Ship\n", true, "")
+	addTicket(t, dir, "wc-ab2c", "ship", "done", "a0", "# Ship\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "ship", "done", "a0", "# Ship\n", true, "")
 
 	out, _, err := run(t, app, "doctor", "--repair")
 	if err != nil {
@@ -540,27 +540,27 @@ func TestDoctorRepairResumesInterruptedArchiveMove(t *testing.T) {
 	if strings.Contains(out, "repaired duplicate id:") {
 		t.Fatalf("interrupted move must not be repaired as a collision, got %q", out)
 	}
-	files := projectFiles(t, dir)
+	files := ticketFiles(t, dir)
 	if len(files) != 1 {
 		t.Fatalf("interrupted move must resolve to a single file, got %v", files)
 	}
 	if !fileExists(dir, filepath.Join("archive", "wc-ab2c-ship.md")) {
-		t.Errorf("terminal project must end under archive/ with its id intact, got %v", files)
+		t.Errorf("terminal ticket must end under archive/ with its id intact, got %v", files)
 	}
 	if _, _, err := run(t, app, "doctor", "--repair"); err != nil {
 		t.Fatalf("second doctor --repair: %v", err)
 	}
-	if got := projectFiles(t, dir); len(got) != 1 {
+	if got := ticketFiles(t, dir); len(got) != 1 {
 		t.Errorf("re-run must stay idempotent, got %v", got)
 	}
 }
 
 func TestDoctorRepairResumesInterruptedExtension(t *testing.T) {
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
-	addProject(t, dir, "wc-ab2c", "beta", "todo", "a1", "# Beta\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "beta", "todo", "a1", "# Beta\n", false, "")
 
 	stale, err := os.ReadFile(filepath.Join(dir, "wc-ab2c-beta.md"))
 	if err != nil {
@@ -577,7 +577,7 @@ func TestDoctorRepairResumesInterruptedExtension(t *testing.T) {
 	if _, _, err := run(t, app, "doctor", "--repair"); err != nil {
 		t.Fatalf("re-entry doctor --repair: %v", err)
 	}
-	files := projectFiles(t, dir)
+	files := ticketFiles(t, dir)
 	if len(files) != 2 {
 		t.Fatalf("re-entry must leave two files, got %v", files)
 	}
@@ -596,13 +596,13 @@ func TestDoctorRepairAllSkipsUnreachableScope(t *testing.T) {
 	app := newApp(t)
 	gone := initScope(t, app, "gone")
 	live := initScope(t, app, "wc")
-	addProject(t, live, "wc-ab2c", "alpha", "todo", "a0", "# A\n", false, "")
-	addProject(t, live, "wc-ab2c", "beta", "todo", "a1", "# B\n", false, "")
+	addTicket(t, live, "wc-ab2c", "alpha", "todo", "a0", "# A\n", false, "")
+	addTicket(t, live, "wc-ab2c", "beta", "todo", "a1", "# B\n", false, "")
 	if err := os.RemoveAll(gone); err != nil {
 		t.Fatal(err)
 	}
 
-	_ = os.Unsetenv("PJ_SCOPE")
+	_ = os.Unsetenv("TK_SCOPE")
 	_, errOut, err := run(t, app, "doctor", "--repair", "--all")
 	if err != nil {
 		t.Fatalf("--all must survive an unreachable scope, got %v", err)
@@ -611,6 +611,6 @@ func TestDoctorRepairAllSkipsUnreachableScope(t *testing.T) {
 		t.Errorf("the unreachable scope should be reported as skipped, got %q", errOut)
 	}
 	if !fileExists(live, "wc-ab2ca-beta.md") {
-		t.Errorf("the reachable scope must still be repaired, files=%v", projectFiles(t, live))
+		t.Errorf("the reachable scope must still be repaired, files=%v", ticketFiles(t, live))
 	}
 }

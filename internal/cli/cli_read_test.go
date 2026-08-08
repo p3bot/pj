@@ -17,7 +17,7 @@ func initScope(t *testing.T, app *App, name string) string {
 	return strings.TrimSpace(out)
 }
 
-func addProject(t *testing.T, dir, id, slug, status, order, body string, archived bool, extraFM string) {
+func addTicket(t *testing.T, dir, id, slug, status, order, body string, archived bool, extraFM string) {
 	t.Helper()
 	name := id + "-" + slug + ".md"
 	target := dir
@@ -44,9 +44,9 @@ func lines(s string) []string {
 func TestListBoardContract(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network redesign\n\nbody", false, "")
-	addProject(t, dir, "wc-de34", "auth", "todo", "a1", "# Auth flow\n", false, "depends: [wc-ab2c]\n")
-	addProject(t, dir, "wc-gh56", "old", "done", "a2", "# Old work\n", true, "")
+	addTicket(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network redesign\n\nbody", false, "")
+	addTicket(t, dir, "wc-de34", "auth", "todo", "a1", "# Auth flow\n", false, "depends: [wc-ab2c]\n")
+	addTicket(t, dir, "wc-gh56", "old", "done", "a2", "# Old work\n", true, "")
 
 	out, _, err := run(t, app, "list", "--scope", "wc")
 	if err != nil {
@@ -92,7 +92,7 @@ func TestListBoardContract(t *testing.T) {
 func TestListTSVFlattensControlCharsInFields(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "tv")
-	addProject(t, dir, "tv-ab2c", "note", "todo", "a0", "# col1\tcol2\n", false, "")
+	addTicket(t, dir, "tv-ab2c", "note", "todo", "a0", "# col1\tcol2\n", false, "")
 
 	out, _, err := run(t, app, "list", "--scope", "tv")
 	if err != nil {
@@ -100,7 +100,7 @@ func TestListTSVFlattensControlCharsInFields(t *testing.T) {
 	}
 	rows := lines(out)
 	if len(rows) != 1 {
-		t.Fatalf("a single project must stay one TSV line, got %d: %q", len(rows), out)
+		t.Fatalf("a single ticket must stay one TSV line, got %d: %q", len(rows), out)
 	}
 	if got := strings.Count(rows[0], "\t"); got != 3 {
 		t.Errorf("row must have exactly 4 fields (3 tabs), got %d: %q", got, rows[0])
@@ -116,8 +116,8 @@ func TestListTSVFlattensControlCharsInFields(t *testing.T) {
 func TestNextSelectionAndBlocked(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
-	addProject(t, dir, "wc-de34", "auth", "todo", "a1", "# Auth\n", false, "depends: [wc-ab2c]\n")
+	addTicket(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
+	addTicket(t, dir, "wc-de34", "auth", "todo", "a1", "# Auth\n", false, "depends: [wc-ab2c]\n")
 
 	out, _, err := run(t, app, "next", "--scope", "wc")
 	if err != nil {
@@ -130,7 +130,7 @@ func TestNextSelectionAndBlocked(t *testing.T) {
 	if err := os.Remove(filepath.Join(dir, "wc-ab2c-network.md")); err != nil {
 		t.Fatal(err)
 	}
-	addProject(t, dir, "wc-ab2c", "network", "done", "a0", "# Network\n", true, "")
+	addTicket(t, dir, "wc-ab2c", "network", "done", "a0", "# Network\n", true, "")
 	out, _, err = run(t, app, "next", "--scope", "wc")
 	if err != nil {
 		t.Fatalf("next after unblock: %v", err)
@@ -143,7 +143,7 @@ func TestNextSelectionAndBlocked(t *testing.T) {
 func TestNextEmptyBecauseBlocked(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-de34", "auth", "todo", "a0", "# Auth\n", false, "depends: [wc-zz99]\n")
+	addTicket(t, dir, "wc-de34", "auth", "todo", "a0", "# Auth\n", false, "depends: [wc-zz99]\n")
 
 	out, errOut, err := run(t, app, "next", "--scope", "wc")
 	if err == nil {
@@ -164,7 +164,7 @@ func TestGetMetaAndDuplicate(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
 	body := "# Network redesign\n\nbody"
-	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", body, false, "summary: short one\n")
+	addTicket(t, dir, "wc-ab2c", "network", "todo", "a0", body, false, "summary: short one\n")
 
 	out, _, err := run(t, app, "get", "wc-ab2c")
 	if err != nil || !strings.HasSuffix(strings.TrimSpace(out), "wc-ab2c-network.md") {
@@ -207,7 +207,7 @@ func TestGetMetaAndDuplicate(t *testing.T) {
 		t.Errorf("meta get should carry raw summary: %q", out)
 	}
 
-	addProject(t, dir, "wc-ab2c", "dup", "todo", "a3", "# Dup\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "dup", "todo", "a3", "# Dup\n", false, "")
 	_, errOut, err := run(t, app, "get", "wc-ab2c")
 	if err == nil {
 		t.Fatal("duplicate id must refuse")
@@ -223,10 +223,10 @@ func TestGetMetaAndDuplicate(t *testing.T) {
 func TestDuplicateSuppressionKeepsOtherIDs(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "one", "todo", "a0", "# Ab One\n", false, "")
-	addProject(t, dir, "wc-ab2c", "two", "todo", "a1", "# Ab Two\n", false, "")
-	addProject(t, dir, "wc-de34", "one", "todo", "a2", "# De One\n", false, "")
-	addProject(t, dir, "wc-de34", "two", "todo", "a3", "# De Two\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "one", "todo", "a0", "# Ab One\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "two", "todo", "a1", "# Ab Two\n", false, "")
+	addTicket(t, dir, "wc-de34", "one", "todo", "a2", "# De One\n", false, "")
+	addTicket(t, dir, "wc-de34", "two", "todo", "a3", "# De Two\n", false, "")
 
 	_, errOut, err := run(t, app, "get", "wc-ab2c")
 	if err == nil {
@@ -267,8 +267,8 @@ func TestParseErrorLocatable(t *testing.T) {
 func TestSearchAndDeps(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network redesign\n\nsockets and buffers", false, "")
-	addProject(t, dir, "wc-de34", "auth", "todo", "a1", "# Auth\n", false, "depends: [wc-ab2c]\nrelated: [wc-ab2c]\n")
+	addTicket(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network redesign\n\nsockets and buffers", false, "")
+	addTicket(t, dir, "wc-de34", "auth", "todo", "a1", "# Auth\n", false, "depends: [wc-ab2c]\nrelated: [wc-ab2c]\n")
 
 	out, _, err := run(t, app, "search", "sockets", "--scope", "wc")
 	if err != nil {
@@ -306,7 +306,7 @@ func TestSearchAndDeps(t *testing.T) {
 func TestListExcludesQuarantinedRows(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
 	bad := "---\nid: wc-de34\n<<<<<<< HEAD\nstatus: todo\n=======\nstatus: done\n>>>>>>> x\n---\n# Broken\n"
 	if err := os.WriteFile(filepath.Join(dir, "wc-de34-broken.md"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
@@ -328,15 +328,15 @@ func TestListExcludesQuarantinedRows(t *testing.T) {
 
 	got, _, err := run(t, app, "get", "wc-de34")
 	if err != nil || strings.TrimSpace(got) == "" {
-		t.Errorf("quarantined project should still resolve via get: out=%q err=%v", got, err)
+		t.Errorf("quarantined ticket should still resolve via get: out=%q err=%v", got, err)
 	}
 }
 
 func TestSchemaErrorHoldsFromNext(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "clean", "todo", "a0", "# Clean\n", false, "")
-	addProject(t, dir, "wc-de34", "broken", "todo", "a1", "# Broken\n", false, "depends: [bogus]\n")
+	addTicket(t, dir, "wc-ab2c", "clean", "todo", "a0", "# Clean\n", false, "")
+	addTicket(t, dir, "wc-de34", "broken", "todo", "a1", "# Broken\n", false, "depends: [bogus]\n")
 
 	out, errOut, err := run(t, app, "next", "--scope", "wc")
 	if err != nil {
@@ -353,8 +353,8 @@ func TestSchemaErrorHoldsFromNext(t *testing.T) {
 func TestArchiveDriftTokensRideRead(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "wip", "todo", "a0", "# WIP\n", true, "")
-	addProject(t, dir, "wc-de34", "shipped", "done", "a1", "# Shipped\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "wip", "todo", "a0", "# WIP\n", true, "")
+	addTicket(t, dir, "wc-de34", "shipped", "done", "a1", "# Shipped\n", false, "")
 
 	_, errOut, err := run(t, app, "list", "--scope", "wc")
 	if err != nil {
@@ -371,8 +371,8 @@ func TestArchiveDriftTokensRideRead(t *testing.T) {
 func TestEqualOrderTokenRidesRead(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "one", "todo", "a0", "# One\n", false, "")
-	addProject(t, dir, "wc-de34", "two", "todo", "a0", "# Two\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "one", "todo", "a0", "# One\n", false, "")
+	addTicket(t, dir, "wc-de34", "two", "todo", "a0", "# Two\n", false, "")
 
 	_, errOut, err := run(t, app, "list", "--scope", "wc")
 	if err != nil {
@@ -386,10 +386,10 @@ func TestEqualOrderTokenRidesRead(t *testing.T) {
 func TestConfigUnparseableRidesRead(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
 
 	bad := "name: \"wc\"\nautoCommit: true\nfields: {x: {type: \"float\"}}\n"
-	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte(bad), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "tk.cue"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -428,9 +428,9 @@ func TestUnreachableScopeRidesRead(t *testing.T) {
 func TestDepsTransitiveAndTree(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-aa22", "top", "todo", "a0", "# Top\n", false, "depends: [wc-bb33]\n")
-	addProject(t, dir, "wc-bb33", "mid", "todo", "a1", "# Mid\n", false, "depends: [wc-cc44]\n")
-	addProject(t, dir, "wc-cc44", "leaf", "todo", "a2", "# Leaf\n", false, "")
+	addTicket(t, dir, "wc-aa22", "top", "todo", "a0", "# Top\n", false, "depends: [wc-bb33]\n")
+	addTicket(t, dir, "wc-bb33", "mid", "todo", "a1", "# Mid\n", false, "depends: [wc-cc44]\n")
+	addTicket(t, dir, "wc-cc44", "leaf", "todo", "a2", "# Leaf\n", false, "")
 
 	out, _, err := run(t, app, "deps", "wc-aa22", "--transitive")
 	if err != nil {
@@ -477,7 +477,7 @@ func TestMetaNoFrontmatterFenceIsNonZero(t *testing.T) {
 func TestSearchMalformedQueryCleanMessage(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
 
 	out, _, err := run(t, app, "search", `foo"`, "--scope", "wc")
 	if err == nil {
@@ -497,16 +497,16 @@ func TestSearchMalformedQueryCleanMessage(t *testing.T) {
 func TestQueryReadOnly(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
 
-	out, _, err := run(t, app, "query", "SELECT id, status FROM projects ORDER BY id")
+	out, _, err := run(t, app, "query", "SELECT id, status FROM tickets ORDER BY id")
 	if err != nil {
 		t.Fatalf("query: %v", err)
 	}
 	if !strings.Contains(out, "wc-ab2c\ttodo") {
 		t.Errorf("query result wrong: %q", out)
 	}
-	_, _, err = run(t, app, "query", "DELETE FROM projects")
+	_, _, err = run(t, app, "query", "DELETE FROM tickets")
 	if err == nil {
 		t.Error("query must reject a write")
 	}
@@ -521,9 +521,9 @@ func TestCrossScopeDependsGate(t *testing.T) {
 	up := initScope(t, app, "up")
 	wc := initScope(t, app, "wc")
 
-	addProject(t, up, "up-aa22", "core", "todo", "a0", "# Core\n", false, "")
-	addProject(t, wc, "wc-bb22", "feat", "todo", "a0", "# Feature\n", false, "depends: [up-aa22]\n")
-	addProject(t, wc, "wc-cc33", "ext", "todo", "a1", "# Ext\n", false, "depends: [zzz-zz99]\n")
+	addTicket(t, up, "up-aa22", "core", "todo", "a0", "# Core\n", false, "")
+	addTicket(t, wc, "wc-bb22", "feat", "todo", "a0", "# Feature\n", false, "depends: [up-aa22]\n")
+	addTicket(t, wc, "wc-cc33", "ext", "todo", "a1", "# Ext\n", false, "depends: [zzz-zz99]\n")
 
 	// The cross-scope gate holds wc-bb22 and wc-cc33; next is empty-because-blocked.
 	out, errOut, err := run(t, app, "next", "--scope", "wc")
@@ -542,7 +542,7 @@ func TestCrossScopeDependsGate(t *testing.T) {
 	if err := os.Remove(filepath.Join(up, "up-aa22-core.md")); err != nil {
 		t.Fatal(err)
 	}
-	addProject(t, up, "up-aa22", "core", "done", "a0", "# Core\n", true, "")
+	addTicket(t, up, "up-aa22", "core", "done", "a0", "# Core\n", true, "")
 	out, _, err = run(t, app, "next", "--scope", "wc")
 	if err != nil {
 		t.Fatalf("next after cross-scope unblock: %v", err)
@@ -555,7 +555,7 @@ func TestCrossScopeDependsGate(t *testing.T) {
 func TestEditOpensEditorAndIsSilent(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
 
 	t.Setenv("EDITOR", "true")
 	out, _, err := run(t, app, "edit", "wc-ab2c")
@@ -583,28 +583,28 @@ func TestEditOpensEditorAndIsSilent(t *testing.T) {
 func TestQueryRejectsSmuggledWrites(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
 
-	if _, _, err := run(t, app, "query", "WITH x AS (SELECT 1) DELETE FROM projects"); err == nil {
+	if _, _, err := run(t, app, "query", "WITH x AS (SELECT 1) DELETE FROM tickets"); err == nil {
 		t.Error("query must reject a CTE-smuggled write")
 	}
 	// A write appended after a SELECT is caught by the statement splitter.
-	if _, _, err := run(t, app, "query", "SELECT 1; DROP TABLE projects"); err == nil {
+	if _, _, err := run(t, app, "query", "SELECT 1; DROP TABLE tickets"); err == nil {
 		t.Error("query must reject a write appended after a SELECT")
 	}
-	// The projects table must survive both refusals.
-	out, _, err := run(t, app, "query", "SELECT count(*) FROM projects")
+	// The tickets table must survive both refusals.
+	out, _, err := run(t, app, "query", "SELECT count(*) FROM tickets")
 	if err != nil || !strings.Contains(out, "1") {
-		t.Errorf("projects table should be intact after rejected writes: out=%q err=%v", out, err)
+		t.Errorf("tickets table should be intact after rejected writes: out=%q err=%v", out, err)
 	}
 }
 
 func TestLensAppliesAndEchoes(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "fe", "todo", "a0", "# Frontend\n", false, "tags: [frontend]\n")
-	addProject(t, dir, "wc-de34", "be", "todo", "a1", "# Backend\n", false, "tags: [backend]\n")
-	addProject(t, dir, "wc-gh56", "un", "todo", "a2", "# Untagged\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "fe", "todo", "a0", "# Frontend\n", false, "tags: [frontend]\n")
+	addTicket(t, dir, "wc-de34", "be", "todo", "a1", "# Backend\n", false, "tags: [backend]\n")
+	addTicket(t, dir, "wc-gh56", "un", "todo", "a2", "# Untagged\n", false, "")
 
 	if _, _, err := run(t, app, "lens", "frontend", "--scope", "wc"); err != nil {
 		t.Fatalf("lens set: %v", err)

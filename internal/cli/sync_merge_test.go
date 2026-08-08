@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/p3bot/pj/internal/syncengine"
+	"github.com/p3bot/tk/internal/syncengine"
 )
 
 // A both-sides terminal status change produces status_conflict in the file (clean YAML, base status)
@@ -28,9 +28,9 @@ func TestSyncBothSidesTerminalStatusDispute(t *testing.T) {
 		t.Fatalf("dispute should ride status_conflict, got %q", errOut)
 	}
 
-	path, _ := findProject(t, b.scopeDir(), "wc-ab2c-alpha.md")
+	path, _ := findTicket(t, b.scopeDir(), "wc-ab2c-alpha.md")
 	if path == "" {
-		t.Fatal("the disputed project file should still exist on B")
+		t.Fatal("the disputed ticket file should still exist on B")
 	}
 	if !syncengine.FrontmatterHasStatusConflict(path) {
 		t.Errorf("the file should carry status_conflict, content:\n%s", readFile(t, path))
@@ -53,7 +53,7 @@ func TestSyncBothSidesTerminalStatusDispute(t *testing.T) {
 		t.Fatalf("post-resolution sync should complete: %v", err)
 	}
 	if !remoteHas(t, remote, "wc/archive/wc-ab2c-alpha.md") {
-		t.Errorf("the resolved terminal project should land under archive/ on the remote")
+		t.Errorf("the resolved terminal ticket should land under archive/ on the remote")
 	}
 }
 
@@ -94,24 +94,24 @@ func TestSyncCueConflictPausesThenResumeMergesMD(t *testing.T) {
 
 	dirA := a.scopeDir()
 	writeCue(t, dirA, "name: \"wc\"\nautoCommit: true\nfields: {a: {type: \"string\"}}\n")
-	setStatusLine(t, mustSeedProject(t, dirA), "in-progress")
+	setStatusLine(t, mustSeedTicket(t, dirA), "in-progress")
 	if _, _, err := a.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("A sync: %v", err)
 	}
 
 	dirB := b.scopeDir()
 	writeCue(t, dirB, "name: \"wc\"\nautoCommit: true\nfields: {b: {type: \"string\"}}\n")
-	pB := mustSeedProject(t, dirB)
+	pB := mustSeedTicket(t, dirB)
 	setStatusLine(t, pB, "review")
 	_, errOut, err := b.sync(t, "--scope", "wc")
 	if ExitCodeFromError(err) != exitFailure {
-		t.Fatalf("a pj.cue conflict must pause non-zero, got %v (stderr %q)", err, errOut)
+		t.Fatalf("a tk.cue conflict must pause non-zero, got %v (stderr %q)", err, errOut)
 	}
 	if !strings.Contains(errOut, "config_unparseable:") {
-		t.Errorf("a conflicted pj.cue should ride config_unparseable, got %q", errOut)
+		t.Errorf("a conflicted tk.cue should ride config_unparseable, got %q", errOut)
 	}
 	if !syncengine.FrontmatterHasMarkers(pB) {
-		t.Errorf("the project .md must be left unmerged (markers in frontmatter) while pj.cue is conflicted:\n%s", readFile(t, pB))
+		t.Errorf("the ticket .md must be left unmerged (markers in frontmatter) while tk.cue is conflicted:\n%s", readFile(t, pB))
 	}
 
 	writeCue(t, dirB, "name: \"wc\"\nautoCommit: true\nfields: {a: {type: \"string\"}, b: {type: \"string\"}}\n")
@@ -125,23 +125,23 @@ func TestSyncCueConflictPausesThenResumeMergesMD(t *testing.T) {
 		t.Errorf("the .md status should have merged past the base, got %q", st)
 	}
 	if n := gitIn(t, b.clone, "rev-list", "--count", "@{u}..HEAD"); n != "0" {
-		t.Errorf("B should be fully pushed after the pj.cue resume, unpushed=%s", n)
+		t.Errorf("B should be fully pushed after the tk.cue resume, unpushed=%s", n)
 	}
 	_ = remote
 }
 
-func TestSyncGitignoreConflictDoesNotBlockProjectMerges(t *testing.T) {
+func TestSyncGitignoreConflictDoesNotBlockTicketMerges(t *testing.T) {
 	requireGit(t)
 	a, b, _ := twoMachines(t)
 
 	appendLine(t, filepath.Join(a.scopeDir(), ".gitignore"), "a-only/")
-	setStatusLine(t, mustSeedProject(t, a.scopeDir()), "in-progress")
+	setStatusLine(t, mustSeedTicket(t, a.scopeDir()), "in-progress")
 	if _, _, err := a.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("A sync: %v", err)
 	}
 
 	appendLine(t, filepath.Join(b.scopeDir(), ".gitignore"), "b-only/")
-	setStatusLine(t, mustSeedProject(t, b.scopeDir()), "review")
+	setStatusLine(t, mustSeedTicket(t, b.scopeDir()), "review")
 	_, errOut, err := b.sync(t, "--scope", "wc")
 	if ExitCodeFromError(err) != exitFailure {
 		t.Fatalf("a conflicted .gitignore must pause non-zero, got %v (stderr %q)", err, errOut)
@@ -153,12 +153,12 @@ func TestSyncGitignoreConflictDoesNotBlockProjectMerges(t *testing.T) {
 		t.Errorf("a .gitignore conflict is not a schema failure and must not ride config_unparseable, got %q", errOut)
 	}
 
-	pB := mustSeedProject(t, b.scopeDir())
+	pB := mustSeedTicket(t, b.scopeDir())
 	if syncengine.FrontmatterHasMarkers(pB) {
-		t.Errorf("the project .md must still be field-merged — .gitignore gates nothing:\n%s", readFile(t, pB))
+		t.Errorf("the ticket .md must still be field-merged — .gitignore gates nothing:\n%s", readFile(t, pB))
 	}
 
-	if err := os.WriteFile(filepath.Join(b.scopeDir(), ".gitignore"), []byte(".pj.lock\na-only/\nb-only/\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(b.scopeDir(), ".gitignore"), []byte(".tk.lock\na-only/\nb-only/\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := b.sync(t, "--scope", "wc"); err != nil {
@@ -227,7 +227,7 @@ func TestSyncGitignoreDeleteEditModifiedResumes(t *testing.T) {
 		t.Fatalf("expected .gitignore delete/edit pause, got %v", err)
 	}
 
-	resolved := ".pj.lock\nb-extra/\nhuman-kept/\n"
+	resolved := ".tk.lock\nb-extra/\nhuman-kept/\n"
 	if err := os.WriteFile(filepath.Join(b.scopeDir(), ".gitignore"), []byte(resolved), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -272,46 +272,46 @@ func TestSyncGitignoreDeleteEditGitAddResumes(t *testing.T) {
 	}
 }
 
-func TestSyncCueDeleteEditKeepsProjectFailClosed(t *testing.T) {
+func TestSyncCueDeleteEditKeepsTicketFailClosed(t *testing.T) {
 	requireGit(t)
 	a, b, _ := twoMachines(t)
 
 	dirA := a.scopeDir()
-	if err := os.Remove(filepath.Join(dirA, "pj.cue")); err != nil {
+	if err := os.Remove(filepath.Join(dirA, "tk.cue")); err != nil {
 		t.Fatal(err)
 	}
-	setStatusLine(t, mustSeedProject(t, dirA), "in-progress")
+	setStatusLine(t, mustSeedTicket(t, dirA), "in-progress")
 	gitIn(t, a.clone, "add", "-A")
-	gitIn(t, a.clone, "commit", "-m", "hand: delete pj.cue and edit project")
+	gitIn(t, a.clone, "commit", "-m", "hand: delete tk.cue and edit ticket")
 	gitIn(t, a.clone, "push")
 
 	dirB := b.scopeDir()
 	writeCue(t, dirB, "name: \"wc\"\nautoCommit: true\nfields: {b: {type: \"string\"}}\n")
-	pB := mustSeedProject(t, dirB)
+	pB := mustSeedTicket(t, dirB)
 	setStatusLine(t, pB, "review")
 	_, firstOut, err := b.sync(t, "--scope", "wc")
 	if ExitCodeFromError(err) != exitFailure {
-		t.Fatalf("pj.cue delete/edit must pause non-zero, got %v (stderr %q)", err, firstOut)
+		t.Fatalf("tk.cue delete/edit must pause non-zero, got %v (stderr %q)", err, firstOut)
 	}
-	assertConfigDeleteEditHandoff(t, firstOut, "wc/pj.cue", false)
+	assertConfigDeleteEditHandoff(t, firstOut, "wc/tk.cue", false)
 	if !strings.Contains(firstOut, "config_unparseable:") {
-		t.Errorf("pj.cue delete/edit should ride config_unparseable, got %q", firstOut)
+		t.Errorf("tk.cue delete/edit should ride config_unparseable, got %q", firstOut)
 	}
 	if !syncengine.FrontmatterHasMarkers(pB) {
-		t.Errorf("project .md must stay unmerged while pj.cue is an open delete/edit:\n%s", readFile(t, pB))
+		t.Errorf("ticket .md must stay unmerged while tk.cue is an open delete/edit:\n%s", readFile(t, pB))
 	}
 
 	_, secondOut, err := b.sync(t, "--scope", "wc")
 	if ExitCodeFromError(err) != exitFailure {
-		t.Fatalf("unactioned pj.cue re-run must stay paused, got %v (stderr %q)", err, secondOut)
+		t.Fatalf("unactioned tk.cue re-run must stay paused, got %v (stderr %q)", err, secondOut)
 	}
-	assertConfigDeleteEditHandoff(t, secondOut, "wc/pj.cue", false)
+	assertConfigDeleteEditHandoff(t, secondOut, "wc/tk.cue", false)
 	assertSameDeleteEditLine(t, firstOut, secondOut)
-	if !strings.Contains(secondOut, "not merged") || !strings.Contains(secondOut, "pj.cue is conflicted") {
-		t.Errorf("project pass must report schema fail-closed, got %q", secondOut)
+	if !strings.Contains(secondOut, "not merged") || !strings.Contains(secondOut, "tk.cue is conflicted") {
+		t.Errorf("ticket pass must report schema fail-closed, got %q", secondOut)
 	}
 	if !syncengine.FrontmatterHasMarkers(pB) {
-		t.Errorf("project .md must still carry markers after unactioned re-run:\n%s", readFile(t, pB))
+		t.Errorf("ticket .md must still carry markers after unactioned re-run:\n%s", readFile(t, pB))
 	}
 }
 
@@ -341,12 +341,12 @@ func assertConfigDeleteEditHandoff(t *testing.T, errOut, path string, threeWays 
 		}
 		return
 	}
-	// pj.cue: edit <path> or git add — never offer remove as a resolution.
+	// tk.cue: edit <path> or git add — never offer remove as a resolution.
 	if !strings.Contains(errOut, "edit "+path) {
-		t.Errorf("pj.cue handoff must name edit %q as a way out, got %q", path, errOut)
+		t.Errorf("tk.cue handoff must name edit %q as a way out, got %q", path, errOut)
 	}
 	if strings.Contains(errOut, "remove "+path) || strings.Contains(errOut, "— remove") {
-		t.Errorf("pj.cue handoff must not offer removal as a way out, got %q", errOut)
+		t.Errorf("tk.cue handoff must not offer removal as a way out, got %q", errOut)
 	}
 }
 
@@ -366,18 +366,18 @@ func TestSyncAddAddRenameEmitsEdgeVerify(t *testing.T) {
 	remote := newBareRemote(t)
 	a := cloneMachine(t, remote)
 	dirA := a.initScopeAutoCommit(t)
-	addProject(t, dirA, "wc-zz99", "ref", "todo", "a0", "# Ref\n", false, "depends: [wc-ab2c]\n")
+	addTicket(t, dirA, "wc-zz99", "ref", "todo", "a0", "# Ref\n", false, "depends: [wc-ab2c]\n")
 	if _, _, err := a.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("A seed sync: %v", err)
 	}
 	b := cloneMachine(t, remote)
 	dirB := b.importScope(t)
 
-	addProject(t, dirA, "wc-ab2c", "alpha", "todo", "a1", "# A body\n", false, "")
+	addTicket(t, dirA, "wc-ab2c", "alpha", "todo", "a1", "# A body\n", false, "")
 	if _, _, err := a.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("A add sync: %v", err)
 	}
-	addProject(t, dirB, "wc-ab2c", "alpha", "todo", "a2", "# B body\n", false, "")
+	addTicket(t, dirB, "wc-ab2c", "alpha", "todo", "a2", "# B body\n", false, "")
 	out, errOut, err := b.sync(t, "--scope", "wc")
 	if err != nil {
 		t.Fatalf("add/add rename should auto-resolve and complete: %v (stderr %q)", err, errOut)
@@ -407,11 +407,11 @@ func TestSyncIntegrityRepairsDuplicateFromRebase(t *testing.T) {
 	b := cloneMachine(t, remote)
 	dirB := b.importScope(t)
 
-	addProject(t, dirA, "wc-cd3e", "beta", "todo", "a1", "# Beta\n", false, "")
+	addTicket(t, dirA, "wc-cd3e", "beta", "todo", "a1", "# Beta\n", false, "")
 	if _, _, err := a.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("A add sync: %v", err)
 	}
-	addProject(t, dirB, "wc-cd3e", "gamma", "todo", "a2", "# Gamma\n", false, "")
+	addTicket(t, dirB, "wc-cd3e", "gamma", "todo", "a2", "# Gamma\n", false, "")
 	out, errOut, err := b.sync(t, "--scope", "wc")
 	if err != nil {
 		t.Fatalf("integrity repair sync should complete: %v (stderr %q)", err, errOut)
@@ -441,7 +441,7 @@ func TestSyncAllIsolatesFailingRoot(t *testing.T) {
 	if _, _, err := run(t, app, "scope", "init", wcDir, "--name", "wc", "--auto-commit"); err != nil {
 		t.Fatalf("init wc: %v", err)
 	}
-	addProject(t, wcDir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
+	addTicket(t, wcDir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
 
 	xyRepo := t.TempDir()
 	gitIn(t, xyRepo, "init", "-b", "main")
@@ -453,7 +453,7 @@ func TestSyncAllIsolatesFailingRoot(t *testing.T) {
 	if _, _, err := run(t, app, "scope", "init", xyDir, "--name", "xy", "--auto-commit"); err != nil {
 		t.Fatalf("init xy: %v", err)
 	}
-	addProject(t, xyDir, "xy-ab2c", "beta", "todo", "a0", "# Beta\n", false, "")
+	addTicket(t, xyDir, "xy-ab2c", "beta", "todo", "a0", "# Beta\n", false, "")
 
 	_, errOut, err := run(t, app, "sync", "--all")
 	if ExitCodeFromError(err) != exitFailure {

@@ -1,4 +1,4 @@
-// Package syncengine is pj's sole push boundary: selection policy (auto-commit-only
+// Package syncengine is tk's sole push boundary: selection policy (auto-commit-only
 // filter, unreachable/disabled/config-error reporting, participants grouped by
 // git-root) and the per-root flow (preflight, lock order, snapshot, fetch/integrate,
 // mid-rebase resume, sync-time integrity via integrity.RunBatches, push-if-ahead).
@@ -11,9 +11,9 @@ import (
 	"os"
 	"sort"
 
-	"github.com/p3bot/pj/internal/gitroot"
-	"github.com/p3bot/pj/internal/scopefile"
-	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/tk/internal/gitroot"
+	"github.com/p3bot/tk/internal/scopefile"
+	"github.com/p3bot/tk/internal/token"
 )
 
 // Participant is one auto-commit scope under a git-root.
@@ -78,7 +78,7 @@ func ambientSelection(deps Deps, scope, dir string) (Selection, error) {
 	switch {
 	case badConfig && !hasRoot:
 		return Selection{}, fmt.Errorf("%s", token.Line(token.ConfigUnparseable, fmt.Sprintf(
-			"%s (%s): %s — fix pj.cue before sync can evaluate this scope", scope, cfgErr.Dir, cfgErr.Reason)))
+			"%s (%s): %s — fix tk.cue before sync can evaluate this scope", scope, cfgErr.Dir, cfgErr.Reason)))
 	case badConfig:
 	case !schemaAutoCommit(res.Schema(scope)):
 		return Selection{}, nonAutoCommitRefusal(scope, hasRoot)
@@ -140,7 +140,7 @@ func allSelection(deps Deps) Selection {
 		}
 		sel.Candidates++
 		sel.ConfigErrs = append(sel.ConfigErrs, token.Line(token.ConfigUnparseable,
-			fmt.Sprintf("%s (%s): %s — fix pj.cue before sync can evaluate this scope", bc.scope, bc.dir, bc.reason)))
+			fmt.Sprintf("%s (%s): %s — fix tk.cue before sync can evaluate this scope", bc.scope, bc.dir, bc.reason)))
 	}
 	return sel
 }
@@ -164,12 +164,12 @@ func autoCommitParticipants(deps Deps, root string) []Participant {
 
 func nonAutoCommitRefusal(scope string, hasRoot bool) error {
 	if hasRoot {
-		return fmt.Errorf("sync is for auto-commit scopes only — %s is repo-driven; commit its project files with the host repo", scope)
+		return fmt.Errorf("sync is for auto-commit scopes only — %s is repo-driven; commit its ticket files with the host repo", scope)
 	}
-	return fmt.Errorf("sync is for auto-commit scopes only — %s is plain-files; there is no pj sync — run pj doctor if integrity warnings appear", scope)
+	return fmt.Errorf("sync is for auto-commit scopes only — %s is plain-files; there is no tk sync — run tk doctor if integrity warnings appear", scope)
 }
 
 func syncDisabledLine(scope, dir string) string {
 	return token.Line(token.SyncDisabled,
-		fmt.Sprintf("%s: no git repository with a remote for %s — set one up, then pj sync", scope, dir))
+		fmt.Sprintf("%s: no git repository with a remote for %s — set one up, then tk sync", scope, dir))
 }

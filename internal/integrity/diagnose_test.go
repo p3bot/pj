@@ -3,7 +3,7 @@ package integrity
 import (
 	"testing"
 
-	"github.com/p3bot/pj/internal/scopeconfig"
+	"github.com/p3bot/tk/internal/scopeconfig"
 )
 
 func TestFieldTypeError(t *testing.T) {

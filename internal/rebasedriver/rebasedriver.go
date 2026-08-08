@@ -1,4 +1,4 @@
-// Package rebasedriver resolves one conflicted project .md at a paused rebase.
+// Package rebasedriver resolves one conflicted ticket .md at a paused rebase.
 // Per-path only: does not run rebases or decide whether to continue. Enumerates
 // stages, re-evaluates on-disk schema, calls pure frontmatter merge, 3-way merges
 // bodies, and either stages the path or leaves it unstaged.
@@ -17,24 +17,24 @@ import (
 	"strings"
 	"time"
 
-	"github.com/p3bot/pj/internal/atomicfile"
-	"github.com/p3bot/pj/internal/fmmerge"
-	"github.com/p3bot/pj/internal/frontmatter"
-	"github.com/p3bot/pj/internal/git"
-	"github.com/p3bot/pj/internal/id"
-	"github.com/p3bot/pj/internal/repair"
-	"github.com/p3bot/pj/internal/rewrite"
-	"github.com/p3bot/pj/internal/scopeconfig"
+	"github.com/p3bot/tk/internal/atomicfile"
+	"github.com/p3bot/tk/internal/fmmerge"
+	"github.com/p3bot/tk/internal/frontmatter"
+	"github.com/p3bot/tk/internal/git"
+	"github.com/p3bot/tk/internal/id"
+	"github.com/p3bot/tk/internal/repair"
+	"github.com/p3bot/tk/internal/rewrite"
+	"github.com/p3bot/tk/internal/scopeconfig"
 )
 
 const fileMode = 0o644
 
-// SchemaLoader returns a scope's evaluated schema from on-disk pj.cue at call time.
+// SchemaLoader returns a scope's evaluated schema from on-disk tk.cue at call time.
 // Called per conflicted file so merges see fields/statuses the incoming commit just added —
 // never a schema snapshot captured earlier in the run.
 type SchemaLoader func(scopeDir string) (*scopeconfig.Schema, error)
 
-// Driver resolves conflicted project files across one rebase.
+// Driver resolves conflicted ticket files across one rebase.
 // Minted short-ids live on the receiver so later files see earlier add/add extensions.
 type Driver struct {
 	gitRoot string
@@ -47,12 +47,12 @@ func New(gitRoot string, load SchemaLoader) *Driver {
 	return &Driver{gitRoot: gitRoot, load: load, minted: map[string]struct{}{}}
 }
 
-// Conflict names one conflicted project .md and the two side revs.
+// Conflict names one conflicted ticket .md and the two side revs.
 // OursRev is stage :2 (HEAD/upstream); TheirsRev is stage :3 (REBASE_HEAD).
 // Mapping is inverted from everyday during-rebase "ours"/"theirs".
 type Conflict struct {
-	Path      string // repo-relative path to the conflicted project .md
-	ScopeDir  string // absolute scope dir holding pj.cue
+	Path      string // repo-relative path to the conflicted ticket .md
+	ScopeDir  string // absolute scope dir holding tk.cue
 	OursRev   string // stage :2 side rev
 	TheirsRev string // stage :3 side rev
 }
@@ -109,7 +109,7 @@ type FailClosed struct {
 	Reason string
 }
 
-// Resolve merges one conflicted project file. Error is reserved for operational faults;
+// Resolve merges one conflicted ticket file. Error is reserved for operational faults;
 // human-resolvable data conditions are Outcome with Staged=false.
 func (d *Driver) Resolve(ctx context.Context, c Conflict) (Outcome, error) {
 	stages, err := git.ConflictStages(ctx, d.gitRoot, c.Path)
@@ -311,7 +311,7 @@ func (d *Driver) occupiedShortIDs(ctx context.Context, scopeDir, scope string) (
 	return occ, nil
 }
 
-// addShortID records a project basename's short-id when it is a project file for scope.
+// addShortID records a ticket basename's short-id when it is a ticket file for scope.
 // Short-id is the second "-" segment; scope names and short-ids carry no hyphen.
 func addShortID(occ map[string]struct{}, basename, scope string) {
 	stem := strings.TrimSuffix(basename, ".md")

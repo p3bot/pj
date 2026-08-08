@@ -7,18 +7,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/p3bot/pj/internal/git"
-	"github.com/p3bot/pj/internal/gitstate"
-	"github.com/p3bot/pj/internal/index"
-	"github.com/p3bot/pj/internal/reconcile"
-	"github.com/p3bot/pj/internal/registry"
-	"github.com/p3bot/pj/internal/repair"
-	"github.com/p3bot/pj/internal/rewrite"
-	"github.com/p3bot/pj/internal/scopeconfig"
-	"github.com/p3bot/pj/internal/scopefile"
-	"github.com/p3bot/pj/internal/selfcommit"
-	"github.com/p3bot/pj/internal/status"
-	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/tk/internal/git"
+	"github.com/p3bot/tk/internal/gitstate"
+	"github.com/p3bot/tk/internal/index"
+	"github.com/p3bot/tk/internal/reconcile"
+	"github.com/p3bot/tk/internal/registry"
+	"github.com/p3bot/tk/internal/repair"
+	"github.com/p3bot/tk/internal/rewrite"
+	"github.com/p3bot/tk/internal/scopeconfig"
+	"github.com/p3bot/tk/internal/scopefile"
+	"github.com/p3bot/tk/internal/selfcommit"
+	"github.com/p3bot/tk/internal/status"
+	"github.com/p3bot/tk/internal/token"
 )
 
 // Reporter receives progress and diagnostic lines (stdout-class Out, stderr-class Err).
@@ -125,11 +125,11 @@ func repairPreflight(deps Deps, rep Reporter, scope, dir string, res *reconcile.
 		return nil, nil
 	}
 	if pjName, err := scopeconfig.ReadName(deps.Cue, dir); err == nil && pjName != scope {
-		rep.Err(token.Line(token.NameDrift, fmt.Sprintf("skipping %s: registry key %q but pj.cue name is %q — recover with pj scope forget/import", scope, scope, pjName)))
+		rep.Err(token.Line(token.NameDrift, fmt.Sprintf("skipping %s: registry key %q but tk.cue name is %q — recover with tk scope forget/import", scope, scope, pjName)))
 		return nil, nil
 	}
 	if _, bad := res.ConfigErrs[scope]; bad {
-		rep.Err(token.Line(token.ConfigUnparseable, fmt.Sprintf("skipping %s: fix pj.cue before repairing", scope)))
+		rep.Err(token.Line(token.ConfigUnparseable, fmt.Sprintf("skipping %s: fix tk.cue before repairing", scope)))
 		return nil, nil
 	}
 
@@ -163,12 +163,12 @@ func repairCollisions(deps Deps, rep Reporter, t *Target) error {
 	if len(dups) == 0 {
 		return nil
 	}
-	rows, err := deps.DB.ScopeProjects(t.Scope)
+	rows, err := deps.DB.ScopeTickets(t.Scope)
 	if err != nil {
 		return err
 	}
 	occupied := shortIDPaths(rows)
-	byPath := map[string]*index.Project{}
+	byPath := map[string]*index.Ticket{}
 	for _, p := range rows {
 		byPath[p.Path] = p
 	}
@@ -181,7 +181,7 @@ func repairCollisions(deps Deps, rep Reporter, t *Target) error {
 			return err
 		}
 		if mid {
-			rep.Err(fmt.Sprintf("skipping %s: unfinished archive-layout move, not a collision — re-run pj doctor --repair to complete it", col.Key))
+			rep.Err(fmt.Sprintf("skipping %s: unfinished archive-layout move, not a collision — re-run tk doctor --repair to complete it", col.Key))
 			continue
 		}
 		if anyParseError(members) {
@@ -220,7 +220,7 @@ func ReportEdgeVerify(deps Deps, rep Reporter, collidedIDs []string) error {
 }
 
 func repairEqualOrder(deps Deps, rep Reporter, t *Target) error {
-	rows, err := deps.DB.ScopeProjects(t.Scope)
+	rows, err := deps.DB.ScopeTickets(t.Scope)
 	if err != nil {
 		return err
 	}
@@ -231,7 +231,7 @@ func repairEqualOrder(deps Deps, rep Reporter, t *Target) error {
 	if len(ops) == 0 {
 		return nil
 	}
-	if err := applyRepairBatch(deps, rep, t, ops, "pj: repair equal order"); err != nil {
+	if err := applyRepairBatch(deps, rep, t, ops, "tk: repair equal order"); err != nil {
 		return err
 	}
 	rep.Out(fmt.Sprintf("re-spaced %d equal order key(s) in %s", len(ops), t.Scope))
@@ -240,7 +240,7 @@ func repairEqualOrder(deps Deps, rep Reporter, t *Target) error {
 
 // repairArchive defers ids still in genuine collisions (shared basename would clobber).
 func repairArchive(deps Deps, rep Reporter, t *Target, reportDeferred bool) error {
-	rows, err := deps.DB.ScopeProjects(t.Scope)
+	rows, err := deps.DB.ScopeTickets(t.Scope)
 	if err != nil {
 		return err
 	}
@@ -269,7 +269,7 @@ func repairArchive(deps Deps, rep Reporter, t *Target, reportDeferred bool) erro
 		if err != nil {
 			return err
 		}
-		msg := fmt.Sprintf("pj: repair archive layout %s", p.ID)
+		msg := fmt.Sprintf("tk: repair archive layout %s", p.ID)
 		if err := applyRepairBatch(deps, rep, t, []rewrite.Op{op}, msg); err != nil {
 			return err
 		}
@@ -279,7 +279,7 @@ func repairArchive(deps Deps, rep Reporter, t *Target, reportDeferred bool) erro
 }
 
 func repairLongOrder(deps Deps, rep Reporter, t *Target) error {
-	rows, err := deps.DB.ScopeProjects(t.Scope)
+	rows, err := deps.DB.ScopeTickets(t.Scope)
 	if err != nil {
 		return err
 	}
@@ -290,7 +290,7 @@ func repairLongOrder(deps Deps, rep Reporter, t *Target) error {
 	if len(ops) == 0 {
 		return nil
 	}
-	if err := applyRepairBatch(deps, rep, t, ops, "pj: re-space order"); err != nil {
+	if err := applyRepairBatch(deps, rep, t, ops, "tk: re-space order"); err != nil {
 		return err
 	}
 	rep.Out(fmt.Sprintf("re-spaced %d over-long order key(s) in %s", len(ops), t.Scope))
@@ -326,7 +326,7 @@ func midRebaseRefusal(ctx context.Context, scope, root string) error {
 	if files := git.UnmergedFiles(ctx, root); len(files) > 0 {
 		where = strings.Join(files, ", ")
 	}
-	return fmt.Errorf("%s is mid-sync-conflict in shared repo %s — resolve %s then run pj sync before repairing", scope, root, where)
+	return fmt.Errorf("%s is mid-sync-conflict in shared repo %s — resolve %s then run tk sync before repairing", scope, root, where)
 }
 
 func collisionMessage(renames []repair.Rename) string {
@@ -334,10 +334,10 @@ func collisionMessage(renames []repair.Rename) string {
 	for i, r := range renames {
 		newIDs[i] = r.NewID
 	}
-	return fmt.Sprintf("pj: repair duplicate id %s -> %s", renames[0].OldID, strings.Join(newIDs, ", "))
+	return fmt.Sprintf("tk: repair duplicate id %s -> %s", renames[0].OldID, strings.Join(newIDs, ", "))
 }
 
-func toRepairRows(rows []*index.Project) []repair.Row {
+func toRepairRows(rows []*index.Ticket) []repair.Row {
 	out := make([]repair.Row, len(rows))
 	for i, p := range rows {
 		out[i] = toRepairRow(p)
@@ -345,12 +345,12 @@ func toRepairRows(rows []*index.Project) []repair.Row {
 	return out
 }
 
-func toRepairRow(p *index.Project) repair.Row {
+func toRepairRow(p *index.Ticket) repair.Row {
 	return repair.Row{Path: p.Path, FullID: p.ID, ShortID: p.ShortID, OrderKey: p.OrderKey, ParseError: p.ParseError}
 }
 
 // shortIDPaths: collided short-id maps to lexicographically smallest path (dirent-stable).
-func shortIDPaths(rows []*index.Project) map[string]string {
+func shortIDPaths(rows []*index.Ticket) map[string]string {
 	out := make(map[string]string, len(rows))
 	for _, p := range rows {
 		if p.ShortID == "" {
@@ -369,11 +369,11 @@ func genuineCollisionIDs(deps Deps, scope, dir string) (map[string]bool, error) 
 	if err != nil || len(dups) == 0 {
 		return nil, err
 	}
-	rows, err := deps.DB.ScopeProjects(scope)
+	rows, err := deps.DB.ScopeTickets(scope)
 	if err != nil {
 		return nil, err
 	}
-	byPath := make(map[string]*index.Project, len(rows))
+	byPath := make(map[string]*index.Ticket, len(rows))
 	for _, p := range rows {
 		byPath[p.Path] = p
 	}
@@ -390,8 +390,8 @@ func genuineCollisionIDs(deps Deps, scope, dir string) (map[string]bool, error) 
 	return out, nil
 }
 
-func rowsForPaths(byPath map[string]*index.Project, paths []string) []*index.Project {
-	var out []*index.Project
+func rowsForPaths(byPath map[string]*index.Ticket, paths []string) []*index.Ticket {
+	var out []*index.Ticket
 	for _, p := range paths {
 		if row, ok := byPath[p]; ok {
 			out = append(out, row)
@@ -400,7 +400,7 @@ func rowsForPaths(byPath map[string]*index.Project, paths []string) []*index.Pro
 	return out
 }
 
-func anyParseError(rows []*index.Project) bool {
+func anyParseError(rows []*index.Ticket) bool {
 	for _, p := range rows {
 		if p.ParseError {
 			return true

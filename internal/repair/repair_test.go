@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/p3bot/pj/internal/order"
-	"github.com/p3bot/pj/internal/rewrite"
+	"github.com/p3bot/tk/internal/order"
+	"github.com/p3bot/tk/internal/rewrite"
 )
 
-// writeProj writes a project file and returns its path. Empty created omits the key.
+// writeProj writes a ticket file and returns its path. Empty created omits the key.
 func writeProj(t *testing.T, dir, fullID, slug, created, orderKey, body string, archived bool) string {
 	t.Helper()
 	target := dir
@@ -318,7 +318,7 @@ func TestDuplicateIDIgnoresUnrelatedExtension(t *testing.T) {
 		t.Fatalf("DuplicateID: %v", err)
 	}
 	if renames[0].NewID == "wc-ab2ca" {
-		t.Errorf("must not adopt an unrelated project's id")
+		t.Errorf("must not adopt an unrelated ticket's id")
 	}
 }
 

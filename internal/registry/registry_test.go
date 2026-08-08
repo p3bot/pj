@@ -7,7 +7,7 @@ import (
 
 	"cuelang.org/go/cue/cuecontext"
 
-	"github.com/p3bot/pj/internal/pathutil"
+	"github.com/p3bot/tk/internal/pathutil"
 )
 
 func TestLoadEmpty(t *testing.T) {
@@ -26,8 +26,8 @@ func TestWriteAndReload(t *testing.T) {
 	s := NewStore(cuecontext.New(), dir)
 
 	scopes := map[string]Entry{
-		"wc": {Dir: "/home/g/webctl/.agents/pj", Root: "/home/g/webctl"},
-		"ta": {Dir: "/org/mono/teamA/.agents/pj", Root: "/org/mono/teamA"},
+		"wc": {Dir: "/home/g/webctl/.agents/tk", Root: "/home/g/webctl"},
+		"ta": {Dir: "/org/mono/teamA/.agents/tk", Root: "/org/mono/teamA"},
 	}
 	if err := s.WriteRegistry(scopes); err != nil {
 		t.Fatalf("WriteRegistry: %v", err)
@@ -43,7 +43,7 @@ func TestWriteAndReload(t *testing.T) {
 	if reg.Scopes["wc"].Root != pathutil.Canonical("/home/g/webctl") {
 		t.Errorf("wc root = %q", reg.Scopes["wc"].Root)
 	}
-	if reg.Scopes["ta"].Dir != pathutil.Canonical("/org/mono/teamA/.agents/pj") {
+	if reg.Scopes["ta"].Dir != pathutil.Canonical("/org/mono/teamA/.agents/tk") {
 		t.Errorf("ta dir = %q", reg.Scopes["ta"].Dir)
 	}
 	if got := reg.Lens["wc"]; len(got) != 2 || got[0] != "frontend" {

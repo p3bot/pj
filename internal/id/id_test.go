@@ -53,11 +53,11 @@ func TestIsShortID(t *testing.T) {
 	}
 }
 
-func TestIsFullProjectID(t *testing.T) {
+func TestIsFullTicketID(t *testing.T) {
 	valid := []string{"wc-ab2c", "wc-ab2c9", "api-m9k3", "x-wxyz", "webctl-abcdefgh"}
 	for _, s := range valid {
-		if !IsFullProjectID(s) {
-			t.Errorf("IsFullProjectID(%q) = false, want true", s)
+		if !IsFullTicketID(s) {
+			t.Errorf("IsFullTicketID(%q) = false, want true", s)
 		}
 	}
 	invalid := []string{
@@ -76,8 +76,8 @@ func TestIsFullProjectID(t *testing.T) {
 		"wc-",
 	}
 	for _, s := range invalid {
-		if IsFullProjectID(s) {
-			t.Errorf("IsFullProjectID(%q) = true, want false", s)
+		if IsFullTicketID(s) {
+			t.Errorf("IsFullTicketID(%q) = true, want false", s)
 		}
 	}
 }

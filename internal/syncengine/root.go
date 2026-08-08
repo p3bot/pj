@@ -5,14 +5,14 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/p3bot/pj/internal/flock"
-	"github.com/p3bot/pj/internal/git"
-	"github.com/p3bot/pj/internal/gitroot"
-	"github.com/p3bot/pj/internal/gitstate"
-	"github.com/p3bot/pj/internal/integrity"
-	"github.com/p3bot/pj/internal/scopeconfig"
-	"github.com/p3bot/pj/internal/scopefile"
-	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/tk/internal/flock"
+	"github.com/p3bot/tk/internal/git"
+	"github.com/p3bot/tk/internal/gitroot"
+	"github.com/p3bot/tk/internal/gitstate"
+	"github.com/p3bot/tk/internal/integrity"
+	"github.com/p3bot/tk/internal/scopeconfig"
+	"github.com/p3bot/tk/internal/scopefile"
+	"github.com/p3bot/tk/internal/token"
 )
 
 // rootOutcome: only NeedsAttention makes the run exit non-zero.
@@ -62,7 +62,7 @@ func syncRoot(deps Deps, r Reporter, t Target) rootOutcome {
 	} else {
 		if !git.HasUpstream(ctx, t.Root) {
 			r.Err(token.Line(token.SyncDisabled,
-				fmt.Sprintf("%s: git-root %s has no upstream — add a remote, then pj sync", rep.label, t.Root)))
+				fmt.Sprintf("%s: git-root %s has no upstream — add a remote, then tk sync", rep.label, t.Root)))
 			return outcomeNeedsAttention
 		}
 		if err := snapshot(deps, r, t, rep); err != nil {
@@ -118,7 +118,7 @@ func syncPreflight(deps Deps, r Reporter, root string) bool {
 		dir := deps.Reg.Scopes[name].Dir
 		if pjName, err := scopeconfig.ReadName(deps.Cue, dir); err == nil && pjName != name {
 			r.Err(token.Line(token.NameDrift, fmt.Sprintf(
-				"%s (%s): registry key %q but pj.cue name is %q — recover with pj scope forget %s then pj scope import; the whole git-root %s is refused",
+				"%s (%s): registry key %q but tk.cue name is %q — recover with tk scope forget %s then tk scope import; the whole git-root %s is refused",
 				name, dir, name, pjName, name, root)))
 			refuse = true
 			continue
@@ -126,7 +126,7 @@ func syncPreflight(deps Deps, r Reporter, root string) bool {
 		schema, cfgErr := deps.Rec.SchemaOrError(name, dir)
 		if cfgErr != nil {
 			r.Err(token.Line(token.ConfigUnparseable, fmt.Sprintf(
-				"%s (%s): %s — fix pj.cue before sync can merge this git-root", name, cfgErr.Dir, cfgErr.Reason)))
+				"%s (%s): %s — fix tk.cue before sync can merge this git-root", name, cfgErr.Dir, cfgErr.Reason)))
 			refuse = true
 			continue
 		}
@@ -191,7 +191,7 @@ func drainEdgeVerify(deps Deps, r Reporter, rep *syncReport) error {
 }
 
 func reportPaused(r Reporter, rep *syncReport) {
-	r.Err(fmt.Sprintf("%s: rebase paused for a human — resolve the file(s) above in place, then run pj sync again", rep.label))
+	r.Err(fmt.Sprintf("%s: rebase paused for a human — resolve the file(s) above in place, then run tk sync again", rep.label))
 }
 
 func reportSuccess(r Reporter, rep *syncReport) {
@@ -211,7 +211,7 @@ func reportSuccess(r Reporter, rep *syncReport) {
 	if rep.residueN > 0 {
 		parts = append(parts, fmt.Sprintf("%d non-allowlist path(s) left", rep.residueN))
 	}
-	r.Err(fmt.Sprintf("pj sync %s: %s", rep.label, strings.Join(parts, ", ")))
+	r.Err(fmt.Sprintf("tk sync %s: %s", rep.label, strings.Join(parts, ", ")))
 }
 
 func participantLabel(parts []Participant) string {

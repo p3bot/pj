@@ -3,16 +3,16 @@ package cli
 import (
 	"sort"
 
-	"github.com/p3bot/pj/internal/index"
-	"github.com/p3bot/pj/internal/reconcile"
-	"github.com/p3bot/pj/internal/scopeconfig"
-	"github.com/p3bot/pj/internal/status"
-	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/tk/internal/index"
+	"github.com/p3bot/tk/internal/reconcile"
+	"github.com/p3bot/tk/internal/scopeconfig"
+	"github.com/p3bot/tk/internal/status"
+	"github.com/p3bot/tk/internal/token"
 )
 
 type gate struct {
 	e       *engine
-	byID    map[string][]*index.Project
+	byID    map[string][]*index.Ticket
 	depends map[string][]string
 	schemas map[string]*scopeconfig.Schema
 	dupSet  map[string]bool
@@ -20,7 +20,7 @@ type gate struct {
 
 // buildGate scopes the duplicate-id set to homeScopes (listed/selected scopes only).
 func (e *engine) buildGate(res *reconcile.Result, homeScopes []string) (*gate, error) {
-	all, err := e.db.AllProjects()
+	all, err := e.db.AllTickets()
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func (e *engine) buildGate(res *reconcile.Result, homeScopes []string) (*gate, e
 
 	g := &gate{
 		e:       e,
-		byID:    map[string][]*index.Project{},
+		byID:    map[string][]*index.Ticket{},
 		depends: map[string][]string{},
 		schemas: map[string]*scopeconfig.Schema{},
 		dupSet:  dup,
@@ -63,12 +63,12 @@ type depStatus struct {
 func (d depStatus) Held() bool { return len(d.WaitingOn) > 0 || d.SchemaError }
 
 // evalDepends: same-scope missing is depends_dangling; cross-scope is depends_unresolvable.
-func (g *gate) evalDepends(p *index.Project) depStatus {
+func (g *gate) evalDepends(p *index.Ticket) depStatus {
 	var ds depStatus
 	if p.SchemaError {
 		ds.SchemaError = true
 		ds.Tokens = append(ds.Tokens, token.Line(token.SchemaError,
-			p.ID+": a depends/related entry is not a legal full project id"))
+			p.ID+": a depends/related entry is not a legal full ticket id"))
 	}
 
 	seen := map[string]bool{}
@@ -82,7 +82,7 @@ func (g *gate) evalDepends(p *index.Project) depStatus {
 		if len(rows) == 0 {
 			if scopeOfFullID(target) == p.Scope {
 				ds.Tokens = append(ds.Tokens, token.Line(token.DependsDangling,
-					p.ID+" depends on "+target+" which has no project in this scope"))
+					p.ID+" depends on "+target+" which has no ticket in this scope"))
 			} else {
 				ds.Tokens = append(ds.Tokens, token.Line(token.DependsUnresolvable,
 					p.ID+" depends on "+target+" which cannot be resolved here"))
@@ -99,7 +99,7 @@ func (g *gate) evalDepends(p *index.Project) depStatus {
 }
 
 // allTerminal holds rather than falsely satisfying when any row is non-terminal or ambiguous.
-func (g *gate) allTerminal(rows []*index.Project) bool {
+func (g *gate) allTerminal(rows []*index.Ticket) bool {
 	for _, r := range rows {
 		if !status.IsTerminal(r.Status, schemaCustom(g.schema(r.Scope))) {
 			return false
@@ -108,7 +108,7 @@ func (g *gate) allTerminal(rows []*index.Project) bool {
 	return len(rows) > 0
 }
 
-func (g *gate) nextEligible(p *index.Project, ds depStatus) bool {
+func (g *gate) nextEligible(p *index.Ticket, ds depStatus) bool {
 	if !status.IsNextEligible(p.Status) || p.Archived || p.ParseError {
 		return false
 	}
@@ -118,7 +118,7 @@ func (g *gate) nextEligible(p *index.Project, ds depStatus) bool {
 	return true
 }
 
-func (g *gate) isDuplicate(p *index.Project) bool {
+func (g *gate) isDuplicate(p *index.Ticket) bool {
 	return g.dupSet[p.Scope+"\x00"+p.ID]
 }
 

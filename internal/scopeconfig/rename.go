@@ -9,17 +9,17 @@ import (
 	"cuelang.org/go/cue/literal"
 	"cuelang.org/go/cue/parser"
 
-	"github.com/p3bot/pj/internal/atomicfile"
-	"github.com/p3bot/pj/internal/id"
+	"github.com/p3bot/tk/internal/atomicfile"
+	"github.com/p3bot/tk/internal/id"
 )
 
-// RewriteName rewrites only the top-level name field of <dir>/pj.cue via CUE AST
+// RewriteName rewrites only the top-level name field of <dir>/tk.cue via CUE AST
 // (no string templating), preserving other fields, comments, and formatting.
 func RewriteName(dir, newName string) error {
 	if !id.IsScopeName(newName) {
 		return fmt.Errorf("%q is not a legal scope name", newName)
 	}
-	p := filepath.Join(dir, "pj.cue")
+	p := filepath.Join(dir, "tk.cue")
 	file, err := parser.ParseFile(p, nil, parser.ParseComments)
 	if err != nil {
 		return fmt.Errorf("parse %s: %w", p, err)

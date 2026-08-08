@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/p3bot/pj/internal/id"
+	"github.com/p3bot/tk/internal/id"
 )
 
 const (

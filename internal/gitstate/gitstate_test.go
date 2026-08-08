@@ -37,8 +37,8 @@ func TestKeyResolvesSymlinkSpellings(t *testing.T) {
 }
 
 func TestDirUnderStateHome(t *testing.T) {
-	got := Dir("/state/pj", "/repo/one")
-	want := filepath.Join("/state/pj", "git-roots", Key("/repo/one"))
+	got := Dir("/state/tk", "/repo/one")
+	want := filepath.Join("/state/tk", "git-roots", Key("/repo/one"))
 	if got != want {
 		t.Errorf("Dir = %q want %q", got, want)
 	}

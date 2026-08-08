@@ -1,4 +1,4 @@
-module github.com/p3bot/pj
+module github.com/p3bot/tk
 
 go 1.26
 

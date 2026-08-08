@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue/cuecontext"
-	"github.com/p3bot/pj/internal/frontmatter"
-	"github.com/p3bot/pj/internal/git"
-	"github.com/p3bot/pj/internal/scopeconfig"
-	"github.com/p3bot/pj/internal/testgit"
+	"github.com/p3bot/tk/internal/frontmatter"
+	"github.com/p3bot/tk/internal/git"
+	"github.com/p3bot/tk/internal/scopeconfig"
+	"github.com/p3bot/tk/internal/testgit"
 )
 
 func requireGit(t *testing.T) {
@@ -37,7 +37,7 @@ func newRepo(t *testing.T) string {
 	repo := t.TempDir()
 	gitRun(t, repo, nil, "init")
 	gitRun(t, repo, nil, "config", "user.email", "a@b.c")
-	gitRun(t, repo, nil, "config", "user.name", "pj-test")
+	gitRun(t, repo, nil, "config", "user.name", "tk-test")
 	gitRun(t, repo, nil, "config", "commit.gpgsign", "false")
 	return repo
 }
@@ -100,7 +100,7 @@ func setup(t *testing.T, cueBase, cueMain, base, main, feature, mainDate string)
 	const featureDate = "2026-03-01T00:00:00Z"
 	repo := newRepo(t)
 	scopeDir := filepath.Join(repo, "wc")
-	cuePath := filepath.Join(scopeDir, "pj.cue")
+	cuePath := filepath.Join(scopeDir, "tk.cue")
 	projPath := filepath.Join(repo, projRel)
 
 	writeF(t, cuePath, cueBase)
@@ -320,12 +320,12 @@ func TestAddAddRenameTwoFiles(t *testing.T) {
 	}
 }
 
-// Per-file author dates, not branch-tip dates, decide LWW for another project's fields.
+// Per-file author dates, not branch-tip dates, decide LWW for another ticket's fields.
 func TestPerFileAuthorDateNotBranchTip(t *testing.T) {
 	requireGit(t)
 	repo := newRepo(t)
 	scopeDir := filepath.Join(repo, "wc")
-	writeF(t, filepath.Join(scopeDir, "pj.cue"), pjcue(""))
+	writeF(t, filepath.Join(scopeDir, "tk.cue"), pjcue(""))
 	aPath := filepath.Join(repo, "wc", "wc-ab2c-a.md")
 	bPath := filepath.Join(repo, "wc", "wc-cd3e-b.md")
 	writeF(t, aPath, proj("id: wc-ab2c\nstatus: todo\norder: \"a0\"\nsummary: BASE\ncreated: 2026-01-01T00:00:00Z\n", "x\n"))
@@ -365,13 +365,13 @@ func TestPerFileAuthorDateNotBranchTip(t *testing.T) {
 	_ = out
 }
 
-// Driver types the merge from on-disk schema: a key only incoming pj.cue declares as strings set-merges.
+// Driver types the merge from on-disk schema: a key only incoming tk.cue declares as strings set-merges.
 func TestSchemaFromOnDiskStrings(t *testing.T) {
 	requireGit(t)
 	fmBase := "id: wc-ab2c\nstatus: todo\norder: \"a0\"\nreviewers: [alice]\n"
 	fmMain := "id: wc-ab2c\nstatus: todo\norder: \"a0\"\nreviewers: [alice, bob]\n"
 	fmFeat := "id: wc-ab2c\nstatus: todo\norder: \"a0\"\nreviewers: [alice, carol]\n"
-	// Only main's pj.cue declares reviewers as strings; it lands in the on-disk schema.
+	// Only main's tk.cue declares reviewers as strings; it lands in the on-disk schema.
 	cueMain := pjcue("fields: reviewers: type: \"strings\"\n")
 
 	f := setup(t, pjcue(""), cueMain,
@@ -403,7 +403,7 @@ func TestOccupiedAccumulatesAcrossAddAdds(t *testing.T) {
 	requireGit(t)
 	repo := newRepo(t)
 	scopeDir := filepath.Join(repo, "wc")
-	writeF(t, filepath.Join(scopeDir, "pj.cue"), pjcue(""))
+	writeF(t, filepath.Join(scopeDir, "tk.cue"), pjcue(""))
 	writeF(t, filepath.Join(repo, "seed.txt"), "seed\n")
 	commitAll(t, repo, "seed", "2026-01-01T00:00:00Z")
 	mainBranch := gitCapture(t, repo, "rev-parse", "--abbrev-ref", "HEAD")

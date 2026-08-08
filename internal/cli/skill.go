@@ -10,7 +10,7 @@ import (
 	"github.com/p3bot/agentdex"
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/skill"
+	"github.com/p3bot/tk/internal/skill"
 )
 
 func newSkillCmd(app *App) *cobra.Command {
@@ -59,7 +59,7 @@ func newSkillListCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List installed skill copies for installed agents",
-		Long: "Inventory existing pj/SKILL.md paths under candidates of installed\n" +
+		Long: "Inventory existing tk/SKILL.md paths under candidates of installed\n" +
 			"agents that have a skills concept. No agent positionals. Paths print in\n" +
 			"alphabetical order. Empty inventory exits 0 with empty stdout and a stderr note.",
 		Args: usageArgs(cobra.NoArgs),
@@ -76,7 +76,7 @@ func newSkillUninstallCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "uninstall [agents...]",
 		Short: "Remove installed skill copies",
-		Long: "Remove owned pure pj/ skill directories under candidates of the target\n" +
+		Long: "Remove owned pure tk/ skill directories under candidates of the target\n" +
 			"agent set. Multi-tenant paths still claimed by other installed agents are\n" +
 			"kept (reported, not an error). Foreign files or wrong frontmatter name keep\n" +
 			"the dir. Report lines are ordered alphabetically by path.",

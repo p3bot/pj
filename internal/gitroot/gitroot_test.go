@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/p3bot/pj/internal/pathutil"
-	"github.com/p3bot/pj/internal/testgit"
+	"github.com/p3bot/tk/internal/pathutil"
+	"github.com/p3bot/tk/internal/testgit"
 )
 
 func TestRepoRootInsideRepo(t *testing.T) {

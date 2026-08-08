@@ -11,7 +11,7 @@ func TestConfigDirFromXDG(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := filepath.Join("/custom/config", "pj"); got != want {
+	if want := filepath.Join("/custom/config", "tk"); got != want {
 		t.Errorf("ConfigDir=%q want %q", got, want)
 	}
 }
@@ -23,7 +23,7 @@ func TestConfigDirFallsBackToHome(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := filepath.Join("/home/tester", ".config", "pj"); got != want {
+	if want := filepath.Join("/home/tester", ".config", "tk"); got != want {
 		t.Errorf("ConfigDir=%q want %q", got, want)
 	}
 }

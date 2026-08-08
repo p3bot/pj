@@ -9,8 +9,8 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/p3bot/pj/internal/pathutil"
-	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/tk/internal/pathutil"
+	"github.com/p3bot/tk/internal/token"
 )
 
 const (

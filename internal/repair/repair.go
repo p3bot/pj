@@ -12,17 +12,17 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/p3bot/pj/internal/collision"
-	"github.com/p3bot/pj/internal/frontmatter"
-	"github.com/p3bot/pj/internal/id"
-	"github.com/p3bot/pj/internal/order"
-	"github.com/p3bot/pj/internal/rewrite"
+	"github.com/p3bot/tk/internal/collision"
+	"github.com/p3bot/tk/internal/frontmatter"
+	"github.com/p3bot/tk/internal/id"
+	"github.com/p3bot/tk/internal/order"
+	"github.com/p3bot/tk/internal/rewrite"
 )
 
 // OrderLongThreshold is the soft length above which an order key is eligible for re-space.
 const OrderLongThreshold = 64
 
-// Row is the minimal projection of an indexed project a repair procedure needs.
+// Row is the minimal projection of an indexed ticket a repair procedure needs.
 type Row struct {
 	Path       string
 	FullID     string
@@ -160,7 +160,7 @@ func LongOrder(rows []Row) ([]rewrite.Op, error) {
 	return respace(valid, func(r Row) bool { return len(r.OrderKey) > OrderLongThreshold })
 }
 
-// ArchiveMove builds the op that relocates a project file across the archive boundary
+// ArchiveMove builds the op that relocates a ticket file across the archive boundary
 // to match terminal-ness. Frontmatter is unchanged (byte-for-byte preservation).
 func ArchiveMove(dir string, row Row, terminal bool) (rewrite.Op, error) {
 	raw, err := os.ReadFile(row.Path)
@@ -177,7 +177,7 @@ func ArchiveMove(dir string, row Row, terminal bool) (rewrite.Op, error) {
 
 // InterruptedMove reports whether a same-id set is the both-present window of an
 // interrupted archive-layout move: two byte-identical copies, one at dir root and one
-// under archive/. Extending a short-id here would fork one project into two ids.
+// under archive/. Extending a short-id here would fork one ticket into two ids.
 func InterruptedMove(dir string, rows []Row) (bool, error) {
 	archiveDir := filepath.Join(dir, "archive")
 	var atRoot, archived []Row
@@ -260,7 +260,7 @@ func respace(valid []Row, needsRewrite func(Row) bool) ([]rewrite.Op, error) {
 	return ops, nil
 }
 
-// orderRewriteOp rewrites only the order key of a project file as an in-place op.
+// orderRewriteOp rewrites only the order key of a ticket file as an in-place op.
 func orderRewriteOp(path, newKey string) (rewrite.Op, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -316,7 +316,7 @@ func (m member) toCollision() collision.Member {
 	return collision.Member{Created: m.created, Basename: m.basename, Raw: m.raw, Path: m.path}
 }
 
-// Basename is the project filename for newID that preserves base's frozen slug.
+// Basename is the ticket filename for newID that preserves base's frozen slug.
 // Never consults the old id, because filename and frontmatter id can disagree;
 // scope names and short-ids contain no hyphen, so the first two segments are the id.
 func Basename(base, newID string) string {

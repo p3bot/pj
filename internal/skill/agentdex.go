@@ -116,16 +116,16 @@ func OpenIndex(workingDir string, extra ...agentdex.Option) (*agentdex.Index, er
 }
 
 // MapCatalogError turns agentdex catalog sentinels into a user-facing error
-// that points at manual install via `pj skill`. Other errors pass through.
+// that points at manual install via `tk skill`. Other errors pass through.
 func MapCatalogError(err error) error {
 	if err == nil {
 		return nil
 	}
 	switch {
 	case errors.Is(err, agentdex.ErrCatalogUnavailable):
-		return fmt.Errorf("catalog unavailable: run 'pj skill' and install the skill manually into your agent's skills directory (%w)", err)
+		return fmt.Errorf("catalog unavailable: run 'tk skill' and install the skill manually into your agent's skills directory (%w)", err)
 	case errors.Is(err, agentdex.ErrCatalogInvalid):
-		return fmt.Errorf("catalog invalid: run 'pj skill' and install the skill manually into your agent's skills directory (%w)", err)
+		return fmt.Errorf("catalog invalid: run 'tk skill' and install the skill manually into your agent's skills directory (%w)", err)
 	default:
 		return err
 	}

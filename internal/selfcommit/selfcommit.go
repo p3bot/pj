@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/p3bot/pj/internal/git"
-	"github.com/p3bot/pj/internal/gitstate"
+	"github.com/p3bot/tk/internal/git"
+	"github.com/p3bot/tk/internal/gitstate"
 )
 
 // Request is one self-commit: fixed message, post-write path, and optional old path.

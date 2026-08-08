@@ -6,9 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/index"
-	"github.com/p3bot/pj/internal/scopeconfig"
-	"github.com/p3bot/pj/internal/status"
+	"github.com/p3bot/tk/internal/index"
+	"github.com/p3bot/tk/internal/scopeconfig"
+	"github.com/p3bot/tk/internal/status"
 )
 
 func newListCmd(app *App) *cobra.Command {
@@ -21,12 +21,12 @@ func newListCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list [status...] [--scope S] [--tag T]... [--all] [--no-lens]",
 		Short: "Board / inventory for one scope as parse-stable TSV",
-		Long: "Print one scope's projects, sorted (order, id), one TSV line each:\n" +
+		Long: "Print one scope's tickets, sorted (order, id), one TSV line each:\n" +
 			"  <full-id>\\t<status>\\t<title>\\t<waiting-on>\n" +
 			"Headerless TSV (no header row). Summary is not a list column — use\n" +
-			"`pj meta get <id>`. Bare list is the default active set. Status positionals\n" +
+			"`tk meta get <id>`. Bare list is the default active set. Status positionals\n" +
 			"union-filter (an unknown status exits 2) and include matching rows under\n" +
-			"archive/ — so `list done` shows done projects without --all. --tag repeats\n" +
+			"archive/ — so `list done` shows done tickets without --all. --tag repeats\n" +
 			"as OR; the lens applies unless --no-lens (lens AND --tag). --all expands\n" +
 			"the unfiltered board to every non-quarantined status, including archive/.\n" +
 			"Lens echo and integrity tokens ride stderr only, never the TSV. Pure read.",
@@ -36,7 +36,7 @@ func newListCmd(app *App) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&scope, "scope", "", "scope to list (defaults to ambient; wins over ambient)")
-	cmd.Flags().StringArrayVar(&tags, "tag", nil, "keep projects with any of these tags (repeatable; OR)")
+	cmd.Flags().StringArrayVar(&tags, "tag", nil, "keep tickets with any of these tags (repeatable; OR)")
 	cmd.Flags().BoolVar(&all, "all", false, "with no status filter: include done/backlog and archive/")
 	cmd.Flags().BoolVar(&noLens, "no-lens", false, "ignore the active lens")
 	return cmd
@@ -75,7 +75,7 @@ func runList(app *App, c *cobra.Command, p listParams) error {
 		return err
 	}
 
-	rows, err := e.db.ScopeProjects(scope)
+	rows, err := e.db.ScopeTickets(scope)
 	if err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ func runList(app *App, c *cobra.Command, p listParams) error {
 	lens := e.reg.Lens[scope]
 	applyLens := !p.noLens && len(lens) > 0
 
-	var kept []*index.Project
+	var kept []*index.Ticket
 	for _, row := range rows {
 		if !listVisible(row, statusFilter, p.all, schema) {
 			continue
@@ -100,7 +100,7 @@ func runList(app *App, c *cobra.Command, p listParams) error {
 		}
 		kept = append(kept, row)
 	}
-	sortProjects(kept)
+	sortTickets(kept)
 
 	tokens := newTokenSet()
 	for _, row := range kept {
@@ -135,7 +135,7 @@ func parseStatusFilter(names []string, schema *scopeconfig.Schema) (map[string]b
 }
 
 // listVisible: status positionals ignore layout; archive/ only under --all when unfiltered.
-func listVisible(p *index.Project, statusFilter map[string]bool, all bool, schema *scopeconfig.Schema) bool {
+func listVisible(p *index.Ticket, statusFilter map[string]bool, all bool, schema *scopeconfig.Schema) bool {
 	// parse_error rows are never board rows (get/search locate them).
 	if p.ParseError {
 		return false
@@ -152,7 +152,7 @@ func listVisible(p *index.Project, statusFilter map[string]bool, all bool, schem
 	return status.InDefaultList(p.Status, schemaCustom(schema))
 }
 
-func matchesAnyTag(p *index.Project, tags []string) bool {
+func matchesAnyTag(p *index.Ticket, tags []string) bool {
 	for _, want := range tags {
 		for _, have := range p.Tags {
 			if want == have {
@@ -163,7 +163,7 @@ func matchesAnyTag(p *index.Project, tags []string) bool {
 	return false
 }
 
-func sortProjects(rows []*index.Project) {
+func sortTickets(rows []*index.Ticket) {
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].OrderKey != rows[j].OrderKey {
 			return rows[i].OrderKey < rows[j].OrderKey
@@ -191,7 +191,7 @@ func (t *tokenSet) add(lines []string) {
 
 func (t *tokenSet) lines() []string { return t.order }
 
-// tsvLine flattens tab/CR/LF in fields so one project stays one TSV record.
+// tsvLine flattens tab/CR/LF in fields so one ticket stays one TSV record.
 func tsvLine(fields ...string) string {
 	cleaned := make([]string, len(fields))
 	for i, f := range fields {

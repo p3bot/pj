@@ -8,8 +8,8 @@ import (
 
 	"cuelang.org/go/cue/cuecontext"
 
-	"github.com/p3bot/pj/internal/pathutil"
-	"github.com/p3bot/pj/internal/testgit"
+	"github.com/p3bot/tk/internal/pathutil"
+	"github.com/p3bot/tk/internal/testgit"
 )
 
 func gitIn(t *testing.T, dir string, args ...string) string {
@@ -20,7 +20,7 @@ func gitIn(t *testing.T, dir string, args ...string) string {
 func configIdentity(t *testing.T, dir string) {
 	t.Helper()
 	gitIn(t, dir, "config", "user.email", "a@b.c")
-	gitIn(t, dir, "config", "user.name", "pj-test")
+	gitIn(t, dir, "config", "user.name", "tk-test")
 	gitIn(t, dir, "config", "commit.gpgsign", "false")
 }
 
@@ -102,7 +102,7 @@ func fmStatus(t *testing.T, path string) string {
 	return fmValue(t, path, "status")
 }
 
-func findProject(t *testing.T, dir, base string) (string, bool) {
+func findTicket(t *testing.T, dir, base string) (string, bool) {
 	t.Helper()
 	if p := filepath.Join(dir, base); fileExistsPath(p) {
 		return p, false
@@ -113,11 +113,11 @@ func findProject(t *testing.T, dir, base string) (string, bool) {
 	return "", false
 }
 
-func mustSeedProject(t *testing.T, dir string) string {
+func mustSeedTicket(t *testing.T, dir string) string {
 	t.Helper()
-	p, _ := findProject(t, dir, "wc-ab2c-alpha.md")
+	p, _ := findTicket(t, dir, "wc-ab2c-alpha.md")
 	if p == "" {
-		t.Fatalf("seed project wc-ab2c-alpha.md not found under %s", dir)
+		t.Fatalf("seed ticket wc-ab2c-alpha.md not found under %s", dir)
 	}
 	return p
 }
@@ -165,7 +165,7 @@ func replaceLinePrefix(t *testing.T, path, prefix, replacement string) {
 
 func writeCue(t *testing.T, dir, content string) {
 	t.Helper()
-	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "tk.cue"), []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -180,7 +180,7 @@ func twoMachines(t *testing.T) (a, b *machine, remote string) {
 	remote = newBareRemote(t)
 	a = cloneMachine(t, remote)
 	dirA := a.initScopeAutoCommit(t)
-	addProject(t, dirA, "wc-ab2c", "alpha", "todo", "a0", "# alpha\n\nbody line\n", false, "")
+	addTicket(t, dirA, "wc-ab2c", "alpha", "todo", "a0", "# alpha\n\nbody line\n", false, "")
 	if _, _, err := a.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("machine A initial sync: %v", err)
 	}

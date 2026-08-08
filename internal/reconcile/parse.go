@@ -5,26 +5,26 @@ import (
 	"os"
 	"strings"
 
-	"github.com/p3bot/pj/internal/frontmatter"
-	"github.com/p3bot/pj/internal/id"
-	"github.com/p3bot/pj/internal/index"
-	"github.com/p3bot/pj/internal/title"
+	"github.com/p3bot/tk/internal/frontmatter"
+	"github.com/p3bot/tk/internal/id"
+	"github.com/p3bot/tk/internal/index"
+	"github.com/p3bot/tk/internal/title"
 )
 
 // conflictMarkers force parse_error quarantine when inside the frontmatter fence
 // (body-only markers leave FM indexing intact).
 var conflictMarkers = [][]byte{[]byte("<<<<<<<"), []byte("======="), []byte(">>>>>>>")}
 
-// parseFile materializes one project file. Bad content yields a parse_error quarantine
+// parseFile materializes one ticket file. Bad content yields a parse_error quarantine
 // row (id from filename, body FTS-indexed), not an error. Real I/O faults still error.
-func parseFile(path, scope, fullID string, archived bool, mtimeNS, size int64) (*index.Project, []index.Edge, error) {
+func parseFile(path, scope, fullID string, archived bool, mtimeNS, size int64) (*index.Ticket, []index.Edge, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	interior, body, present := frontmatter.Split(data)
-	base := &index.Project{
+	base := &index.Ticket{
 		Path: path, Scope: scope, ID: fullID, ShortID: shortOf(fullID),
 		Archived: archived, MtimeNS: mtimeNS, Size: size, Body: body,
 	}
@@ -41,7 +41,7 @@ func parseFile(path, scope, fullID string, archived bool, mtimeNS, size int64) (
 }
 
 // quarantine finishes a parse_error row: no trusted FM fields; raw file goes to FTS.
-func quarantine(base *index.Project, raw []byte, msg string) *index.Project {
+func quarantine(base *index.Ticket, raw []byte, msg string) *index.Ticket {
 	base.ParseError = true
 	base.ParseMsg = msg
 	base.Status = ""
@@ -51,7 +51,7 @@ func quarantine(base *index.Project, raw []byte, msg string) *index.Project {
 
 // indexFromModel fills a healthy row and materializes edges. Malformed depends/related
 // set SchemaError and are omitted from edges.
-func indexFromModel(base *index.Project, m *frontmatter.Model) (*index.Project, []index.Edge, error) {
+func indexFromModel(base *index.Ticket, m *frontmatter.Model) (*index.Ticket, []index.Edge, error) {
 	base.Status = m.Status
 	base.OrderKey = m.Order
 	base.Summary = m.Summary
@@ -67,7 +67,7 @@ func indexFromModel(base *index.Project, m *frontmatter.Model) (*index.Project, 
 	}
 	// Frontmatter id is authoritative when same-scope; foreign-scope ids are not
 	// adopted (would leave scope vs id-prefix disagreeing and break get/meta).
-	if id.IsFullProjectID(m.ID) && scopeOf(m.ID) == base.Scope {
+	if id.IsFullTicketID(m.ID) && scopeOf(m.ID) == base.Scope {
 		base.ID = m.ID
 		base.ShortID = shortOf(m.ID)
 	}
@@ -78,12 +78,12 @@ func indexFromModel(base *index.Project, m *frontmatter.Model) (*index.Project, 
 }
 
 // edgesFrom skips (and flags) any depends/related entry that is not a legal full id.
-func edgesFrom(base *index.Project, m *frontmatter.Model) ([]index.Edge, bool) {
+func edgesFrom(base *index.Ticket, m *frontmatter.Model) ([]index.Edge, bool) {
 	var edges []index.Edge
 	schemaErr := false
 	add := func(list []string, kind string) {
 		for _, target := range list {
-			if !id.IsFullProjectID(target) {
+			if !id.IsFullTicketID(target) {
 				schemaErr = true
 				continue
 			}
@@ -116,7 +116,7 @@ func containsConflictMarker(interior []byte) bool {
 }
 
 func shortOf(fullID string) string {
-	if !id.IsFullProjectID(fullID) {
+	if !id.IsFullTicketID(fullID) {
 		return ""
 	}
 	return fullID[strings.IndexByte(fullID, '-')+1:]

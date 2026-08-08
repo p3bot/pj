@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/p3bot/pj/internal/gitstate"
-	"github.com/p3bot/pj/internal/testgit"
+	"github.com/p3bot/tk/internal/gitstate"
+	"github.com/p3bot/tk/internal/testgit"
 )
 
 func requireGit(t *testing.T) {
@@ -30,7 +30,7 @@ func newRepo(t *testing.T) string {
 	repo := t.TempDir()
 	gitCmd(t, repo, "init")
 	gitCmd(t, repo, "config", "user.email", "a@b.c")
-	gitCmd(t, repo, "config", "user.name", "pj-test")
+	gitCmd(t, repo, "config", "user.name", "tk-test")
 	gitCmd(t, repo, "config", "commit.gpgsign", "false")
 	return repo
 }
@@ -62,7 +62,7 @@ func TestCommitOmitsUntrackedOldPath(t *testing.T) {
 
 	err := Commit(ctx, Request{
 		StateDir: state, GitRoot: repo,
-		Message: "pj: wc-ab2c -> done",
+		Message: "tk: wc-ab2c -> done",
 		NewPath: newPath, OldPath: oldPath,
 	})
 	if err != nil {
@@ -94,7 +94,7 @@ func TestCommitStagesTrackedRemoval(t *testing.T) {
 	}
 	err := Commit(ctx, Request{
 		StateDir: state, GitRoot: repo,
-		Message: "pj: wc-ab2c -> done",
+		Message: "tk: wc-ab2c -> done",
 		NewPath: newPath, OldPath: oldPath,
 	})
 	if err != nil {
@@ -124,7 +124,7 @@ func TestCoresCommitUnderCallerHeldLock(t *testing.T) {
 
 	one := filepath.Join(repo, "wc", "wc-ab2c-x.md")
 	write(t, one, "# x\n")
-	if err := CommitCore(ctx, Request{StateDir: state, GitRoot: repo, Message: "pj: add wc-ab2c x", NewPath: one}); err != nil {
+	if err := CommitCore(ctx, Request{StateDir: state, GitRoot: repo, Message: "tk: add wc-ab2c x", NewPath: one}); err != nil {
 		t.Fatalf("CommitCore under held lock: %v", err)
 	}
 
@@ -132,7 +132,7 @@ func TestCoresCommitUnderCallerHeldLock(t *testing.T) {
 	three := filepath.Join(repo, "wc", "wc-ef4g-z.md")
 	write(t, two, "# y\n")
 	write(t, three, "# z\n")
-	if err := CommitPathsCore(ctx, BatchRequest{StateDir: state, GitRoot: repo, Message: "pj: sync 2 path(s)", Paths: []string{two, three}}); err != nil {
+	if err := CommitPathsCore(ctx, BatchRequest{StateDir: state, GitRoot: repo, Message: "tk: sync 2 path(s)", Paths: []string{two, three}}); err != nil {
 		t.Fatalf("CommitPathsCore under held lock: %v", err)
 	}
 
@@ -157,7 +157,7 @@ func TestCommitNoOpOnIdenticalRewrite(t *testing.T) {
 
 	err := Commit(ctx, Request{
 		StateDir: state, GitRoot: repo,
-		Message: "pj: wc-ab2c reorder",
+		Message: "tk: wc-ab2c reorder",
 		NewPath: p,
 	})
 	if err != nil {

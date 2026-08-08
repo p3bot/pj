@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/p3bot/pj/internal/scopefile"
+	"github.com/p3bot/tk/internal/scopefile"
 
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/index"
-	"github.com/p3bot/pj/internal/status"
+	"github.com/p3bot/tk/internal/index"
+	"github.com/p3bot/tk/internal/status"
 )
 
 // runClaim: scope flock spans reconcile→claim so candidates stay valid under the same lock.
@@ -54,19 +54,19 @@ func runClaim(app *App, c *cobra.Command, scopeFlag string, noLens bool) error {
 	if err != nil {
 		return err
 	}
-	rows, err := e.db.ScopeProjects(scope)
+	rows, err := e.db.ScopeTickets(scope)
 	if err != nil {
 		return err
 	}
 	candidates := nextCandidates(rows)
-	sortProjects(candidates)
+	sortTickets(candidates)
 
 	lens := e.reg.Lens[scope]
 	applyLens := !noLens && len(lens) > 0
 
 	tokens := newTokenSet()
 	blocked, readyOutsideLens := 0, 0
-	var claimed *index.Project
+	var claimed *index.Ticket
 	for _, p := range candidates {
 		ds := gate.evalDepends(p)
 		tokens.add(ds.Tokens)
@@ -80,7 +80,7 @@ func runClaim(app *App, c *cobra.Command, scopeFlag string, noLens bool) error {
 			readyOutsideLens++
 			continue
 		}
-		ok, err := e.claimProject(ctx, c, scope, dir, autoCommit, p, root, hasRoot)
+		ok, err := e.claimTicket(ctx, c, scope, dir, autoCommit, p, root, hasRoot)
 		if err != nil {
 			return err
 		}
@@ -108,8 +108,8 @@ func runClaim(app *App, c *cobra.Command, scopeFlag string, noLens bool) error {
 	return emptyQueueError(applyLens, lens, blocked, readyOutsideLens)
 }
 
-func (e *engine) claimProject(ctx context.Context, c *cobra.Command, scope, dir string, autoCommit bool, p *index.Project, root string, hasRoot bool) (bool, error) {
-	m, body, err := readProjectFile(p.Path)
+func (e *engine) claimTicket(ctx context.Context, c *cobra.Command, scope, dir string, autoCommit bool, p *index.Ticket, root string, hasRoot bool) (bool, error) {
+	m, body, err := readTicketFile(p.Path)
 	if err != nil {
 		return false, nil
 	}
@@ -117,13 +117,13 @@ func (e *engine) claimProject(ctx context.Context, c *cobra.Command, scope, dir 
 		return false, nil
 	}
 	m.Status = status.InProgress
-	if err := writeProjectFile(p.Path, m, body); err != nil {
+	if err := writeTicketFile(p.Path, m, body); err != nil {
 		return false, err
 	}
 	if err := e.rec.SyncPaths(scope, writtenPaths(p.Path, "")); err != nil {
 		return false, err
 	}
-	message := fmt.Sprintf("pj: %s -> %s", p.ID, status.InProgress)
+	message := fmt.Sprintf("tk: %s -> %s", p.ID, status.InProgress)
 	if err := e.completeStateDurability(ctx, c, scope, dir, autoCommit, message, p.Path, "", root, hasRoot); err != nil {
 		return false, err
 	}

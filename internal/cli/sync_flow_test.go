@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/p3bot/pj/internal/syncengine"
+	"github.com/p3bot/tk/internal/syncengine"
 )
 
-// A one-sided pj mark done lands uncontested on the other machine after sync.
+// A one-sided tk mark done lands uncontested on the other machine after sync.
 func TestSyncOneSidedStatusLandsUncontested(t *testing.T) {
 	requireGit(t)
 	a, b, _ := twoMachines(t)
@@ -22,9 +22,9 @@ func TestSyncOneSidedStatusLandsUncontested(t *testing.T) {
 	if _, _, err := b.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("B sync: %v", err)
 	}
-	path, archived := findProject(t, b.scopeDir(), "wc-ab2c-alpha.md")
+	path, archived := findTicket(t, b.scopeDir(), "wc-ab2c-alpha.md")
 	if path == "" || !archived {
-		t.Fatalf("the completed project should have landed under archive/ on B")
+		t.Fatalf("the completed ticket should have landed under archive/ on B")
 	}
 	if st := fmStatus(t, path); st != "done" {
 		t.Errorf("B should see status done, got %q", st)
@@ -36,8 +36,8 @@ func TestSyncMultiStopRebaseCompletes(t *testing.T) {
 	remote := newBareRemote(t)
 	a := cloneMachine(t, remote)
 	dirA := a.initScopeAutoCommit(t)
-	addProject(t, dirA, "wc-ab2c", "one", "todo", "a0", "# One\n", false, "")
-	addProject(t, dirA, "wc-cd3e", "two", "todo", "a1", "# Two\n", false, "")
+	addTicket(t, dirA, "wc-ab2c", "one", "todo", "a0", "# One\n", false, "")
+	addTicket(t, dirA, "wc-cd3e", "two", "todo", "a1", "# Two\n", false, "")
 	if _, _, err := a.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("A seed sync: %v", err)
 	}
@@ -59,10 +59,10 @@ func TestSyncMultiStopRebaseCompletes(t *testing.T) {
 	if strings.Contains(errOut, "paused") {
 		t.Errorf("an auto-resolvable multi-stop rebase must not report a human handoff, got %q", errOut)
 	}
-	p1, _ := findProject(t, dirB, "wc-ab2c-one.md")
-	p2, _ := findProject(t, dirB, "wc-cd3e-two.md")
+	p1, _ := findTicket(t, dirB, "wc-ab2c-one.md")
+	p2, _ := findTicket(t, dirB, "wc-cd3e-two.md")
 	if fmStatus(t, p1) == "todo" || fmStatus(t, p2) == "todo" {
-		t.Errorf("both projects should have merged past the base status")
+		t.Errorf("both tickets should have merged past the base status")
 	}
 	if n := gitIn(t, b.clone, "rev-list", "--count", "@{u}..HEAD"); n != "0" {
 		t.Errorf("B should be fully pushed after the multi-stop sync, unpushed=%s", n)
@@ -73,13 +73,13 @@ func TestSyncBodyConflictPausesThenResumes(t *testing.T) {
 	requireGit(t)
 	a, b, remote := twoMachines(t)
 
-	pA, _ := findProject(t, a.scopeDir(), "wc-ab2c-alpha.md")
+	pA, _ := findTicket(t, a.scopeDir(), "wc-ab2c-alpha.md")
 	editBody(t, pA, "A version of the body")
 	if _, _, err := a.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("A body edit sync: %v", err)
 	}
 
-	pB, _ := findProject(t, b.scopeDir(), "wc-ab2c-alpha.md")
+	pB, _ := findTicket(t, b.scopeDir(), "wc-ab2c-alpha.md")
 	editBody(t, pB, "B version of the body")
 	_, errOut, err := b.sync(t, "--scope", "wc")
 	if ExitCodeFromError(err) != exitFailure {
@@ -112,12 +112,12 @@ func TestSyncMidRebaseEntryMakesNoCommitBeforeResume(t *testing.T) {
 	requireGit(t)
 	a, b, remote := twoMachines(t)
 
-	pA, _ := findProject(t, a.scopeDir(), "wc-ab2c-alpha.md")
+	pA, _ := findTicket(t, a.scopeDir(), "wc-ab2c-alpha.md")
 	editBody(t, pA, "A version")
 	if _, _, err := a.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("A sync: %v", err)
 	}
-	pB, _ := findProject(t, b.scopeDir(), "wc-ab2c-alpha.md")
+	pB, _ := findTicket(t, b.scopeDir(), "wc-ab2c-alpha.md")
 	editBody(t, pB, "B version")
 	if _, _, err := b.sync(t, "--scope", "wc"); ExitCodeFromError(err) != exitFailure {
 		t.Fatalf("expected a paused body conflict, got %v", err)
@@ -127,7 +127,7 @@ func TestSyncMidRebaseEntryMakesNoCommitBeforeResume(t *testing.T) {
 	if err := os.WriteFile(pB, []byte(resolved), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	addProject(t, b.scopeDir(), "wc-ff88", "extra", "todo", "a5", "# Extra\n", false, "")
+	addTicket(t, b.scopeDir(), "wc-ff88", "extra", "todo", "a5", "# Extra\n", false, "")
 
 	if _, _, err := b.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("resume + snapshot sync should complete: %v", err)
@@ -141,7 +141,7 @@ func TestSyncDeleteEditPausesThenResumes(t *testing.T) {
 	requireGit(t)
 	a, b, remote := twoMachines(t)
 
-	pA, _ := findProject(t, a.scopeDir(), "wc-ab2c-alpha.md")
+	pA, _ := findTicket(t, a.scopeDir(), "wc-ab2c-alpha.md")
 	if err := os.Remove(pA); err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestSyncDeleteEditPausesThenResumes(t *testing.T) {
 	}
 	assertDeleteEditHandoff(t, errOut, "wc/wc-ab2c-alpha.md", "in-progress")
 
-	pB, _ := findProject(t, b.scopeDir(), "wc-ab2c-alpha.md")
+	pB, _ := findTicket(t, b.scopeDir(), "wc-ab2c-alpha.md")
 	if pB != "" {
 		if err := os.Remove(pB); err != nil {
 			t.Fatal(err)
@@ -169,7 +169,7 @@ func TestSyncDeleteEditPausesThenResumes(t *testing.T) {
 		t.Fatalf("post-resolution delete sync should complete: %v", err)
 	}
 	if remoteHas(t, remote, "wc/wc-ab2c-alpha.md") {
-		t.Errorf("the removed project should not be on the remote after resolution")
+		t.Errorf("the removed ticket should not be on the remote after resolution")
 	}
 }
 
@@ -177,7 +177,7 @@ func TestSyncDeleteEditUnactionedRerunPauses(t *testing.T) {
 	requireGit(t)
 	a, b, remote := twoMachines(t)
 
-	pA, _ := findProject(t, a.scopeDir(), "wc-ab2c-alpha.md")
+	pA, _ := findTicket(t, a.scopeDir(), "wc-ab2c-alpha.md")
 	if err := os.Remove(pA); err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +192,7 @@ func TestSyncDeleteEditUnactionedRerunPauses(t *testing.T) {
 	}
 	assertDeleteEditHandoff(t, firstOut, "wc/wc-ab2c-alpha.md", "in-progress")
 
-	// Nothing touched — the next pj sync must re-pause, not silently resurrect the file.
+	// Nothing touched — the next tk sync must re-pause, not silently resurrect the file.
 	_, secondOut, err := b.sync(t, "--scope", "wc")
 	if ExitCodeFromError(err) != exitFailure {
 		t.Fatalf("unactioned re-run must stay paused, got %v (stderr %q)", err, secondOut)
@@ -208,7 +208,7 @@ func TestSyncDeleteEditModifiedResumes(t *testing.T) {
 	requireGit(t)
 	a, b, remote := twoMachines(t)
 
-	pA, _ := findProject(t, a.scopeDir(), "wc-ab2c-alpha.md")
+	pA, _ := findTicket(t, a.scopeDir(), "wc-ab2c-alpha.md")
 	if err := os.Remove(pA); err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +221,7 @@ func TestSyncDeleteEditModifiedResumes(t *testing.T) {
 		t.Fatalf("expected delete/edit pause, got %v", err)
 	}
 
-	pB := mustSeedProject(t, b.scopeDir())
+	pB := mustSeedTicket(t, b.scopeDir())
 	editBody(t, pB, "human kept and edited the survivor")
 	if _, _, err := b.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("modified-survivor re-run should complete: %v", err)
@@ -229,7 +229,7 @@ func TestSyncDeleteEditModifiedResumes(t *testing.T) {
 	if !remoteHas(t, remote, "wc/wc-ab2c-alpha.md") {
 		t.Errorf("the human's modified survivor should land on the remote")
 	}
-	if !strings.Contains(readFile(t, mustSeedProject(t, b.scopeDir())), "human kept and edited the survivor") {
+	if !strings.Contains(readFile(t, mustSeedTicket(t, b.scopeDir())), "human kept and edited the survivor") {
 		t.Errorf("the human's content should be what was staged")
 	}
 }
@@ -238,7 +238,7 @@ func TestSyncDeleteEditGitAddResumes(t *testing.T) {
 	requireGit(t)
 	a, b, remote := twoMachines(t)
 
-	pA, _ := findProject(t, a.scopeDir(), "wc-ab2c-alpha.md")
+	pA, _ := findTicket(t, a.scopeDir(), "wc-ab2c-alpha.md")
 	if err := os.Remove(pA); err != nil {
 		t.Fatal(err)
 	}
@@ -251,7 +251,7 @@ func TestSyncDeleteEditGitAddResumes(t *testing.T) {
 		t.Fatalf("expected delete/edit pause, got %v", err)
 	}
 
-	pB := mustSeedProject(t, b.scopeDir())
+	pB := mustSeedTicket(t, b.scopeDir())
 	before := readFile(t, pB)
 	gitIn(t, b.clone, "add", "--", filepath.Join("wc", filepath.Base(pB)))
 	if _, _, err := b.sync(t, "--scope", "wc"); err != nil {
@@ -260,7 +260,7 @@ func TestSyncDeleteEditGitAddResumes(t *testing.T) {
 	if !remoteHas(t, remote, "wc/wc-ab2c-alpha.md") {
 		t.Errorf("the git-add-ed survivor should land on the remote")
 	}
-	if got := readFile(t, mustSeedProject(t, b.scopeDir())); got != before {
+	if got := readFile(t, mustSeedTicket(t, b.scopeDir())); got != before {
 		t.Errorf("git add keeps exact content; worktree drifted")
 	}
 }
@@ -274,7 +274,7 @@ func TestSyncDeleteEditMirroredUnactionedRerunPauses(t *testing.T) {
 		t.Fatalf("A edit sync: %v", err)
 	}
 
-	pB, _ := findProject(t, b.scopeDir(), "wc-ab2c-alpha.md")
+	pB, _ := findTicket(t, b.scopeDir(), "wc-ab2c-alpha.md")
 	if err := os.Remove(pB); err != nil {
 		t.Fatal(err)
 	}
@@ -303,7 +303,7 @@ func TestSyncDeleteEditUnparseableSurvivorFailClosed(t *testing.T) {
 	requireGit(t)
 	a, b, _ := twoMachines(t)
 
-	pA, _ := findProject(t, a.scopeDir(), "wc-ab2c-alpha.md")
+	pA, _ := findTicket(t, a.scopeDir(), "wc-ab2c-alpha.md")
 	if err := os.Remove(pA); err != nil {
 		t.Fatal(err)
 	}
@@ -312,7 +312,7 @@ func TestSyncDeleteEditUnparseableSurvivorFailClosed(t *testing.T) {
 	}
 
 	// B's concurrent "edit" is a mangled frontmatter blob the merge cannot parse.
-	pB := mustSeedProject(t, b.scopeDir())
+	pB := mustSeedTicket(t, b.scopeDir())
 	broken := "---\nid: wc-ab2c\nstatus: [unterminated\norder: a0\n---\n# alpha\n\nbody line\n"
 	if err := os.WriteFile(pB, []byte(broken), 0o644); err != nil {
 		t.Fatal(err)
@@ -394,11 +394,11 @@ func TestSyncSnapshotMessageClasses(t *testing.T) {
 	m := cloneMachine(t, remote)
 	dir := m.initScopeAutoCommit(t)
 
-	addProject(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# Alpha\n", false, "")
 	if _, _, err := m.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("multi-path sync: %v", err)
 	}
-	if got := topCommit(t, m.clone); !strings.HasPrefix(got, "pj: sync ") || !strings.HasSuffix(got, "path(s)") {
+	if got := topCommit(t, m.clone); !strings.HasPrefix(got, "tk: sync ") || !strings.HasSuffix(got, "path(s)") {
 		t.Errorf("a multi-path snapshot should use the summary message, got %q", got)
 	}
 
@@ -408,8 +408,8 @@ func TestSyncSnapshotMessageClasses(t *testing.T) {
 	if _, _, err := m.sync(t, "--scope", "wc"); err != nil {
 		t.Fatalf("delete sync: %v", err)
 	}
-	if got := topCommit(t, m.clone); got != "pj: remove wc-ab2c" {
-		t.Errorf("a lone hand-deletion should commit as pj: remove wc-ab2c, got %q", got)
+	if got := topCommit(t, m.clone); got != "tk: remove wc-ab2c" {
+		t.Errorf("a lone hand-deletion should commit as tk: remove wc-ab2c, got %q", got)
 	}
 }
 

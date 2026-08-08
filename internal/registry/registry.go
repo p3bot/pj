@@ -14,8 +14,8 @@ import (
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
 
-	"github.com/p3bot/pj/internal/atomicfile"
-	"github.com/p3bot/pj/internal/pathutil"
+	"github.com/p3bot/tk/internal/atomicfile"
+	"github.com/p3bot/tk/internal/pathutil"
 )
 
 const (
@@ -27,7 +27,7 @@ const (
 // After Load, Dir and Root are canonical (symlink-resolved); they may differ from the
 // spellings still stored in registry.cue until the next WriteRegistry.
 type Entry struct {
-	// Dir is where the scope's .md files and pj.cue live.
+	// Dir is where the scope's .md files and tk.cue live.
 	Dir string `json:"dir"`
 	// Root is the code-root under which the scope is ambient.
 	Root string `json:"root"`

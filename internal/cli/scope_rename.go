@@ -6,28 +6,28 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/p3bot/pj/internal/scopefile"
+	"github.com/p3bot/tk/internal/scopefile"
 
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/frontmatter"
-	"github.com/p3bot/pj/internal/id"
-	"github.com/p3bot/pj/internal/registry"
-	"github.com/p3bot/pj/internal/repair"
-	"github.com/p3bot/pj/internal/rewrite"
-	"github.com/p3bot/pj/internal/scopeconfig"
-	"github.com/p3bot/pj/internal/selfcommit"
-	"github.com/p3bot/pj/internal/token"
-	"github.com/p3bot/pj/internal/xdg"
+	"github.com/p3bot/tk/internal/frontmatter"
+	"github.com/p3bot/tk/internal/id"
+	"github.com/p3bot/tk/internal/registry"
+	"github.com/p3bot/tk/internal/repair"
+	"github.com/p3bot/tk/internal/rewrite"
+	"github.com/p3bot/tk/internal/scopeconfig"
+	"github.com/p3bot/tk/internal/selfcommit"
+	"github.com/p3bot/tk/internal/token"
+	"github.com/p3bot/tk/internal/xdg"
 )
 
 // newScopeRenameCmd: the only name_drift-exempt verb (idempotent re-run of interrupted rename).
 func newScopeRenameCmd(app *App) *cobra.Command {
 	return &cobra.Command{
 		Use:   "rename <old> <new>",
-		Short: "Rename a scope in place (pj.cue, ids, filenames, in-scope edges)",
-		Long: "Rename a scope end to end: rewrite the pj.cue name, the <scope>- prefix of every\n" +
-			"project id and filename, and every in-scope depends/related edge, then re-key this\n" +
+		Short: "Rename a scope in place (tk.cue, ids, filenames, in-scope edges)",
+		Long: "Rename a scope end to end: rewrite the tk.cue name, the <scope>- prefix of every\n" +
+			"ticket id and filename, and every in-scope depends/related edge, then re-key this\n" +
 			"machine's registry and lens. Cross-scope inbound edges live in other repos and are\n" +
 			"reported as edge_verify, not rewritten. An interrupted rename re-runs idempotently.",
 		Args: usageArgs(cobra.ExactArgs(2)),
@@ -63,17 +63,17 @@ func runScopeRename(app *App, c *cobra.Command, oldName, newName string) error {
 	// Resolve by registry key <old> (name_drift exemption for interrupted rename).
 	pjName, err := scopeconfig.ReadName(app.Ctx, dir)
 	if err != nil {
-		return fmt.Errorf("cannot rename %q: its pj.cue is unreadable: %w", oldName, err)
+		return fmt.Errorf("cannot rename %q: its tk.cue is unreadable: %w", oldName, err)
 	}
 	if pjName != oldName && pjName != newName {
-		return fmt.Errorf("cannot rename %q to %q: its pj.cue name is %q — this is name drift, recover with pj scope forget %s && pj scope import %s", oldName, newName, pjName, oldName, dir)
+		return fmt.Errorf("cannot rename %q to %q: its tk.cue name is %q — this is name drift, recover with tk scope forget %s && tk scope import %s", oldName, newName, pjName, oldName, dir)
 	}
 
 	schema, err := scopeconfig.Load(app.Ctx, dir)
 	if err != nil {
 		if ce, isCfg := scopeconfig.AsConfigError(err); isCfg {
 			return fmt.Errorf("%s", token.Line(token.ConfigUnparseable,
-				fmt.Sprintf("%s (%s): %s — fix pj.cue before renaming", oldName, ce.Dir, ce.Reason)))
+				fmt.Sprintf("%s (%s): %s — fix tk.cue before renaming", oldName, ce.Dir, ce.Reason)))
 		}
 		return err
 	}
@@ -107,18 +107,18 @@ func runScopeRename(app *App, c *cobra.Command, oldName, newName string) error {
 	if err != nil {
 		return err
 	}
-	// pj.cue name last: crash before → re-run finishes leftovers; after → name_drift window.
+	// tk.cue name last: crash before → re-run finishes leftovers; after → name_drift window.
 	if pjName != newName {
 		if err := scopeconfig.RewriteName(dir, newName); err != nil {
 			return err
 		}
 	}
-	touched = append(touched, filepath.Join(dir, "pj.cue"))
+	touched = append(touched, filepath.Join(dir, "tk.cue"))
 
 	if autoCommit && hasRoot {
 		if err := selfcommit.CommitPaths(c.Context(), selfcommit.BatchRequest{
 			StateDir: app.StateDir, GitRoot: root,
-			Message: fmt.Sprintf("pj: rename scope %s -> %s", oldName, newName), Paths: touched,
+			Message: fmt.Sprintf("tk: rename scope %s -> %s", oldName, newName), Paths: touched,
 		}); err != nil {
 			return err
 		}
@@ -145,7 +145,7 @@ func runScopeRename(app *App, c *cobra.Command, oldName, newName string) error {
 
 // renamePlan skips already-<new> files (interrupted-rename tail); unparseable refuses all.
 func renamePlan(dir, oldName, newName string) ([]rewrite.Op, error) {
-	files, err := listScopeProjectFiles(dir, oldName, newName)
+	files, err := listScopeTicketFiles(dir, oldName, newName)
 	if err != nil {
 		return nil, err
 	}
@@ -168,8 +168,8 @@ func renamePlan(dir, oldName, newName string) ([]rewrite.Op, error) {
 			return nil, fmt.Errorf("cannot rename: %s has unparseable frontmatter — fix it first: %w", f, err)
 		}
 		// Frontmatter id is authority (filename can disagree); out-of-scope id refuses.
-		if !id.IsFullProjectID(m.ID) || scopeOfFullID(m.ID) != oldName {
-			return nil, fmt.Errorf("cannot rename: %s declares id %q, which is not a project id in scope %q — fix its frontmatter id (pj doctor reports this) then re-run", f, m.ID, oldName)
+		if !id.IsFullTicketID(m.ID) || scopeOfFullID(m.ID) != oldName {
+			return nil, fmt.Errorf("cannot rename: %s declares id %q, which is not a ticket id in scope %q — fix its frontmatter id (tk doctor reports this) then re-run", f, m.ID, oldName)
 		}
 		newID := newName + strings.TrimPrefix(m.ID, oldName)
 		m.ID = newID
@@ -206,7 +206,7 @@ func (e *engine) rekeyRegistry(oldName, newName string) error {
 	}
 	if taken, exists := reg.Scopes[newName]; exists {
 		// In-dir rewrite already committed; re-key abort leaves the known name_drift window.
-		return fmt.Errorf("scope name %q was registered to %s while this rename was running — names are machine-unique, so the registry was left unchanged; %s is already renamed on disk and now reads %q, recover with pj scope forget %s && pj scope import %s",
+		return fmt.Errorf("scope name %q was registered to %s while this rename was running — names are machine-unique, so the registry was left unchanged; %s is already renamed on disk and now reads %q, recover with tk scope forget %s && tk scope import %s",
 			newName, taken.Dir, entry.Dir, newName, oldName, entry.Dir)
 	}
 	delete(reg.Scopes, oldName)
@@ -239,8 +239,8 @@ func (e *engine) reindexRenamed(newName, dir string) error {
 	return err
 }
 
-// listScopeProjectFiles includes both old and new prefixes (interrupted-rename survivors).
-func listScopeProjectFiles(dir, oldName, newName string) ([]string, error) {
+// listScopeTicketFiles includes both old and new prefixes (interrupted-rename survivors).
+func listScopeTicketFiles(dir, oldName, newName string) ([]string, error) {
 	var out []string
 	collect := func(root string) error {
 		entries, err := os.ReadDir(root)
@@ -297,7 +297,7 @@ func rekeyEdges(list []string, oldName, newName string) []string {
 	}
 	out := make([]string, len(list))
 	for i, e := range list {
-		if id.IsFullProjectID(e) && scopeOfFullID(e) == oldName {
+		if id.IsFullTicketID(e) && scopeOfFullID(e) == oldName {
 			out[i] = newName + strings.TrimPrefix(e, oldName)
 		} else {
 			out[i] = e

@@ -6,29 +6,29 @@ import (
 	"strings"
 	"time"
 
-	"github.com/p3bot/pj/internal/scopefile"
+	"github.com/p3bot/tk/internal/scopefile"
 
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/frontmatter"
-	"github.com/p3bot/pj/internal/id"
-	"github.com/p3bot/pj/internal/index"
-	"github.com/p3bot/pj/internal/order"
-	"github.com/p3bot/pj/internal/slug"
-	"github.com/p3bot/pj/internal/status"
+	"github.com/p3bot/tk/internal/frontmatter"
+	"github.com/p3bot/tk/internal/id"
+	"github.com/p3bot/tk/internal/index"
+	"github.com/p3bot/tk/internal/order"
+	"github.com/p3bot/tk/internal/slug"
+	"github.com/p3bot/tk/internal/status"
 )
 
 func newCreateCmd(app *App) *cobra.Command {
 	var scope string
 	cmd := &cobra.Command{
 		Use:   "create <title> [status] [--scope S]",
-		Short: "Scaffold a new project (frontmatter + H1) and print its path",
+		Short: "Scaffold a new ticket (frontmatter + H1) and print its path",
 		Long: "Mint an id, write a scaffold — built-in frontmatter with an appended order\n" +
 			"key and a single # <title> H1 whose slug is frozen from the title — and print\n" +
 			"the cleaned absolute path for the agent to fill the body. The default status is\n" +
 			"draft; an optional second positional sets any known status (a terminal status\n" +
 			"writes under archive/). create reserves the id and never self-commits in any\n" +
-			"mode; git durability is the next pj sync (auto-commit) or host commit.",
+			"mode; git durability is the next tk sync (auto-commit) or host commit.",
 		Args: usageArgs(cobra.RangeArgs(1, 2)),
 		RunE: func(c *cobra.Command, args []string) error {
 			st := ""
@@ -93,7 +93,7 @@ func runCreate(app *App, c *cobra.Command, titleArg, statusArg, scopeFlag string
 	}
 	e.printWarnings(c, res.Warnings)
 
-	rows, err := e.db.ScopeProjects(scope)
+	rows, err := e.db.ScopeTickets(scope)
 	if err != nil {
 		return err
 	}
@@ -146,7 +146,7 @@ func runCreate(app *App, c *cobra.Command, titleArg, statusArg, scopeFlag string
 }
 
 // mintUnusedID redraws until unused, including parse_error rows (id from filename).
-func mintUnusedID(rows []*index.Project) (string, error) {
+func mintUnusedID(rows []*index.Ticket) (string, error) {
 	taken := make(map[string]struct{}, len(rows))
 	for _, p := range rows {
 		if p.ShortID != "" {

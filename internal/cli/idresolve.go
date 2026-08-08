@@ -6,22 +6,22 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/index"
-	"github.com/p3bot/pj/internal/reconcile"
-	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/tk/internal/index"
+	"github.com/p3bot/tk/internal/reconcile"
+	"github.com/p3bot/tk/internal/token"
 )
 
 type resolution struct {
 	scope string
-	rows  []*index.Project
+	rows  []*index.Ticket
 	res   *reconcile.Result
 }
 
-// resolveProject: malformed id → exit 2; unknown well-formed / no ambient → generic non-zero.
-func (e *engine) resolveProject(c *cobra.Command, idArg, scopeFlag string) (*resolution, error) {
+// resolveTicket: malformed id → exit 2; unknown well-formed / no ambient → generic non-zero.
+func (e *engine) resolveTicket(c *cobra.Command, idArg, scopeFlag string) (*resolution, error) {
 	form, ok := parseIDArg(idArg)
 	if !ok {
-		return nil, usageErrorf("%q is not a valid project id", idArg)
+		return nil, usageErrorf("%q is not a valid ticket id", idArg)
 	}
 
 	scope, err := e.scopeForID(idArg, form, scopeFlag)
@@ -30,7 +30,7 @@ func (e *engine) resolveProject(c *cobra.Command, idArg, scopeFlag string) (*res
 	}
 	entry, registered := e.reg.Scopes[scope]
 	if !registered {
-		return nil, fmt.Errorf("unknown project id %q: scope %q is not registered here", idArg, scope)
+		return nil, fmt.Errorf("unknown ticket id %q: scope %q is not registered here", idArg, scope)
 	}
 
 	// Defer printing: duplicate refusal has its own line; suppress reconcile's echo for that id.
@@ -43,12 +43,12 @@ func (e *engine) resolveProject(c *cobra.Command, idArg, scopeFlag string) (*res
 		return nil, fmt.Errorf("cannot resolve %q: scope %q is not reachable", idArg, scope)
 	}
 
-	var rows []*index.Project
+	var rows []*index.Ticket
 	switch form {
 	case idFull:
-		rows, err = e.db.ProjectsByID(scope, idArg)
+		rows, err = e.db.TicketsByID(scope, idArg)
 	default:
-		rows, err = e.db.ProjectsByShortID(scope, idArg)
+		rows, err = e.db.TicketsByShortID(scope, idArg)
 	}
 	if err != nil {
 		e.printWarnings(c, res.Warnings)
@@ -56,7 +56,7 @@ func (e *engine) resolveProject(c *cobra.Command, idArg, scopeFlag string) (*res
 	}
 	if len(rows) == 0 {
 		e.printWarnings(c, res.Warnings)
-		return nil, fmt.Errorf("unknown project id %q", idArg)
+		return nil, fmt.Errorf("unknown ticket id %q", idArg)
 	}
 
 	warnings := res.Warnings
@@ -91,13 +91,13 @@ func (e *engine) scopeForID(idArg string, form idForm, scopeFlag string) (string
 	return resolved.Name, nil
 }
 
-func duplicateRefusal(rows []*index.Project) error {
+func duplicateRefusal(rows []*index.Ticket) error {
 	paths := make([]string, len(rows))
 	for i, r := range rows {
 		paths[i] = r.Path
 	}
 	return fmt.Errorf("%s", token.Line(token.DuplicateID,
-		fmt.Sprintf("%s is claimed by %d files: %s — resolve with pj doctor --repair", rows[0].ID, len(rows), joinComma(paths))))
+		fmt.Sprintf("%s is claimed by %d files: %s — resolve with tk doctor --repair", rows[0].ID, len(rows), joinComma(paths))))
 }
 
 func scopeOfFullID(fullID string) string {

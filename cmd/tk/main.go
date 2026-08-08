@@ -1,4 +1,4 @@
-// Command pj is the agent project management CLI.
+// Command tk is the agent ticket management CLI.
 // Entry point only: run the command tree, map signal/error to exit code, exit.
 // All command logic lives in internal/cli.
 package main
@@ -6,7 +6,7 @@ package main
 import (
 	"os"
 
-	"github.com/p3bot/pj/internal/cli"
+	"github.com/p3bot/tk/internal/cli"
 )
 
 func main() {

@@ -1,4 +1,4 @@
-// Package token defines the closed set of machine-readable stderr tokens pj
+// Package token defines the closed set of machine-readable stderr tokens tk
 // emits at line start. Frozen wire contract: never reword or colour these strings.
 // All() is the complete catalogue for completeness checks.
 package token
@@ -6,10 +6,10 @@ package token
 import "strings"
 
 const (
-	// NameDrift marks a scope whose registry key disagrees with on-disk pj.cue name.
+	// NameDrift marks a scope whose registry key disagrees with on-disk tk.cue name.
 	NameDrift = "name_drift:"
 
-	// ConfigUnparseable marks a scope whose pj.cue cannot be trusted; writes refuse, reads stay available.
+	// ConfigUnparseable marks a scope whose tk.cue cannot be trusted; writes refuse, reads stay available.
 	ConfigUnparseable = "config_unparseable:"
 
 	// AutoCommitMismatch marks divergent autoCommit values under one derived git-root.
@@ -18,28 +18,28 @@ const (
 	// UnreachableScope marks a registered scope whose dir is gone from disk.
 	UnreachableScope = "unreachable_scope:"
 
-	// ParseError marks a project whose frontmatter could not be parsed; row stays locatable.
+	// ParseError marks a ticket whose frontmatter could not be parsed; row stays locatable.
 	ParseError = "parse_error:"
 
-	// DuplicateID marks two or more project files in one scope claiming the same full id.
+	// DuplicateID marks two or more ticket files in one scope claiming the same full id.
 	DuplicateID = "duplicate_id:"
 
-	// EqualOrder marks two or more projects in one scope sharing an order key.
+	// EqualOrder marks two or more tickets in one scope sharing an order key.
 	EqualOrder = "equal_order:"
 
-	// ArchiveNonTerminal marks a non-terminal project stored under archive/.
+	// ArchiveNonTerminal marks a non-terminal ticket stored under archive/.
 	ArchiveNonTerminal = "archive_non_terminal:"
 
-	// ArchiveTerminalAtRoot marks a terminal project still at the dir root.
+	// ArchiveTerminalAtRoot marks a terminal ticket still at the dir root.
 	ArchiveTerminalAtRoot = "archive_terminal_at_root:"
 
-	// DependsDangling marks a same-scope depends target with no matching project.
+	// DependsDangling marks a same-scope depends target with no matching ticket.
 	DependsDangling = "depends_dangling:"
 
 	// DependsUnresolvable marks a cross-scope depends target that cannot be resolved here (informational).
 	DependsUnresolvable = "depends_unresolvable:"
 
-	// SchemaError marks a hard frontmatter schema violation (e.g. depends entry not a full project id).
+	// SchemaError marks a hard frontmatter schema violation (e.g. depends entry not a full ticket id).
 	SchemaError = "schema_error:"
 
 	// SchemaWarn marks a soft schema issue (e.g. tag not in knownTags); free-form tags stay legal.
@@ -52,20 +52,20 @@ const (
 	// (status pulse / bare doctor; write path stays quiet).
 	Uncommitted = "uncommitted:"
 
-	// SyncNeeded marks a pj-driven scope whose durability still requires pj sync
+	// SyncNeeded marks a tk-driven scope whose durability still requires tk sync
 	// (dirty allowlist, unpushed self-commits, or a recorded push failure).
 	SyncNeeded = "sync_needed:"
 
 	// OrderLong marks a pathologically long order key (soft threshold length > 64); report only.
 	OrderLong = "order_long:"
 
-	// StatusConflict marks a project carrying a status_conflict merge-dispute key.
+	// StatusConflict marks a ticket carrying a status_conflict merge-dispute key.
 	StatusConflict = "status_conflict:"
 
-	// DependsCycle marks a project participating in a depends cycle.
+	// DependsCycle marks a ticket participating in a depends cycle.
 	DependsCycle = "depends_cycle:"
 
-	// DependsSelf marks a project listing its own id in depends.
+	// DependsSelf marks a ticket listing its own id in depends.
 	DependsSelf = "depends_self:"
 
 	// DependsOnCancelled marks a depends edge onto a cancelled (or abandoned) target.

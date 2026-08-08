@@ -16,8 +16,8 @@ func openTemp(t *testing.T) *DB {
 	return db
 }
 
-func proj(scope, id, status, order string) *Project {
-	return &Project{
+func proj(scope, id, status, order string) *Ticket {
+	return &Ticket{
 		Path: filepath.Join("/tmp", scope, id+".md"), Scope: scope, ID: scope + "-" + id,
 		ShortID: id, Status: status, OrderKey: order, Title: id + " title",
 		Body: []byte("body of " + id),
@@ -34,7 +34,7 @@ func TestOpenStampsVersionAndRebuildsOnMismatch(t *testing.T) {
 	if err != nil || !ok || ver != SchemaVersion {
 		t.Fatalf("version = %d ok=%v err=%v, want %d", ver, ok, err, SchemaVersion)
 	}
-	if err := db.UpsertProject(proj("wc", "ab2c", "todo", "a0")); err != nil {
+	if err := db.UpsertTicket(proj("wc", "ab2c", "todo", "a0")); err != nil {
 		t.Fatal(err)
 	}
 	_ = db.Close()
@@ -44,7 +44,7 @@ func TestOpenStampsVersionAndRebuildsOnMismatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = db2.Close() }()
-	rows, err := db2.ScopeProjects("wc")
+	rows, err := db2.ScopeTickets("wc")
 	if err != nil || len(rows) != 1 {
 		t.Fatalf("after reopen rows = %d err=%v, want 1", len(rows), err)
 	}
@@ -55,7 +55,7 @@ func TestOpenStampsVersionAndRebuildsOnMismatch(t *testing.T) {
 	if err := db2.ensureSchema(); err != nil {
 		t.Fatal(err)
 	}
-	rows, _ = db2.ScopeProjects("wc")
+	rows, _ = db2.ScopeTickets("wc")
 	if len(rows) != 0 {
 		t.Fatalf("rebuild should drop rows, got %d", len(rows))
 	}
@@ -65,10 +65,10 @@ func TestUpsertReplacesRowAndEdges(t *testing.T) {
 	db := openTemp(t)
 	p := proj("wc", "ab2c", "todo", "a0")
 	edges := []Edge{{FromPath: p.Path, FromID: "wc-ab2c", FromScope: "wc", ToID: "wc-de34", ToScope: "wc", Kind: EdgeDepends}}
-	if err := db.UpsertProjectWithEdges(p, edges); err != nil {
+	if err := db.UpsertTicketWithEdges(p, edges); err != nil {
 		t.Fatal(err)
 	}
-	got, _ := db.ProjectsByID("wc", "wc-ab2c")
+	got, _ := db.TicketsByID("wc", "wc-ab2c")
 	if len(got) != 1 || got[0].Status != "todo" {
 		t.Fatalf("row = %+v", got)
 	}
@@ -78,10 +78,10 @@ func TestUpsertReplacesRowAndEdges(t *testing.T) {
 	}
 
 	p.Status = "in-progress"
-	if err := db.UpsertProjectWithEdges(p, nil); err != nil {
+	if err := db.UpsertTicketWithEdges(p, nil); err != nil {
 		t.Fatal(err)
 	}
-	got, _ = db.ProjectsByID("wc", "wc-ab2c")
+	got, _ = db.TicketsByID("wc", "wc-ab2c")
 	if got[0].Status != "in-progress" {
 		t.Fatalf("status not updated: %v", got[0].Status)
 	}
@@ -101,8 +101,8 @@ func TestSearchBM25AndScopeBound(t *testing.T) {
 	c := proj("ui", "gh56", "todo", "a0")
 	c.Title = "Network in ui"
 	c.Body = []byte("network network")
-	for _, p := range []*Project{a, b, c} {
-		if err := db.UpsertProject(p); err != nil {
+	for _, p := range []*Ticket{a, b, c} {
+		if err := db.UpsertTicket(p); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -114,7 +114,7 @@ func TestSearchBM25AndScopeBound(t *testing.T) {
 		t.Fatalf("machine-wide hits = %d, want 3", len(hits))
 	}
 	hits, _ = db.Search("ui", "network")
-	if len(hits) != 1 || hits[0].Project.Scope != "ui" {
+	if len(hits) != 1 || hits[0].Ticket.Scope != "ui" {
 		t.Fatalf("scope-bound search = %+v", hits)
 	}
 }
@@ -141,8 +141,8 @@ func TestDuplicateAndEqualOrderAggregates(t *testing.T) {
 	dupB.Path = "/tmp/wc/archive/ab2c.md" // same id, different file
 	same1 := proj("wc", "de34", "todo", "b0")
 	same2 := proj("wc", "gh56", "todo", "b0") // equal order key
-	for _, p := range []*Project{dupA, dupB, same1, same2} {
-		if err := db.UpsertProject(p); err != nil {
+	for _, p := range []*Ticket{dupA, dupB, same1, same2} {
+		if err := db.UpsertTicket(p); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -162,16 +162,16 @@ func TestDuplicateAndEqualOrderAggregates(t *testing.T) {
 
 func TestDeleteScopePrunes(t *testing.T) {
 	db := openTemp(t)
-	_ = db.UpsertProject(proj("wc", "ab2c", "todo", "a0"))
-	_ = db.UpsertProject(proj("ui", "de34", "todo", "a0"))
+	_ = db.UpsertTicket(proj("wc", "ab2c", "todo", "a0"))
+	_ = db.UpsertTicket(proj("ui", "de34", "todo", "a0"))
 	_ = db.SetLastIndex("wc", 123)
 	if err := db.DeleteScope("wc"); err != nil {
 		t.Fatal(err)
 	}
-	if rows, _ := db.ScopeProjects("wc"); len(rows) != 0 {
+	if rows, _ := db.ScopeTickets("wc"); len(rows) != 0 {
 		t.Fatalf("wc rows survived delete: %d", len(rows))
 	}
-	if rows, _ := db.ScopeProjects("ui"); len(rows) != 1 {
+	if rows, _ := db.ScopeTickets("ui"); len(rows) != 1 {
 		t.Fatalf("ui rows should be untouched: %d", len(rows))
 	}
 	if ns, _ := db.LastIndex("wc"); ns != 0 {
@@ -181,9 +181,9 @@ func TestDeleteScopePrunes(t *testing.T) {
 
 func TestReadOnlyQueryGuard(t *testing.T) {
 	db := openTemp(t)
-	_ = db.UpsertProject(proj("wc", "ab2c", "todo", "a0"))
+	_ = db.UpsertTicket(proj("wc", "ab2c", "todo", "a0"))
 
-	res, err := db.RunReadOnlyQuery(`SELECT id, status FROM projects ORDER BY id`)
+	res, err := db.RunReadOnlyQuery(`SELECT id, status FROM tickets ORDER BY id`)
 	if err != nil {
 		t.Fatalf("select rejected: %v", err)
 	}
@@ -192,44 +192,44 @@ func TestReadOnlyQueryGuard(t *testing.T) {
 	}
 
 	for _, bad := range []string{
-		`INSERT INTO projects(path,scope,id) VALUES('x','wc','wc-zz22')`,
-		`UPDATE projects SET status='done'`,
-		`DELETE FROM projects`,
-		`DROP TABLE projects`,
-		`SELECT 1; DELETE FROM projects`,
+		`INSERT INTO tickets(path,scope,id) VALUES('x','wc','wc-zz22')`,
+		`UPDATE tickets SET status='done'`,
+		`DELETE FROM tickets`,
+		`DROP TABLE tickets`,
+		`SELECT 1; DELETE FROM tickets`,
 		`PRAGMA journal_mode = DELETE`,
-		`replace into projects(path,scope,id) values('x','wc','wc-zz22')`,
+		`replace into tickets(path,scope,id) values('x','wc','wc-zz22')`,
 		// Static classifier sees leading WITH; only PRAGMA query_only catches this.
-		`WITH t AS (SELECT 1) DELETE FROM projects`,
-		`WITH t AS (SELECT 1) UPDATE projects SET status='done'`,
+		`WITH t AS (SELECT 1) DELETE FROM tickets`,
+		`WITH t AS (SELECT 1) UPDATE tickets SET status='done'`,
 	} {
 		if _, err := db.RunReadOnlyQuery(bad); err == nil {
 			t.Errorf("read-only guard admitted a write: %q", bad)
 		}
 	}
-	if _, err := db.RunReadOnlyQuery(`WITH t AS (SELECT id FROM projects) SELECT * FROM t`); err != nil {
+	if _, err := db.RunReadOnlyQuery(`WITH t AS (SELECT id FROM tickets) SELECT * FROM t`); err != nil {
 		t.Errorf("read-only CTE select rejected: %v", err)
 	}
-	if _, err := db.RunReadOnlyQuery(`PRAGMA table_info(projects)`); err != nil {
+	if _, err := db.RunReadOnlyQuery(`PRAGMA table_info(tickets)`); err != nil {
 		t.Errorf("read-only pragma rejected: %v", err)
 	}
-	if _, err := db.RunReadOnlyQuery(`EXPLAIN QUERY PLAN SELECT * FROM projects`); err != nil {
+	if _, err := db.RunReadOnlyQuery(`EXPLAIN QUERY PLAN SELECT * FROM tickets`); err != nil {
 		t.Errorf("explain rejected: %v", err)
 	}
 	// Quoted ';' is not a batch separator.
 	for _, ok := range []string{
-		`SELECT id FROM projects WHERE id LIKE '%;%'`,
-		`SELECT ';' AS sep FROM projects`,
-		`SELECT id AS "a;b" FROM projects`,
+		`SELECT id FROM tickets WHERE id LIKE '%;%'`,
+		`SELECT ';' AS sep FROM tickets`,
+		`SELECT id AS "a;b" FROM tickets`,
 	} {
 		if _, err := db.RunReadOnlyQuery(ok); err != nil {
 			t.Errorf("read-only query with a quoted ';' rejected: %q: %v", ok, err)
 		}
 	}
-	if _, err := db.RunReadOnlyQuery(`SELECT ';' FROM projects; DELETE FROM projects`); err == nil {
+	if _, err := db.RunReadOnlyQuery(`SELECT ';' FROM tickets; DELETE FROM tickets`); err == nil {
 		t.Error("read-only guard admitted a write following a quoted-';' select")
 	}
-	if rows, _ := db.ScopeProjects("wc"); len(rows) != 1 {
+	if rows, _ := db.ScopeTickets("wc"); len(rows) != 1 {
 		t.Fatalf("a rejected write still mutated the store: %d rows", len(rows))
 	}
 }

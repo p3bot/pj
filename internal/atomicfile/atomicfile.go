@@ -2,7 +2,7 @@
 // never see a half-written file and an interrupted write cannot truncate an
 // existing one. Same-directory keeps rename atomic on one filesystem.
 //
-// Shared write primitive for the CUE registry, scope pj.cue authoring, and
+// Shared write primitive for the CUE registry, scope tk.cue authoring, and
 // scope .gitignore.
 package atomicfile
 

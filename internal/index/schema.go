@@ -1,18 +1,18 @@
 package index
 
 // SchemaVersion is the on-disk schema version. A mismatch triggers full rebuild (no migrations).
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 // schemaSQL is the complete DDL for a fresh index. Path is the physical key so
 // duplicate ids are two rows and archive moves are delete+insert. FTS rowid mirrors
-// projects.rowid; edges.from_path lets edge delete stay precise under duplicate id.
+// tickets.rowid; edges.from_path lets edge delete stay precise under duplicate id.
 const schemaSQL = `
 CREATE TABLE meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
 
-CREATE TABLE projects (
+CREATE TABLE tickets (
     path            TEXT PRIMARY KEY,
     scope           TEXT NOT NULL,
     id              TEXT NOT NULL,
@@ -32,8 +32,8 @@ CREATE TABLE projects (
     mtime_ns        INTEGER NOT NULL DEFAULT 0,
     size            INTEGER NOT NULL DEFAULT 0
 );
-CREATE INDEX idx_projects_scope_id ON projects(scope, id);
-CREATE INDEX idx_projects_scope ON projects(scope);
+CREATE INDEX idx_tickets_scope_id ON tickets(scope, id);
+CREATE INDEX idx_tickets_scope ON tickets(scope);
 
 CREATE TABLE edges (
     from_path  TEXT NOT NULL,
@@ -62,32 +62,32 @@ CREATE TABLE config_cache (
 );
 `
 
-// SchemaText is the human-facing description for pj query --schema (not a stable API).
-const SchemaText = `pj index schema (version 1)
+// SchemaText is the human-facing description for tk query --schema (not a stable API).
+const SchemaText = `tk index schema (version 2)
 
 NOT A STABLE API: the index is a derived cache, rebuilt on any schema_version
 bump, and may reshape between releases with no migration. Do not script against
-it — agents use pj deps / list / search / next / get / meta instead.
+it — agents use tk deps / list / search / next / get / meta instead.
 
-projects(path, scope, id, short_id, status, order_key, title, summary, created,
+tickets(path, scope, id, short_id, status, order_key, title, summary, created,
          tags, custom, status_conflict, archived, parse_error, parse_msg,
          schema_error, mtime_ns, size)
-    One row per project file, keyed by absolute path. tags and custom are JSON;
+    One row per ticket file, keyed by absolute path. tags and custom are JSON;
     status_conflict is a JSON array; archived/parse_error/schema_error are 0/1.
 
 edges(from_path, from_id, from_scope, to_id, to_scope, kind)
     One row per depends/related frontmatter entry (full ids only). kind is
     'depends' or 'related'. Cross-scope edges have from_scope != to_scope; a row
-    whose to_id matches no project is a dangling edge.
+    whose to_id matches no ticket is a dangling edge.
 
 fts(title, body)
-    FTS5 corpus; rowid mirrors projects.rowid. Query with MATCH and rank by
+    FTS5 corpus; rowid mirrors tickets.rowid. Query with MATCH and rank by
     bm25(fts).
 
 scope_meta(scope, last_index)
     Per-scope last reconcile timestamp (unix nanoseconds).
 
 config_cache(scope, closure_json, schema_json, config_error)
-    Cached pj.cue evaluation. closure_json records the (path, mtime, size) of every
+    Cached tk.cue evaluation. closure_json records the (path, mtime, size) of every
     file in the config import closure; a change to any invalidates the cached schema.
 `

@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/index"
+	"github.com/p3bot/tk/internal/index"
 )
 
 func newDepsCmd(app *App) *cobra.Command {
@@ -19,7 +19,7 @@ func newDepsCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "deps <id> [--scope S] [--transitive] [--tree]",
 		Aliases: []string{"depends"},
-		Short:   "Show a project's edge neighbourhood (depends + related)",
+		Short:   "Show a ticket's edge neighbourhood (depends + related)",
 		Long: "Print three sections — depends on, is depended on by, related (both\n" +
 			"directions, non-gating) — each neighbour line carrying id, status, and a short\n" +
 			"label, with (none) for empty sides. --transitive expands depends both ways as\n" +
@@ -43,7 +43,7 @@ func runDeps(app *App, c *cobra.Command, idArg, scope string, transitive, tree b
 	}
 	defer e.close()
 
-	r, err := e.resolveProject(c, idArg, scope)
+	r, err := e.resolveTicket(c, idArg, scope)
 	if err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func runDeps(app *App, c *cobra.Command, idArg, scope string, transitive, tree b
 	}
 
 	if g.subjectInCycle(subject) {
-		stderrln(c, fmt.Sprintf("%s is in a depends cycle — run pj doctor for detail", subject))
+		stderrln(c, fmt.Sprintf("%s is in a depends cycle — run tk doctor for detail", subject))
 	}
 
 	switch {
@@ -81,11 +81,11 @@ type depsGraph struct {
 	inDep  map[string][]string
 	outRel map[string][]string
 	inRel  map[string][]string
-	byID   map[string]*index.Project
+	byID   map[string]*index.Ticket
 }
 
 func (e *engine) buildDepsGraph() (*depsGraph, error) {
-	all, err := e.db.AllProjects()
+	all, err := e.db.AllTickets()
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +96,7 @@ func (e *engine) buildDepsGraph() (*depsGraph, error) {
 	g := &depsGraph{
 		outDep: map[string][]string{}, inDep: map[string][]string{},
 		outRel: map[string][]string{}, inRel: map[string][]string{},
-		byID: map[string]*index.Project{},
+		byID: map[string]*index.Ticket{},
 	}
 	for _, p := range all {
 		if _, ok := g.byID[p.ID]; !ok {

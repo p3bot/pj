@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// SyncPaths must reflect a write pj just made regardless of mtime.
+// SyncPaths must reflect a write tk just made regardless of mtime.
 func TestSyncPathsUpsertsAndDeletes(t *testing.T) {
 	r, db := newReconciler(t)
 	dir := mkScope(t, "wc")
@@ -25,7 +25,7 @@ func TestSyncPathsUpsertsAndDeletes(t *testing.T) {
 	if err := r.SyncPaths("wc", []string{fp}); err != nil {
 		t.Fatalf("SyncPaths upsert: %v", err)
 	}
-	rows, _ := db.ScopeProjects("wc")
+	rows, _ := db.ScopeTickets("wc")
 	if len(rows) != 1 || rows[0].Status != "done" {
 		t.Fatalf("SyncPaths must upsert the new state regardless of mtime, got %+v", rows)
 	}
@@ -36,7 +36,7 @@ func TestSyncPathsUpsertsAndDeletes(t *testing.T) {
 	if err := r.SyncPaths("wc", []string{fp}); err != nil {
 		t.Fatalf("SyncPaths delete: %v", err)
 	}
-	rows, _ = db.ScopeProjects("wc")
+	rows, _ = db.ScopeTickets("wc")
 	if len(rows) != 0 {
 		t.Fatalf("SyncPaths must delete a removed path's row, got %+v", rows)
 	}

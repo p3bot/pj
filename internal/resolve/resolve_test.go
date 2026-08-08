@@ -8,14 +8,14 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue/cuecontext"
-	"github.com/p3bot/pj/internal/registry"
-	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/tk/internal/registry"
+	"github.com/p3bot/tk/internal/token"
 )
 
 func scopeDir(t *testing.T, name string) string {
 	t.Helper()
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte("name: \""+name+"\"\nautoCommit: false\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "tk.cue"), []byte("name: \""+name+"\"\nautoCommit: false\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return dir
@@ -52,7 +52,7 @@ func TestResolveEnvOverCodeRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.Name != "api" {
-		t.Errorf("expected PJ_SCOPE to win over code-root, got %q", got.Name)
+		t.Errorf("expected TK_SCOPE to win over code-root, got %q", got.Name)
 	}
 	if got.Source != SourceEnv {
 		t.Errorf("source = %q want %q", got.Source, SourceEnv)
@@ -127,7 +127,7 @@ func TestResolveDriftHardError(t *testing.T) {
 	if !strings.HasPrefix(msg, token.NameDrift) {
 		t.Errorf("drift message must start with the name_drift token: %q", msg)
 	}
-	for _, want := range []string{`"wc"`, `"renamed"`, dir, "pj scope forget wc", "pj scope import"} {
+	for _, want := range []string{`"wc"`, `"renamed"`, dir, "tk scope forget wc", "tk scope import"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("drift message missing %q: %q", want, msg)
 		}
@@ -137,7 +137,7 @@ func TestResolveDriftHardError(t *testing.T) {
 func TestResolveUnparseableConfigStillResolves(t *testing.T) {
 	ctx := cuecontext.New()
 	dir := t.TempDir()
-	// Absent pj.cue: name unreadable, but reads stay available so resolve succeeds.
+	// Absent tk.cue: name unreadable, but reads stay available so resolve succeeds.
 	reg := &registry.Registry{Scopes: map[string]registry.Entry{
 		"wc": {Dir: dir, Root: "/code/wc"},
 	}}

@@ -8,7 +8,7 @@ import (
 
 	"github.com/p3bot/agentdex"
 
-	"github.com/p3bot/pj/internal/skill"
+	"github.com/p3bot/tk/internal/skill"
 )
 
 func TestMapCatalogErrorUnavailableAndInvalid(t *testing.T) {
@@ -29,8 +29,8 @@ func TestMapCatalogErrorUnavailableAndInvalid(t *testing.T) {
 			if !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("msg = %q want substring %q", err.Error(), tc.want)
 			}
-			if !strings.Contains(err.Error(), "pj skill") {
-				t.Fatalf("msg must guide manual install via pj skill: %v", err)
+			if !strings.Contains(err.Error(), "tk skill") {
+				t.Fatalf("msg must guide manual install via tk skill: %v", err)
 			}
 			if !errors.Is(err, tc.in) {
 				t.Fatalf("errors.Is lost sentinel: %v", err)

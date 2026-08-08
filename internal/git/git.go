@@ -1,6 +1,6 @@
 // Package git wraps the external git binary for path-scoped staging, commits,
 // porcelain status, and mid-rebase detection. Commands run with cmd.Dir set to a
-// caller-supplied git-root; pj never writes under .git/.
+// caller-supplied git-root; tk never writes under .git/.
 package git
 
 import (

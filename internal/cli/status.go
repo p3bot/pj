@@ -5,17 +5,17 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/p3bot/pj/internal/scopefile"
+	"github.com/p3bot/tk/internal/scopefile"
 
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/index"
-	"github.com/p3bot/pj/internal/scopeadmin"
-	"github.com/p3bot/pj/internal/scopeconfig"
-	"github.com/p3bot/pj/internal/status"
+	"github.com/p3bot/tk/internal/index"
+	"github.com/p3bot/tk/internal/scopeadmin"
+	"github.com/p3bot/tk/internal/scopeconfig"
+	"github.com/p3bot/tk/internal/status"
 )
 
-// statusKeys is the locked stdout key order for pj status (pad + single tab).
+// statusKeys is the locked stdout key order for tk status (pad + single tab).
 var statusKeys = []string{
 	"scope",
 	"dir",
@@ -76,33 +76,33 @@ func newStatusCmd(app *App) *cobra.Command {
 			"review, in-progress, blocked, draft, backlog, done, cancelled, next, claimed,\n" +
 			"blocked_ids, dangling, integrity, uncommitted.\n" +
 			"\n" +
-			"resolved is how the scope was chosen: flag (--scope), env (PJ_SCOPE), or cwd\n" +
+			"resolved is how the scope was chosen: flag (--scope), env (TK_SCOPE), or cwd\n" +
 			"(longest-prefix code-root).\n" +
 			"\n" +
-			"mode is one of pj-driven | repo-driven | plain-files only. With a known schema:\n" +
-			"autoCommit true → pj-driven (with or without a git-root — the planned no-repo\n" +
-			"layout stays pj-driven); autoCommit false + git-root → repo-driven; false and\n" +
+			"mode is one of tk-driven | repo-driven | plain-files only. With a known schema:\n" +
+			"autoCommit true → tk-driven (with or without a git-root — the planned no-repo\n" +
+			"layout stays tk-driven); autoCommit false + git-root → repo-driven; false and\n" +
 			"no git-root → plain-files. When the schema is unusable, mode is plain-files and\n" +
 			"config_unparseable: rides stderr — do not read plain-files as healthy host files\n" +
 			"without checking stderr. uncommitted is non-zero only in repo-driven mode.\n" +
 			"\n" +
 			"The active lens filters the working board (non-terminal status counts, claimed,\n" +
-			"blocked_ids) the same way bare list and pj next do. total is the full-scope\n" +
-			"count of parseable projects (dir root and archive/, every status including\n" +
+			"blocked_ids) the same way bare list and tk next do. total is the full-scope\n" +
+			"count of parseable tickets (dir root and archive/, every status including\n" +
 			"backlog and terminals) and ignores the lens. Working-board built-in counts\n" +
 			"include backlog (unlike bare list). Terminal tallies (done, cancelled) are full-scope\n" +
 			"including archive/ and ignore the lens. Identity and health keys (dangling,\n" +
 			"integrity, uncommitted) ignore the lens.\n" +
 			"\n" +
-			"next reuses pj next selection (reconcileClosure + depends gate + lens) but never\n" +
+			"next reuses tk next selection (reconcileClosure + depends gate + lens) but never\n" +
 			"surfaces next's empty-queue diagnostic: empty next still exits 0 with the full\n" +
 			"key block. dangling is the edge-count of same-scope depends targets missing a\n" +
-			"project in this scope (matches doctor's per-edge depends_dangling findings).\n" +
+			"ticket in this scope (matches doctor's per-edge depends_dangling findings).\n" +
 			"integrity is ok or issues for the ambient scope only (parse_error rows,\n" +
 			"duplicate_id, equal_order, archive layout drift) — not soft doctor classes or\n" +
 			"depended-on scopes from the next closure.\n" +
 			"\n" +
-			"To change a project's status, use `pj mark <id> <status>`.",
+			"To change a ticket's status, use `tk mark <id> <status>`.",
 		Args: usageArgs(cobra.MaximumNArgs(1)),
 		RunE: func(c *cobra.Command, args []string) error {
 			key := ""
@@ -147,7 +147,7 @@ func runStatus(app *App, c *cobra.Command, scopeFlag, key string) error {
 		return err
 	}
 
-	// Same closure + gate as pj next for cross-scope depends freshness.
+	// Same closure + gate as tk next for cross-scope depends freshness.
 	res, targets, err := e.reconcileClosure(c, scope, dir)
 	if err != nil {
 		return err
@@ -157,7 +157,7 @@ func runStatus(app *App, c *cobra.Command, scopeFlag, key string) error {
 		return err
 	}
 
-	rows, err := e.db.ScopeProjects(scope)
+	rows, err := e.db.ScopeTickets(scope)
 	if err != nil {
 		return err
 	}
@@ -178,13 +178,13 @@ func runStatus(app *App, c *cobra.Command, scopeFlag, key string) error {
 	var (
 		total, todo, review, inProgress, blocked, draft, backlog int
 		done, cancelled                                          int
-		claimed, blockedIDs                                      []*index.Project
+		claimed, blockedIDs                                      []*index.Ticket
 	)
 	for _, p := range rows {
 		if p.ParseError {
 			continue
 		}
-		// Full-scope total: every parseable project, including archive/ and backlog.
+		// Full-scope total: every parseable ticket, including archive/ and backlog.
 		total++
 		// Terminal tallies ignore lens and include archive/.
 		switch p.Status {
@@ -213,10 +213,10 @@ func runStatus(app *App, c *cobra.Command, scopeFlag, key string) error {
 			backlog++
 		}
 	}
-	sortProjects(claimed)
-	sortProjects(blockedIDs)
+	sortTickets(claimed)
+	sortTickets(blockedIDs)
 
-	// Same next walk as unclaimed pj next; empty next is still a pulse value.
+	// Same next walk as unclaimed tk next; empty next is still a pulse value.
 	sel := selectNext(gate, rows, lens, false)
 	nextID := ""
 	if sel.Chosen != nil {
@@ -266,7 +266,7 @@ func runStatus(app *App, c *cobra.Command, scopeFlag, key string) error {
 }
 
 // workingBoardMember: non-quarantined, non-archive, passes lens (untagged visible).
-func workingBoardMember(p *index.Project, lens []string) bool {
+func workingBoardMember(p *index.Ticket, lens []string) bool {
 	if p.ParseError || p.Archived {
 		return false
 	}
@@ -286,7 +286,7 @@ func countSameScopeDangling(e *engine, scope string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	rows, err := e.db.ScopeProjects(scope)
+	rows, err := e.db.ScopeTickets(scope)
 	if err != nil {
 		return 0, err
 	}
@@ -333,7 +333,7 @@ func ambientIntegrity(e *engine, scope string, schema *scopeconfig.Schema) (stri
 	if len(eq) > 0 {
 		return "issues", nil
 	}
-	rows, err := e.db.ScopeProjects(scope)
+	rows, err := e.db.ScopeTickets(scope)
 	if err != nil {
 		return "", err
 	}
@@ -350,7 +350,7 @@ func ambientIntegrity(e *engine, scope string, schema *scopeconfig.Schema) (stri
 	return "ok", nil
 }
 
-func joinIDs(rows []*index.Project) string {
+func joinIDs(rows []*index.Ticket) string {
 	if len(rows) == 0 {
 		return ""
 	}

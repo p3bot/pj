@@ -1,8 +1,8 @@
-// Package id implements the project-id wire contract: predicates, crypto/rand
+// Package id implements the ticket-id wire contract: predicates, crypto/rand
 // short-id mint, and deterministic collision-repair extension. No I/O; the mint
 // takes its randomness source as an argument for testability.
 //
-// A project id is <scope>-<short-id>. Create always mints length 4; collision
+// A ticket id is <scope>-<short-id>. Create always mints length 4; collision
 // repair may lengthen append-only up to ShortIDMax.
 package id
 
@@ -61,8 +61,8 @@ func IsShortID(s string) bool {
 	return true
 }
 
-// IsFullProjectID reports whether s is a legal <scope>-<short-id> with exactly one '-'.
-func IsFullProjectID(s string) bool {
+// IsFullTicketID reports whether s is a legal <scope>-<short-id> with exactly one '-'.
+func IsFullTicketID(s string) bool {
 	i := strings.IndexByte(s, '-')
 	if i < 0 {
 		return false

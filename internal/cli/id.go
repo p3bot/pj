@@ -3,7 +3,7 @@ package cli
 import (
 	"strings"
 
-	"github.com/p3bot/pj/internal/id"
+	"github.com/p3bot/tk/internal/id"
 )
 
 type idForm int
@@ -16,7 +16,7 @@ const (
 // parseIDArg: malformed → ok false (caller → exit 2); unknown well-formed is lookup's exit 1.
 func parseIDArg(tok string) (idForm, bool) {
 	if strings.ContainsRune(tok, '-') {
-		return idFull, id.IsFullProjectID(tok)
+		return idFull, id.IsFullTicketID(tok)
 	}
 	return idShort, id.IsShortID(tok)
 }

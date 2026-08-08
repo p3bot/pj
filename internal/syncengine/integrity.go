@@ -3,13 +3,13 @@ package syncengine
 import (
 	"fmt"
 
-	"github.com/p3bot/pj/internal/git"
-	"github.com/p3bot/pj/internal/gitstate"
-	"github.com/p3bot/pj/internal/integrity"
-	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/tk/internal/git"
+	"github.com/p3bot/tk/internal/gitstate"
+	"github.com/p3bot/tk/internal/integrity"
+	"github.com/p3bot/tk/internal/token"
 )
 
-// syncIntegrity: only reconcile pj sync runs; uses locks-held repair core over merged tree.
+// syncIntegrity: only reconcile tk sync runs; uses locks-held repair core over merged tree.
 func syncIntegrity(deps Deps, r Reporter, t Target) error {
 	targets := make(map[string]string, len(t.Participants))
 	for _, p := range t.Participants {
@@ -65,14 +65,14 @@ func pushIfAhead(deps Deps, r Reporter, t Target, rep *syncReport) pushResult {
 		r.Err(fmt.Sprintf("%s: push rejected — re-integrating and retrying (%v)", rep.label, err))
 		switch fetchAndIntegrate(deps, r, t, rep) {
 		case integratePaused:
-			recordPushFailure(deps, r, t, rep, err, "resolve the conflict reported above, then run pj sync")
+			recordPushFailure(deps, r, t, rep, err, "resolve the conflict reported above, then run tk sync")
 			return pushPaused
 		case integrateError:
-			recordPushFailure(deps, r, t, rep, err, "clear the re-integrate error above, then run pj sync")
+			recordPushFailure(deps, r, t, rep, err, "clear the re-integrate error above, then run tk sync")
 			return pushFailed
 		}
 		if err2 := git.Push(ctx, t.Root); err2 != nil {
-			recordPushFailure(deps, r, t, rep, err2, "fix the remote/auth, then pj sync")
+			recordPushFailure(deps, r, t, rep, err2, "fix the remote/auth, then tk sync")
 			return pushFailed
 		}
 	}

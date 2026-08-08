@@ -1,4 +1,4 @@
-// Package status defines built-in project statuses, the closed Category set, and
+// Package status defines built-in ticket statuses, the closed Category set, and
 // terminal/list/next predicates. Custom statuses come from the caller's
 // name→category map; this package does no I/O or CUE.
 package status
@@ -88,7 +88,7 @@ func IsTerminal(name string, custom map[string]Category) bool {
 	return ok && c == CategoryDone
 }
 
-// IsNextEligible reports whether a status can appear in pj next. Only built-in todo qualifies.
+// IsNextEligible reports whether a status can appear in tk next. Only built-in todo qualifies.
 func IsNextEligible(name string) bool {
 	b, ok := builtins[name]
 	return ok && b.nextEligible

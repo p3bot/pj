@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/p3bot/pj/internal/atomicfile"
+	"github.com/p3bot/tk/internal/atomicfile"
 )
 
 const fileMode = 0o644
@@ -23,7 +23,7 @@ type Op struct {
 
 // Apply executes ops in order and returns every touched path. A move already
 // completed (old gone, new present) is skipped. A destination that holds different
-// content is a hard error so two projects computing the same basename cannot erase each other.
+// content is a hard error so two tickets computing the same basename cannot erase each other.
 func Apply(ops []Op) ([]string, error) {
 	var touched []string
 	for _, op := range ops {

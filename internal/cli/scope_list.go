@@ -13,7 +13,7 @@ func newScopeListCmd(app *App) *cobra.Command {
 		Long: "Print one line per registered scope, sorted by name ascending:\n" +
 			"  <name>\\t<dir>\\t<root>\\t<mode>\n" +
 			"name/dir/root are pure registry reads (cleaned absolute paths); mode stats\n" +
-			"each dir and derives its git-root — pj-driven, repo-driven, plain-files, or\n" +
+			"each dir and derives its git-root — tk-driven, repo-driven, plain-files, or\n" +
 			"unknown — so one bad scope never fails the listing. Soft tokens\n" +
 			"(name_drift, unreachable_scope, config_unparseable) ride stderr. An empty\n" +
 			"registry exits 0 with empty stdout.",

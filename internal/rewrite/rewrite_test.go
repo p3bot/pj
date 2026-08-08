@@ -46,7 +46,7 @@ func TestApplyMoveWritesNewRemovesOld(t *testing.T) {
 	}
 }
 
-// Two projects can compute the same destination basename; a move onto one would erase it.
+// Two tickets can compute the same destination basename; a move onto one would erase it.
 func TestApplyRefusesMoveOntoDifferentFile(t *testing.T) {
 	dir := t.TempDir()
 	old := filepath.Join(dir, "old.md")

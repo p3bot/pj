@@ -1,4 +1,4 @@
-// Package skill holds the agent skill contract printed by `pj skill`.
+// Package skill holds the agent skill contract printed by `tk skill`.
 // skill.md is the sole embedded source; this package must not load any external design document.
 package skill
 

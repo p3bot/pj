@@ -11,7 +11,7 @@ import (
 
 	"cuelang.org/go/cue/cuecontext"
 
-	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/tk/internal/token"
 )
 
 func newApp(t *testing.T) *App {

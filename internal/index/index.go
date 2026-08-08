@@ -1,4 +1,4 @@
-// Package index is pj's machine-wide SQLite read model: a derived, rebuildable
+// Package index is tk's machine-wide SQLite read model: a derived, rebuildable
 // store under XDG state (never inside a scope, never synced). Schema-version
 // mismatch or corruption triggers a full drop-and-rebuild, not a migration.
 // Authority stays in the files; this package only does SQLite I/O.
@@ -116,7 +116,7 @@ func (d *DB) rebuildSchema() error {
 	drop := `
 DROP TABLE IF EXISTS fts;
 DROP TABLE IF EXISTS edges;
-DROP TABLE IF EXISTS projects;
+DROP TABLE IF EXISTS tickets;
 DROP TABLE IF EXISTS scope_meta;
 DROP TABLE IF EXISTS config_cache;
 DROP TABLE IF EXISTS meta;

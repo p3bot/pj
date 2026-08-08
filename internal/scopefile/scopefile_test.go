@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestLooksLikeProject(t *testing.T) {
+func TestLooksLikeTicket(t *testing.T) {
 	cases := []struct {
 		base string
 		want bool
@@ -18,14 +18,14 @@ func TestLooksLikeProject(t *testing.T) {
 		{"wc-abcdefgh-x.md", true}, // 8-char short id (post-repair length)
 		{"wc-9b2c-x.md", false},    // short id must be letter-first
 		{"wc-ab2c-x.txt", false},
-		{"pj.cue", false},
+		{"tk.cue", false},
 		{"AGENTS.md", false},
 		{"random.md", false},
 		{"wc.md", false},
 	}
 	for _, c := range cases {
-		if got := LooksLikeProject(c.base); got != c.want {
-			t.Errorf("LooksLikeProject(%q) = %v want %v", c.base, got, c.want)
+		if got := LooksLikeTicket(c.base); got != c.want {
+			t.Errorf("LooksLikeTicket(%q) = %v want %v", c.base, got, c.want)
 		}
 	}
 }
@@ -37,10 +37,10 @@ func TestIsAllowlisted(t *testing.T) {
 		want bool
 	}{
 		{"wc-ab2c-x.md", true},
-		{"pj.cue", true},
+		{"tk.cue", true},
 		{".gitignore", true},
 		{"archive/wc-ab2c-x.md", true},
-		{"archive/pj.cue", false},           // only projects under archive/
+		{"archive/tk.cue", false},           // only tickets under archive/
 		{"archive/sub/wc-ab2c-x.md", false}, // deeper than archive/ is residue
 		{"random.txt", false},
 		{"AGENTS.md", false},

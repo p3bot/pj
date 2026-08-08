@@ -1,6 +1,6 @@
-// Package reconcile is pj's read-through: it brings the derived SQLite index into
-// agreement with project files before a command reads it, git-free. It never
-// mutates a project file — detection here, repair elsewhere.
+// Package reconcile is tk's read-through: it brings the derived SQLite index into
+// agreement with ticket files before a command reads it, git-free. It never
+// mutates a ticket file — detection here, repair elsewhere.
 // It owns file→row upsert/delete and prune of unregistered scopes. It does not
 // own full-cache Rebuild (that discards the store; callers rebuild then Reconcile).
 package reconcile
@@ -11,10 +11,10 @@ import (
 
 	"cuelang.org/go/cue"
 
-	"github.com/p3bot/pj/internal/index"
-	"github.com/p3bot/pj/internal/scopeconfig"
-	"github.com/p3bot/pj/internal/status"
-	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/tk/internal/index"
+	"github.com/p3bot/tk/internal/scopeconfig"
+	"github.com/p3bot/tk/internal/status"
+	"github.com/p3bot/tk/internal/token"
 )
 
 // Reconciler reconciles scopes into an open index using a shared CUE context.
@@ -169,7 +169,7 @@ func (r *Reconciler) reconcileScope(name, dir string, now int64) (reachable bool
 			// Transient I/O on a listed file: skip this pass, do not drop or quarantine.
 			continue
 		}
-		if err := r.db.UpsertProjectWithEdges(p, edges); err != nil {
+		if err := r.db.UpsertTicketWithEdges(p, edges); err != nil {
 			return false, err
 		}
 	}
@@ -232,7 +232,7 @@ func (r *Reconciler) appendIntegrityWarnings(scopes []string, res *Result) error
 // appendArchiveDrift flags location-vs-status disagreement using per-scope terminal-ness.
 func (r *Reconciler) appendArchiveDrift(scopes []string, res *Result) error {
 	for _, scope := range scopes {
-		rows, err := r.db.ScopeProjects(scope)
+		rows, err := r.db.ScopeTickets(scope)
 		if err != nil {
 			return err
 		}

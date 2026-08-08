@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/p3bot/pj/internal/collision"
-	"github.com/p3bot/pj/internal/frontmatter"
-	"github.com/p3bot/pj/internal/id"
-	"github.com/p3bot/pj/internal/scopeconfig"
+	"github.com/p3bot/tk/internal/collision"
+	"github.com/p3bot/tk/internal/frontmatter"
+	"github.com/p3bot/tk/internal/id"
+	"github.com/p3bot/tk/internal/scopeconfig"
 )
 
 // Stage is one git merge stage's blob plus whether that stage exists at all.
@@ -163,10 +163,10 @@ func loadStage(s Stage) (*frontmatter.Model, error) {
 	return m, nil
 }
 
-// addAdd handles base-absent both-present: same-id is two projects, kept as two files via rename.
+// addAdd handles base-absent both-present: same-id is two tickets, kept as two files via rename.
 func addAdd(oursM, theirsM *frontmatter.Model, oursRaw, theirsRaw []byte, meta MergeMeta) (Result, error) {
 	if oursM.ID == "" || theirsM.ID == "" || oursM.ID != theirsM.ID {
-		return Result{}, &MergeError{Key: frontmatter.KeyID, Reason: "add/add conflict without a shared id — cannot field-merge two distinct projects"}
+		return Result{}, &MergeError{Key: frontmatter.KeyID, Reason: "add/add conflict without a shared id — cannot field-merge two distinct tickets"}
 	}
 	// Both stages share one path/basename; only Created and byte hash decide the loser.
 	loser := SideTheirs
@@ -178,8 +178,8 @@ func addAdd(oursM, theirsM *frontmatter.Model, oursRaw, theirsRaw []byte, meta M
 	}
 
 	full := oursM.ID
-	if !id.IsFullProjectID(full) {
-		return Result{}, &MergeError{Key: frontmatter.KeyID, Reason: "add/add id is not a legal full project id: " + full}
+	if !id.IsFullTicketID(full) {
+		return Result{}, &MergeError{Key: frontmatter.KeyID, Reason: "add/add id is not a legal full ticket id: " + full}
 	}
 	short := full[strings.IndexByte(full, '-')+1:]
 	newShort, err := id.Extend(short, meta.Occupied)

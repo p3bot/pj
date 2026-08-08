@@ -6,22 +6,22 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/p3bot/pj/internal/gitstate"
+	"github.com/p3bot/tk/internal/gitstate"
 )
 
 func TestDoctorRepairSelfCommitsAutoCommit(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir, repo := initGitScope(t, app, "wc", true)
-	addProject(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# A\n", false, "")
-	addProject(t, dir, "wc-ab2c", "beta", "todo", "a1", "# B\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# A\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "beta", "todo", "a1", "# B\n", false, "")
 
 	if _, _, err := run(t, app, "doctor", "--repair"); err != nil {
 		t.Fatalf("doctor --repair: %v", err)
 	}
 	log := gitLog(t, repo)
-	if len(log) == 0 || log[0] != "pj: repair duplicate id wc-ab2c -> wc-ab2ca" {
+	if len(log) == 0 || log[0] != "tk: repair duplicate id wc-ab2c -> wc-ab2ca" {
 		t.Fatalf("repair should self-commit with the fixed message, got %v", log)
 	}
 }
@@ -29,24 +29,24 @@ func TestDoctorRepairSelfCommitsAutoCommit(t *testing.T) {
 func TestDoctorRepairMultiLoserCommitMessageCoversBatch(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir, repo := initGitScope(t, app, "wc", true)
-	addProject(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# A\n", false, "")
-	addProject(t, dir, "wc-ab2c", "beta", "todo", "a1", "# B\n", false, "")
-	addProject(t, dir, "wc-ab2c", "gamma", "todo", "a2", "# G\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# A\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "beta", "todo", "a1", "# B\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "gamma", "todo", "a2", "# G\n", false, "")
 
 	if _, _, err := run(t, app, "doctor", "--repair"); err != nil {
 		t.Fatalf("doctor --repair: %v", err)
 	}
 	log := gitLog(t, repo)
-	if len(log) == 0 || log[0] != "pj: repair duplicate id wc-ab2c -> wc-ab2ca, wc-ab2cb" {
+	if len(log) == 0 || log[0] != "tk: repair duplicate id wc-ab2c -> wc-ab2ca, wc-ab2cb" {
 		t.Fatalf("multi-loser repair message must name the collided id and every rename, got %v", log)
 	}
 }
 
 func TestDoctorRepairPlannedRidesSyncDisabled(t *testing.T) {
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir := filepath.Join(t.TempDir(), "wc")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
@@ -54,8 +54,8 @@ func TestDoctorRepairPlannedRidesSyncDisabled(t *testing.T) {
 	if _, _, err := run(t, app, "scope", "init", dir, "--name", "wc", "--auto-commit"); err != nil {
 		t.Fatalf("init planned auto-commit: %v", err)
 	}
-	addProject(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# A\n", false, "")
-	addProject(t, dir, "wc-ab2c", "beta", "todo", "a1", "# B\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# A\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "beta", "todo", "a1", "# B\n", false, "")
 
 	_, errOut, err := run(t, app, "doctor", "--repair")
 	if err != nil {
@@ -72,9 +72,9 @@ func TestDoctorRepairPlannedRidesSyncDisabled(t *testing.T) {
 func TestDoctorFlagsUnparseableSiblingSharingGitRoot(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir, repo := initGitScope(t, app, "wc", true)
-	addProject(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
 
 	sibling := filepath.Join(repo, "sib")
 	if err := os.MkdirAll(sibling, 0o755); err != nil {
@@ -84,7 +84,7 @@ func TestDoctorFlagsUnparseableSiblingSharingGitRoot(t *testing.T) {
 		t.Fatalf("init sibling: %v", err)
 	}
 	bad := "name: \"sib\"\nautoCommit: true\nfields: {x: {type: \"float\"}}\n"
-	if err := os.WriteFile(filepath.Join(sibling, "pj.cue"), []byte(bad), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(sibling, "tk.cue"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -100,11 +100,11 @@ func TestDoctorFlagsUnparseableSiblingSharingGitRoot(t *testing.T) {
 func TestDoctorConfigUnparseableReportedOncePerScope(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir, _ := initGitScope(t, app, "wc", true)
-	addProject(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
 	bad := "name: \"wc\"\nautoCommit: true\nfields: {x: {type: \"float\"}}\n"
-	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte(bad), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "tk.cue"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -120,11 +120,11 @@ func TestDoctorConfigUnparseableReportedOncePerScope(t *testing.T) {
 func TestDoctorUnparseableConfigSkipsAutoCommitClasses(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir, _ := initGitScope(t, app, "wc", true)
-	addProject(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
 	bad := "name: \"wc\"\nautoCommit: true\nfields: {x: {type: \"float\"}}\n"
-	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte(bad), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "tk.cue"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "stray.txt"), []byte("x"), 0o644); err != nil {
@@ -162,28 +162,28 @@ func TestDoctorStatusConflictModesGateOnAutoCommit(t *testing.T) {
 		{
 			name:  "auto-commit mid-rebase resolves then syncs",
 			scope: "wc", autoCommit: true,
-			want: "resolve in file, then pj sync",
+			want: "resolve in file, then tk sync",
 		},
 		{
 			name:  "repo-driven mid-rebase is standalone residue",
 			scope: "rd", autoCommit: false,
-			want: "stale residue: set status and clear status_conflict", notWant: "then pj sync",
+			want: "stale residue: set status and clear status_conflict", notWant: "then tk sync",
 		},
 		{
 			name:  "unknown autoCommit claims neither tail",
 			scope: "uc", autoCommit: true, breakCfg: true,
-			want: "— set status and clear status_conflict", notWant: "then pj sync",
+			want: "— set status and clear status_conflict", notWant: "then tk sync",
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			app := newApp(t)
-			t.Setenv("PJ_SCOPE", tc.scope)
+			t.Setenv("TK_SCOPE", tc.scope)
 			dir, repo := initGitScope(t, app, tc.scope, tc.autoCommit)
-			addProject(t, dir, tc.scope+"-ab2c", "x", "todo", "a0", "# X\n", false, "status_conflict: [done, cancelled]\n")
+			addTicket(t, dir, tc.scope+"-ab2c", "x", "todo", "a0", "# X\n", false, "status_conflict: [done, cancelled]\n")
 			if tc.breakCfg {
 				bad := "name: \"" + tc.scope + "\"\nautoCommit: true\nfields: {x: {type: \"float\"}}\n"
-				if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte(bad), 0o644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "tk.cue"), []byte(bad), 0o644); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -235,9 +235,9 @@ func TestDoctorAutoCommitMismatchVerdict(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			app := newApp(t)
-			t.Setenv("PJ_SCOPE", "wc")
+			t.Setenv("TK_SCOPE", "wc")
 			dir, repo := initGitScope(t, app, "wc", true)
-			addProject(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
+			addTicket(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
 
 			sib := filepath.Join(repo, "sib")
 			if err := os.MkdirAll(sib, 0o755); err != nil {
@@ -246,7 +246,7 @@ func TestDoctorAutoCommitMismatchVerdict(t *testing.T) {
 			if _, _, err := run(t, app, "scope", "init", sib, "--name", "sib", "--code-root", sib, "--auto-commit"); err != nil {
 				t.Fatalf("init sibling: %v", err)
 			}
-			if err := os.WriteFile(filepath.Join(sib, "pj.cue"), []byte(tc.siblingCue), 0o644); err != nil {
+			if err := os.WriteFile(filepath.Join(sib, "tk.cue"), []byte(tc.siblingCue), 0o644); err != nil {
 				t.Fatal(err)
 			}
 
@@ -264,9 +264,9 @@ func TestDoctorAutoCommitMismatchVerdict(t *testing.T) {
 func TestDoctorUnreachableSiblingRidesNoConfigError(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir, repo := initGitScope(t, app, "wc", true)
-	addProject(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
 
 	sib := filepath.Join(repo, "sib")
 	if err := os.MkdirAll(sib, 0o755); err != nil {
@@ -292,10 +292,10 @@ func TestDoctorUnreachableSiblingRidesNoConfigError(t *testing.T) {
 func TestDoctorMutatingRefusesMidRebase(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir, repo := initGitScope(t, app, "wc", true)
-	addProject(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# A\n", false, "")
-	addProject(t, dir, "wc-ab2c", "beta", "todo", "a1", "# B\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "alpha", "todo", "a0", "# A\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "beta", "todo", "a1", "# B\n", false, "")
 	if err := os.MkdirAll(filepath.Join(repo, ".git", "rebase-merge"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -311,9 +311,9 @@ func TestDoctorMutatingRefusesMidRebase(t *testing.T) {
 func TestDoctorRepoDrivenUncommitted(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "rd")
+	t.Setenv("TK_SCOPE", "rd")
 	dir, _ := initGitScope(t, app, "rd", false)
-	addProject(t, dir, "rd-ab2c", "x", "todo", "a0", "# X\n", false, "")
+	addTicket(t, dir, "rd-ab2c", "x", "todo", "a0", "# X\n", false, "")
 
 	out, _, err := run(t, app, "doctor")
 	if err != nil {
@@ -327,9 +327,9 @@ func TestDoctorRepoDrivenUncommitted(t *testing.T) {
 func TestDoctorReportsLastPushError(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
-	t.Setenv("PJ_SCOPE", "wc")
+	t.Setenv("TK_SCOPE", "wc")
 	dir, repo := initGitScope(t, app, "wc", true)
-	addProject(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
 
 	marker := gitstate.Dir(app.StateDir, repo)
 	if err := os.MkdirAll(marker, 0o755); err != nil {
@@ -354,13 +354,13 @@ func TestScopeRenameSelfCommits(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
 	dir, repo := initGitScope(t, app, "wc", true)
-	addProject(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
 
 	if _, _, err := run(t, app, "scope", "rename", "wc", "core"); err != nil {
 		t.Fatalf("rename: %v", err)
 	}
 	log := gitLog(t, repo)
-	if len(log) == 0 || log[0] != "pj: rename scope wc -> core" {
+	if len(log) == 0 || log[0] != "tk: rename scope wc -> core" {
 		t.Fatalf("rename should self-commit with the fixed message, got %v", log)
 	}
 }

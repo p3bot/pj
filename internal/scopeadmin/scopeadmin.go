@@ -14,15 +14,15 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
-	"github.com/p3bot/pj/internal/atomicfile"
-	"github.com/p3bot/pj/internal/gitroot"
-	"github.com/p3bot/pj/internal/pathutil"
-	"github.com/p3bot/pj/internal/registry"
-	"github.com/p3bot/pj/internal/resolve"
-	"github.com/p3bot/pj/internal/scope"
-	"github.com/p3bot/pj/internal/scopeconfig"
-	"github.com/p3bot/pj/internal/token"
-	"github.com/p3bot/pj/internal/xdg"
+	"github.com/p3bot/tk/internal/atomicfile"
+	"github.com/p3bot/tk/internal/gitroot"
+	"github.com/p3bot/tk/internal/pathutil"
+	"github.com/p3bot/tk/internal/registry"
+	"github.com/p3bot/tk/internal/resolve"
+	"github.com/p3bot/tk/internal/scope"
+	"github.com/p3bot/tk/internal/scopeconfig"
+	"github.com/p3bot/tk/internal/token"
+	"github.com/p3bot/tk/internal/xdg"
 )
 
 // Admin performs scope administration against a fixed XDG config directory.
@@ -37,7 +37,7 @@ func New(ctx *cue.Context, configDir string) *Admin {
 	return &Admin{ctx: ctx, store: registry.NewStore(ctx, configDir), configDir: configDir}
 }
 
-// InitParams are the resolved inputs to pj scope init.
+// InitParams are the resolved inputs to tk scope init.
 // Exactly one of Name / AutoName is set (CLI enforces usage before calling).
 type InitParams struct {
 	Dir             string
@@ -49,7 +49,7 @@ type InitParams struct {
 	AutoCommitGiven bool
 }
 
-// Init creates and registers a new scope: authors pj.cue and .gitignore, applies
+// Init creates and registers a new scope: authors tk.cue and .gitignore, applies
 // the code-root default matrix, runs registration checks, and records the entry.
 // Never prompts and never runs git. Returns the registered scope dir.
 func (a *Admin) Init(p InitParams) (string, error) {
@@ -62,11 +62,11 @@ func (a *Admin) Init(p InitParams) (string, error) {
 		p.CodeRoot = pathutil.Canonical(p.CodeRoot)
 	}
 
-	// Pre-write guard: existing pj.cue means adopt-not-author.
-	if _, err := os.Stat(filepath.Join(p.Dir, "pj.cue")); err == nil {
-		return "", fmt.Errorf("%s already contains a pj.cue — that scope already exists on disk; adopt it with pj scope import %s, or choose a different dir", p.Dir, p.Dir)
+	// Pre-write guard: existing tk.cue means adopt-not-author.
+	if _, err := os.Stat(filepath.Join(p.Dir, "tk.cue")); err == nil {
+		return "", fmt.Errorf("%s already contains a tk.cue — that scope already exists on disk; adopt it with tk scope import %s, or choose a different dir", p.Dir, p.Dir)
 	} else if !os.IsNotExist(err) {
-		return "", fmt.Errorf("stat %s: %w", filepath.Join(p.Dir, "pj.cue"), err)
+		return "", fmt.Errorf("stat %s: %w", filepath.Join(p.Dir, "tk.cue"), err)
 	}
 
 	// Derive git-root without creating the dir so a failed init leaves nothing behind.
@@ -126,20 +126,20 @@ func (a *Admin) Init(p InitParams) (string, error) {
 	reg.Scopes[name] = registry.Entry{Dir: p.Dir, Root: codeRoot}
 	if err := a.store.WriteRegistry(reg.Scopes); err != nil {
 		// Files written but registration failed: recover via import, not re-init.
-		return "", fmt.Errorf("wrote the scope files at %s but failed to register it — adopt the on-disk scope with pj scope import %s: %w", p.Dir, p.Dir, err)
+		return "", fmt.Errorf("wrote the scope files at %s but failed to register it — adopt the on-disk scope with tk scope import %s: %w", p.Dir, p.Dir, err)
 	}
 	return p.Dir, nil
 }
 
-// ImportParams are the resolved inputs to pj scope import.
-// Name and autoCommit come from on-disk pj.cue.
+// ImportParams are the resolved inputs to tk scope import.
+// Name and autoCommit come from on-disk tk.cue.
 type ImportParams struct {
 	Dir           string
 	CodeRoot      string
 	CodeRootGiven bool
 }
 
-// Import registers an existing on-disk scope. Unusable pj.cue is a hard fail.
+// Import registers an existing on-disk scope. Unusable tk.cue is a hard fail.
 func (a *Admin) Import(p ImportParams) (string, error) {
 	p.Dir = pathutil.Canonical(p.Dir)
 	if p.CodeRootGiven {
@@ -196,7 +196,7 @@ func (a *Admin) Import(p ImportParams) (string, error) {
 	return p.Dir, nil
 }
 
-// RebindParams are the resolved inputs to pj scope rebind.
+// RebindParams are the resolved inputs to tk scope rebind.
 // Dir always updates; CodeRoot updates root only when CodeRootGiven.
 type RebindParams struct {
 	Dir           string
@@ -227,7 +227,7 @@ func (a *Admin) Rebind(p RebindParams) (dir string, changed bool, err error) {
 
 	entry, ok := reg.Scopes[p.Name]
 	if !ok {
-		return "", false, fmt.Errorf("unknown scope %q — nothing to rebind; register it first with pj scope init or import", p.Name)
+		return "", false, fmt.Errorf("unknown scope %q — nothing to rebind; register it first with tk scope init or import", p.Name)
 	}
 
 	newRoot := entry.Root
@@ -235,13 +235,13 @@ func (a *Admin) Rebind(p RebindParams) (dir string, changed bool, err error) {
 		newRoot = p.CodeRoot
 	}
 
-	// New dir must hold a pj.cue whose name equals --name (rebind is not name repair).
+	// New dir must hold a tk.cue whose name equals --name (rebind is not name repair).
 	pjName, err := scopeconfig.ReadName(a.ctx, p.Dir)
 	if err != nil {
 		return "", false, fmt.Errorf("cannot rebind %q to %s: %w", p.Name, p.Dir, err)
 	}
 	if pjName != p.Name {
-		return "", false, fmt.Errorf("refusing to rebind %q to %s: its pj.cue name is %q, not %q — rebind moves paths, it does not repair a name", p.Name, p.Dir, pjName, p.Name)
+		return "", false, fmt.Errorf("refusing to rebind %q to %s: its tk.cue name is %q, not %q — rebind moves paths, it does not repair a name", p.Name, p.Dir, pjName, p.Name)
 	}
 
 	if p.CodeRootGiven {
@@ -307,15 +307,15 @@ type ListRow struct {
 	Mode string
 }
 
-// Mode labels for pj scope list.
+// Mode labels for tk scope list.
 const (
-	ModePjDriven   = "pj-driven"
+	ModeTkDriven   = "tk-driven"
 	ModeRepoDriven = "repo-driven"
 	ModePlainFiles = "plain-files"
 	ModeUnknown    = "unknown"
 )
 
-// Listing is the result of pj scope list: TSV rows plus soft stderr diagnostics.
+// Listing is the result of tk scope list: TSV rows plus soft stderr diagnostics.
 type Listing struct {
 	Rows        []ListRow
 	Diagnostics []string
@@ -348,7 +348,7 @@ func (a *Admin) List() (*Listing, error) {
 			continue
 		}
 
-		// Reuse one git-root derivation and one pj.cue compile on the healthy path.
+		// Reuse one git-root derivation and one tk.cue compile on the healthy path.
 		gitRoot, inRepo := gitroot.RepoRoot(entry.Dir)
 		schema, cfgErr := scopeconfig.Load(a.ctx, entry.Dir)
 
@@ -385,10 +385,10 @@ func (a *Admin) List() (*Listing, error) {
 }
 
 // DeriveMode maps autoCommit and git-root presence to the closed mode label.
-// autoCommit true is always pj-driven (including no-repo layouts).
+// autoCommit true is always tk-driven (including no-repo layouts).
 func DeriveMode(autoCommit, inRepo bool) string {
 	if autoCommit {
-		return ModePjDriven
+		return ModeTkDriven
 	}
 	if inRepo {
 		return ModeRepoDriven
@@ -411,7 +411,7 @@ func resolveCodeRoot(dir, codeRoot string, given bool, gitRoot string, inRepo bo
 	return dir, nil
 }
 
-// ensureGitignore makes sure <dir>/.gitignore ignores .pj.lock without disturbing other entries.
+// ensureGitignore makes sure <dir>/.gitignore ignores .tk.lock without disturbing other entries.
 func ensureGitignore(dir string) error {
 	p := filepath.Join(dir, ".gitignore")
 	existing, err := os.ReadFile(p)
@@ -419,7 +419,7 @@ func ensureGitignore(dir string) error {
 		return fmt.Errorf("read %s: %w", p, err)
 	}
 	for _, line := range strings.Split(string(existing), "\n") {
-		if strings.TrimSpace(line) == ".pj.lock" {
+		if strings.TrimSpace(line) == ".tk.lock" {
 			return nil
 		}
 	}
@@ -427,6 +427,6 @@ func ensureGitignore(dir string) error {
 	if len(buf) > 0 && !bytes.HasSuffix(buf, []byte("\n")) {
 		buf = append(buf, '\n')
 	}
-	buf = append(buf, []byte(".pj.lock\n")...)
+	buf = append(buf, []byte(".tk.lock\n")...)
 	return atomicfile.Write(p, buf, 0o644)
 }

@@ -3,12 +3,12 @@ package cli
 import (
 	"fmt"
 
-	"github.com/p3bot/pj/internal/scopefile"
+	"github.com/p3bot/tk/internal/scopefile"
 
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/index"
-	"github.com/p3bot/pj/internal/order"
+	"github.com/p3bot/tk/internal/index"
+	"github.com/p3bot/tk/internal/order"
 )
 
 type reorderDest struct {
@@ -42,8 +42,8 @@ func newReorderCmd(app *App) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "reorder <id> (--before <id> | --after <id> | --first | --last) [--scope S]",
-		Short: "Rewrite a project's order key to move it in the board",
-		Long: "Move a project by writing a new order key strictly between its target\n" +
+		Short: "Rewrite a ticket's order key to move it in the board",
+		Long: "Move a ticket by writing a new order key strictly between its target\n" +
 			"neighbours — a single-file write that never renumbers a band. --first/--last\n" +
 			"place against the scope-wide minimum/maximum valid order (every status, dir root\n" +
 			"and archive/); --before/--after name an in-scope neighbour that must exist and\n" +
@@ -68,7 +68,7 @@ func runReorder(app *App, c *cobra.Command, idArg string, dest reorderDest, scop
 	}
 	form, ok := parseIDArg(idArg)
 	if !ok {
-		return usageErrorf("%q is not a valid project id", idArg)
+		return usageErrorf("%q is not a valid ticket id", idArg)
 	}
 
 	e, err := app.openEngine(c)
@@ -83,7 +83,7 @@ func runReorder(app *App, c *cobra.Command, idArg string, dest reorderDest, scop
 	}
 	entry, registered := e.reg.Scopes[scope]
 	if !registered {
-		return fmt.Errorf("unknown project id %q: scope %q is not registered here", idArg, scope)
+		return fmt.Errorf("unknown ticket id %q: scope %q is not registered here", idArg, scope)
 	}
 	dir := entry.Dir
 
@@ -114,7 +114,7 @@ func runReorder(app *App, c *cobra.Command, idArg string, dest reorderDest, scop
 		return err
 	}
 
-	rows, err := e.db.ScopeProjects(scope)
+	rows, err := e.db.ScopeTickets(scope)
 	if err != nil {
 		return err
 	}
@@ -124,22 +124,22 @@ func runReorder(app *App, c *cobra.Command, idArg string, dest reorderDest, scop
 	}
 	newKey, err := order.KeyBetween(left, right)
 	if err != nil {
-		return fmt.Errorf("no legal order between neighbours for %s (%w) — re-space with pj doctor", subject.ID, err)
+		return fmt.Errorf("no legal order between neighbours for %s (%w) — re-space with tk doctor", subject.ID, err)
 	}
 
-	m, body, err := readProjectFile(subject.Path)
+	m, body, err := readTicketFile(subject.Path)
 	if err != nil {
 		return err
 	}
 	m.Order = newKey
-	if err := writeProjectFile(subject.Path, m, body); err != nil {
+	if err := writeTicketFile(subject.Path, m, body); err != nil {
 		return err
 	}
 	if err := e.rec.SyncPaths(scope, writtenPaths(subject.Path, "")); err != nil {
 		return err
 	}
 
-	message := fmt.Sprintf("pj: %s reorder", subject.ID)
+	message := fmt.Sprintf("tk: %s reorder", subject.ID)
 	if err := e.completeStateDurability(ctx, c, scope, dir, autoCommit, message, subject.Path, "", root, hasRoot); err != nil {
 		return err
 	}
@@ -153,15 +153,15 @@ func runReorder(app *App, c *cobra.Command, idArg string, dest reorderDest, scop
 }
 
 // reorderBounds: open bound is ""; subject is excluded from the ordered set.
-func (e *engine) reorderBounds(scope string, subject *index.Project, rows []*index.Project, dest reorderDest) (left, right string, err error) {
-	others := make([]*index.Project, 0, len(rows))
+func (e *engine) reorderBounds(scope string, subject *index.Ticket, rows []*index.Ticket, dest reorderDest) (left, right string, err error) {
+	others := make([]*index.Ticket, 0, len(rows))
 	for _, p := range rows {
 		if p.Path == subject.Path || p.ParseError || !order.Valid(p.OrderKey) {
 			continue
 		}
 		others = append(others, p)
 	}
-	sortProjects(others)
+	sortTickets(others)
 
 	switch {
 	case dest.first:
@@ -181,10 +181,10 @@ func (e *engine) reorderBounds(scope string, subject *index.Project, rows []*ind
 	}
 }
 
-func (e *engine) neighbourBounds(scope string, subject *index.Project, others []*index.Project, neighbourArg string, before bool) (left, right string, err error) {
+func (e *engine) neighbourBounds(scope string, subject *index.Ticket, others []*index.Ticket, neighbourArg string, before bool) (left, right string, err error) {
 	form, ok := parseIDArg(neighbourArg)
 	if !ok {
-		return "", "", usageErrorf("%q is not a valid project id", neighbourArg)
+		return "", "", usageErrorf("%q is not a valid ticket id", neighbourArg)
 	}
 	neighbour, err := e.resolveSingleRow(scope, neighbourArg, form, "neighbour")
 	if err != nil {

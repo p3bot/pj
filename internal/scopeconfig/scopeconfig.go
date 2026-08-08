@@ -1,4 +1,4 @@
-// Package scopeconfig evaluates a scope's pj.cue into a validated Schema. A
+// Package scopeconfig evaluates a scope's tk.cue into a validated Schema. A
 // non-nil *ConfigError from Load means the scope is unusable for writes and
 // rides config_unparseable; reads stay available. Compile failures and schema
 // violations are the same unusable state.
@@ -13,9 +13,9 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
-	"github.com/p3bot/pj/internal/frontmatter"
-	"github.com/p3bot/pj/internal/id"
-	"github.com/p3bot/pj/internal/status"
+	"github.com/p3bot/tk/internal/frontmatter"
+	"github.com/p3bot/tk/internal/id"
+	"github.com/p3bot/tk/internal/status"
 )
 
 // Field types (closed set for v1).
@@ -40,7 +40,7 @@ type Field struct {
 	Values []string
 }
 
-// Schema is a scope's fully-evaluated, validated pj.cue. Presence means the config is usable.
+// Schema is a scope's fully-evaluated, validated tk.cue. Presence means the config is usable.
 type Schema struct {
 	Name       string
 	AutoCommit bool
@@ -51,14 +51,14 @@ type Schema struct {
 	Fields map[string]Field
 }
 
-// ConfigError marks a pj.cue that cannot be trusted (absent, uncompilable, or schema-invalid).
+// ConfigError marks a tk.cue that cannot be trusted (absent, uncompilable, or schema-invalid).
 type ConfigError struct {
 	Dir    string
 	Reason string
 }
 
 func (e *ConfigError) Error() string {
-	return fmt.Sprintf("scope config unparseable at %s: %s", filepath.Join(e.Dir, "pj.cue"), e.Reason)
+	return fmt.Sprintf("scope config unparseable at %s: %s", filepath.Join(e.Dir, "tk.cue"), e.Reason)
 }
 
 // AsConfigError reports whether err is (or wraps) a *ConfigError.
@@ -87,15 +87,15 @@ type rawField struct {
 	Values []string `json:"values"`
 }
 
-// Load reads and validates <dir>/pj.cue. Every unusable state returns *ConfigError.
+// Load reads and validates <dir>/tk.cue. Every unusable state returns *ConfigError.
 func Load(ctx *cue.Context, dir string) (*Schema, error) {
-	p := filepath.Join(dir, "pj.cue")
+	p := filepath.Join(dir, "tk.cue")
 	data, err := os.ReadFile(p)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, &ConfigError{Dir: dir, Reason: "pj.cue is absent"}
+			return nil, &ConfigError{Dir: dir, Reason: "tk.cue is absent"}
 		}
-		return nil, &ConfigError{Dir: dir, Reason: fmt.Sprintf("cannot read pj.cue: %v", err)}
+		return nil, &ConfigError{Dir: dir, Reason: fmt.Sprintf("cannot read tk.cue: %v", err)}
 	}
 
 	v := ctx.CompileBytes(data, cue.Filename(p))
@@ -114,13 +114,13 @@ func Load(ctx *cue.Context, dir string) (*Schema, error) {
 // ReadName extracts only the authoritative name, succeeding even when the fuller
 // schema is invalid (provided the file compiles and the name is legal). Used for name-drift.
 func ReadName(ctx *cue.Context, dir string) (string, error) {
-	p := filepath.Join(dir, "pj.cue")
+	p := filepath.Join(dir, "tk.cue")
 	data, err := os.ReadFile(p)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", &ConfigError{Dir: dir, Reason: "pj.cue is absent"}
+			return "", &ConfigError{Dir: dir, Reason: "tk.cue is absent"}
 		}
-		return "", &ConfigError{Dir: dir, Reason: fmt.Sprintf("cannot read pj.cue: %v", err)}
+		return "", &ConfigError{Dir: dir, Reason: fmt.Sprintf("cannot read tk.cue: %v", err)}
 	}
 	v := ctx.CompileBytes(data, cue.Filename(p))
 	if err := v.Err(); err != nil {
@@ -136,7 +136,7 @@ func ReadName(ctx *cue.Context, dir string) (string, error) {
 	return name, nil
 }
 
-// Evaluate validates an already-built pj.cue value into a Schema (shared tail of Load and LoadWithClosure).
+// Evaluate validates an already-built tk.cue value into a Schema (shared tail of Load and LoadWithClosure).
 func Evaluate(dir string, v cue.Value) (*Schema, error) {
 	if err := v.Err(); err != nil {
 		return nil, &ConfigError{Dir: dir, Reason: cueReason(err)}

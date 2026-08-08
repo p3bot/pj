@@ -8,7 +8,7 @@ import (
 
 	"cuelang.org/go/cue/cuecontext"
 
-	"github.com/p3bot/pj/internal/index"
+	"github.com/p3bot/tk/internal/index"
 )
 
 func newReconciler(t *testing.T) (*Reconciler, *index.DB) {
@@ -27,7 +27,7 @@ func mkScope(t *testing.T, name string) string {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	writeFile(t, filepath.Join(dir, "pj.cue"), "name: \""+name+"\"\nautoCommit: false\n")
+	writeFile(t, filepath.Join(dir, "tk.cue"), "name: \""+name+"\"\nautoCommit: false\n")
 	return dir
 }
 
@@ -62,7 +62,7 @@ func TestReconcileIndexesAndReflectsEdit(t *testing.T) {
 	writeFile(t, fp, projFile("wc-ab2c", "todo", "a0", "# Network redesign\n\nbody"))
 
 	reconcileOne(t, r, "wc", dir, time.Now().UnixNano())
-	rows, _ := db.ScopeProjects("wc")
+	rows, _ := db.ScopeTickets("wc")
 	if len(rows) != 1 || rows[0].Status != "todo" || rows[0].Title != "Network redesign" {
 		t.Fatalf("initial row = %+v", rows)
 	}
@@ -72,7 +72,7 @@ func TestReconcileIndexesAndReflectsEdit(t *testing.T) {
 	_ = os.Chtimes(fp, future, future)
 	reconcileOne(t, r, "wc", dir, future.Add(time.Minute).UnixNano())
 
-	rows, _ = db.ScopeProjects("wc")
+	rows, _ = db.ScopeTickets("wc")
 	if len(rows) != 1 || rows[0].Status != "done" {
 		t.Fatalf("edited row = %+v", rows)
 	}
@@ -83,7 +83,7 @@ func TestReconcileNamesScopeIndependently(t *testing.T) {
 	dir := mkScope(t, "ui")
 	writeFile(t, filepath.Join(dir, "ui-ab2c-x.md"), projFile("ui-ab2c", "todo", "a0", "# X"))
 	reconcileOne(t, r, "ui", dir, time.Now().UnixNano())
-	if rows, _ := db.ScopeProjects("ui"); len(rows) != 1 || rows[0].Scope != "ui" {
+	if rows, _ := db.ScopeTickets("ui"); len(rows) != 1 || rows[0].Scope != "ui" {
 		t.Fatalf("ui rows = %+v", rows)
 	}
 }
@@ -96,7 +96,7 @@ func TestForeignScopeFrontmatterIDNotAdopted(t *testing.T) {
 	writeFile(t, fp, projFile("sb-cd34", "todo", "a0", "# Note"))
 
 	reconcileOne(t, r, "wc", dir, time.Now().UnixNano())
-	rows, _ := db.ScopeProjects("wc")
+	rows, _ := db.ScopeTickets("wc")
 	if len(rows) != 1 {
 		t.Fatalf("want 1 row, got %d: %+v", len(rows), rows)
 	}
@@ -115,7 +115,7 @@ func TestSameScopeFrontmatterIDIsAuthoritative(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "wc-ab2c-note.md"), projFile("wc-cd34", "todo", "a0", "# Note"))
 
 	reconcileOne(t, r, "wc", dir, time.Now().UnixNano())
-	rows, _ := db.ScopeProjects("wc")
+	rows, _ := db.ScopeTickets("wc")
 	if len(rows) != 1 || rows[0].ID != "wc-cd34" || rows[0].ShortID != "cd34" {
 		t.Fatalf("same-scope frontmatter id should win; row = %+v", rows)
 	}
@@ -135,11 +135,11 @@ func TestParseErrorQuarantineVsBodyMarkers(t *testing.T) {
 
 	res := reconcileOne(t, r, "wc", dir, time.Now().UnixNano())
 
-	rows, _ := db.ProjectsByID("wc", "wc-ab2c")
+	rows, _ := db.TicketsByID("wc", "wc-ab2c")
 	if len(rows) != 1 || !rows[0].ParseError || rows[0].Status != "" {
 		t.Fatalf("quarantined row = %+v", rows)
 	}
-	rows, _ = db.ProjectsByID("wc", "wc-de34")
+	rows, _ = db.TicketsByID("wc", "wc-de34")
 	if len(rows) != 1 || rows[0].ParseError || rows[0].Status != "todo" {
 		t.Fatalf("body-only-marker row should index normally: %+v", rows)
 	}
@@ -161,7 +161,7 @@ func TestUnreachableScopeKeepsRows(t *testing.T) {
 	if !res.Unreachable["wc"] {
 		t.Fatalf("scope should be unreachable")
 	}
-	if rows, _ := db.ScopeProjects("wc"); len(rows) != 1 {
+	if rows, _ := db.ScopeTickets("wc"); len(rows) != 1 {
 		t.Fatalf("unreachable scope rows should survive, got %d", len(rows))
 	}
 	if !hasToken(res.Warnings, "unreachable_scope:") {
@@ -178,7 +178,7 @@ func TestForgottenScopePruned(t *testing.T) {
 	dir := mkScope(t, "wc")
 	writeFile(t, filepath.Join(dir, "wc-ab2c-x.md"), projFile("wc-ab2c", "todo", "a0", "# X"))
 	reconcileOne(t, r, "wc", dir, time.Now().UnixNano())
-	if rows, _ := db.ScopeProjects("wc"); len(rows) != 1 {
+	if rows, _ := db.ScopeTickets("wc"); len(rows) != 1 {
 		t.Fatalf("precondition: wc should have a row")
 	}
 
@@ -186,7 +186,7 @@ func TestForgottenScopePruned(t *testing.T) {
 	if _, err := r.Reconcile(map[string]string{"ui": other}, map[string]bool{"ui": true}, time.Now().UnixNano()); err != nil {
 		t.Fatal(err)
 	}
-	if rows, _ := db.ScopeProjects("wc"); len(rows) != 0 {
+	if rows, _ := db.ScopeTickets("wc"); len(rows) != 0 {
 		t.Fatalf("forgotten scope rows should be pruned, got %d", len(rows))
 	}
 }
@@ -195,7 +195,7 @@ func TestConfigCacheHitAndInvalidation(t *testing.T) {
 	r, db := newReconciler(t)
 	// Packaged scope with a sibling schema.cue — multi-file import closure.
 	dir := filepath.Join(t.TempDir(), "wc")
-	writeFile(t, filepath.Join(dir, "pj.cue"), "package wccfg\nname: \"wc\"\nautoCommit: false\nknownTags: tags\n")
+	writeFile(t, filepath.Join(dir, "tk.cue"), "package wccfg\nname: \"wc\"\nautoCommit: false\nknownTags: tags\n")
 	writeFile(t, filepath.Join(dir, "schema.cue"), "package wccfg\ntags: [\"frontend\"]\n")
 
 	schema, cfgErr := r.schemaFor("wc", dir)

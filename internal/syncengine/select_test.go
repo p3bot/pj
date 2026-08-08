@@ -8,11 +8,11 @@ import (
 
 	"cuelang.org/go/cue/cuecontext"
 
-	"github.com/p3bot/pj/internal/index"
-	"github.com/p3bot/pj/internal/pathutil"
-	"github.com/p3bot/pj/internal/reconcile"
-	"github.com/p3bot/pj/internal/registry"
-	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/tk/internal/index"
+	"github.com/p3bot/tk/internal/pathutil"
+	"github.com/p3bot/tk/internal/reconcile"
+	"github.com/p3bot/tk/internal/registry"
+	"github.com/p3bot/tk/internal/token"
 )
 
 func testDeps(t *testing.T, reg *registry.Registry) Deps {
@@ -38,7 +38,7 @@ func writeCue(t *testing.T, dir, body string) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "tk.cue"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }

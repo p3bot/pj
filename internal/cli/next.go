@@ -6,9 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/index"
-	"github.com/p3bot/pj/internal/reconcile"
-	"github.com/p3bot/pj/internal/status"
+	"github.com/p3bot/tk/internal/index"
+	"github.com/p3bot/tk/internal/reconcile"
+	"github.com/p3bot/tk/internal/status"
 )
 
 func newNextCmd(app *App) *cobra.Command {
@@ -19,8 +19,8 @@ func newNextCmd(app *App) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "next [--scope S] [--no-lens] [--claim]",
-		Short: "Print the path of the first runnable project",
-		Long: "Select the first runnable project by (order, id): built-in todo, every\n" +
+		Short: "Print the path of the first runnable ticket",
+		Long: "Select the first runnable ticket by (order, id): built-in todo, every\n" +
 			"depends terminal, honouring the lens, file at the dir root (never archive/),\n" +
 			"and not a duplicate-id collision. Print its absolute path. An empty queue is\n" +
 			"diagnosed distinctly: blocked-by-deps vs genuinely empty vs lens-emptied.\n" +
@@ -37,7 +37,7 @@ func newNextCmd(app *App) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&scope, "scope", "", "ambient inventory scope")
 	cmd.Flags().BoolVar(&noLens, "no-lens", false, "ignore the active lens")
-	cmd.Flags().BoolVar(&claim, "claim", false, "claim the selected project (set in-progress)")
+	cmd.Flags().BoolVar(&claim, "claim", false, "claim the selected ticket (set in-progress)")
 	return cmd
 }
 
@@ -63,7 +63,7 @@ func runNext(app *App, c *cobra.Command, scopeFlag string, noLens bool) error {
 		return err
 	}
 
-	rows, err := e.db.ScopeProjects(scope)
+	rows, err := e.db.ScopeTickets(scope)
 	if err != nil {
 		return err
 	}
@@ -79,7 +79,7 @@ func runNext(app *App, c *cobra.Command, scopeFlag string, noLens bool) error {
 
 // nextSelection is shared by status and next so eligibility/tokens cannot fork.
 type nextSelection struct {
-	Chosen           *index.Project
+	Chosen           *index.Ticket
 	Tokens           []string
 	Blocked          int
 	ReadyOutsideLens int
@@ -88,13 +88,13 @@ type nextSelection struct {
 }
 
 // selectNext: callers own empty-queue policy (next refuses; status emits next\t).
-func selectNext(gate *gate, rows []*index.Project, lens []string, noLens bool) nextSelection {
+func selectNext(gate *gate, rows []*index.Ticket, lens []string, noLens bool) nextSelection {
 	candidates := nextCandidates(rows)
-	sortProjects(candidates)
+	sortTickets(candidates)
 	applyLens := !noLens && len(lens) > 0
 
 	tokens := newTokenSet()
-	var chosen *index.Project
+	var chosen *index.Ticket
 	blocked, readyOutsideLens := 0, 0
 	for _, p := range candidates {
 		ds := gate.evalDepends(p)
@@ -133,8 +133,8 @@ func (s nextSelection) writeDiagnostics(c *cobra.Command) {
 	}
 }
 
-func nextCandidates(rows []*index.Project) []*index.Project {
-	var out []*index.Project
+func nextCandidates(rows []*index.Ticket) []*index.Ticket {
+	var out []*index.Ticket
 	for _, p := range rows {
 		if status.IsNextEligible(p.Status) && !p.Archived && !p.ParseError {
 			out = append(out, p)

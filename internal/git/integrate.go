@@ -66,7 +66,7 @@ func ShowStage(ctx context.Context, gitRoot string, stage int, path string) ([]b
 // MergeBlobs 3-way text-merges three in-memory blobs with git merge-file.
 // Returns the merged bytes and whether conflict markers were left.
 func MergeBlobs(ctx context.Context, base, ours, theirs []byte) (merged []byte, conflicted bool, err error) {
-	dir, err := os.MkdirTemp("", "pj-merge-*")
+	dir, err := os.MkdirTemp("", "tk-merge-*")
 	if err != nil {
 		return nil, false, fmt.Errorf("merge-file temp dir: %w", err)
 	}
@@ -117,7 +117,7 @@ func ListFiles(ctx context.Context, gitRoot, dir string) ([]string, error) {
 
 // AuthorDate returns the author date of the last commit on rev that touched path.
 // Per-file, never branch-tip, so an unrelated later commit cannot decide another
-// project's fields. Empty when no commit touched path (zero time).
+// ticket's fields. Empty when no commit touched path (zero time).
 func AuthorDate(ctx context.Context, gitRoot, rev, path string) (time.Time, error) {
 	out, err := run(ctx, gitRoot, "log", "-1", "--format=%aI", rev, "--", path)
 	if err != nil {

@@ -7,10 +7,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/index"
-	"github.com/p3bot/pj/internal/reconcile"
-	"github.com/p3bot/pj/internal/registry"
-	"github.com/p3bot/pj/internal/resolve"
+	"github.com/p3bot/tk/internal/index"
+	"github.com/p3bot/tk/internal/reconcile"
+	"github.com/p3bot/tk/internal/registry"
+	"github.com/p3bot/tk/internal/resolve"
 )
 
 type engine struct {
@@ -90,7 +90,7 @@ func ambientOptions(scopeFlag string) (resolve.Options, error) {
 	}
 	return resolve.Options{
 		ScopeFlag: scopeFlag,
-		EnvScope:  os.Getenv("PJ_SCOPE"),
+		EnvScope:  os.Getenv("TK_SCOPE"),
 		Cwd:       canonical,
 	}, nil
 }

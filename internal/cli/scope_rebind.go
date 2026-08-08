@@ -3,7 +3,7 @@ package cli
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/p3bot/pj/internal/scopeadmin"
+	"github.com/p3bot/tk/internal/scopeadmin"
 )
 
 func newScopeRebindCmd(app *App) *cobra.Command {
@@ -18,7 +18,7 @@ func newScopeRebindCmd(app *App) *cobra.Command {
 			"positional <dir> always updates the registry dir; --name selects the entry\n" +
 			"(required); --code-root updates root when given and leaves it unchanged when\n" +
 			"omitted. It preserves the lens, is idempotent, and refuses a wrong tree\n" +
-			"(the post-rebind pj.cue name must equal --name). It is not name repair —\n" +
+			"(the post-rebind tk.cue name must equal --name). It is not name repair —\n" +
 			"a drifted name still needs forget + import.",
 		Args: usageArgs(cobra.ExactArgs(1)),
 		RunE: func(c *cobra.Command, args []string) error {

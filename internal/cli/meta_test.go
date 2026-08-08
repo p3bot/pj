@@ -27,7 +27,7 @@ func writeScopeFields(t *testing.T, dir, name string, fieldsBlock string) {
 	if fieldsBlock != "" {
 		content += "fields: {\n" + fieldsBlock + "}\n"
 	}
-	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "tk.cue"), []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -44,9 +44,9 @@ func fileSnapshot(t *testing.T, path string) string {
 func TestMetaGetFullAndSingleKey(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network redesign\n\nbody", false,
+	addTicket(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network redesign\n\nbody", false,
 		"depends: [wc-de34]\nsummary: short one\ntags: [a, b]\nstatus_conflict: [todo, done]\n")
-	addProject(t, dir, "wc-de34", "auth", "todo", "a1", "# Auth\n", false, "")
+	addTicket(t, dir, "wc-de34", "auth", "todo", "a1", "# Auth\n", false, "")
 
 	path := filepath.Join(dir, "wc-ab2c-network.md")
 	raw, err := os.ReadFile(path)
@@ -155,7 +155,7 @@ func TestMetaGetUnknownKeyListsCatalogue(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
 	writeScopeFields(t, dir, "wc", "estimate: {type: \"int\"}\narea: {type: \"string\"}\n")
-	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
 
 	_, _, err := run(t, app, "meta", "get", "wc-ab2c", "nope")
 	if ExitCodeFromError(err) != exitUsage {
@@ -208,7 +208,7 @@ func TestMetaGetParseErrorSingleKey(t *testing.T) {
 func TestMetaSetSummaryArgvAndStdin(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
 
 	out, _, err := run(t, app, "meta", "set", "wc-ab2c", "summary", "one line")
 	if err != nil {
@@ -267,7 +267,7 @@ blocking: {type: "bool"}
 area: {type: "string", values: ["frontend", "backend"]}
 owners: {type: "strings", values: ["platform", "design"]}
 `)
-	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
 
 	path, _, err := run(t, app, "meta", "set", "wc-ab2c", "estimate", "5")
 	if err != nil {
@@ -322,8 +322,8 @@ owners: {type: "strings", values: ["platform", "design"]}
 func TestMetaAddRmDepends(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
-	addProject(t, dir, "wc-de34", "auth", "todo", "a1", "# Auth\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
+	addTicket(t, dir, "wc-de34", "auth", "todo", "a1", "# Auth\n", false, "")
 	path := filepath.Join(dir, "wc-ab2c-network.md")
 
 	out, _, err := run(t, app, "meta", "add", "wc-ab2c", "depends", "wc-de34")
@@ -331,7 +331,7 @@ func TestMetaAddRmDepends(t *testing.T) {
 		t.Fatalf("add depends: %v", err)
 	}
 	if !strings.HasSuffix(strings.TrimSpace(out), "wc-ab2c-network.md") {
-		t.Errorf("add should print project path, got %q", out)
+		t.Errorf("add should print ticket path, got %q", out)
 	}
 	// Idempotent.
 	if _, _, err := run(t, app, "meta", "add", "wc-ab2c", "depends", "wc-de34"); err != nil {
@@ -384,7 +384,7 @@ func TestMetaAddRmDepends(t *testing.T) {
 
 	// Same-scope target present only as parse_error quarantine → depends_dangling.
 	qdir := initScope(t, app, "qq")
-	addProject(t, qdir, "qq-aa22", "subj", "todo", "a0", "# Subj\n", false, "")
+	addTicket(t, qdir, "qq-aa22", "subj", "todo", "a0", "# Subj\n", false, "")
 	bad := "---\nid: qq-bb33\nstatus: [unterminated\n---\n# Quarantined\n"
 	if err := os.WriteFile(filepath.Join(qdir, "qq-bb33-q.md"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
@@ -437,8 +437,8 @@ func TestMetaCrossScopeDepends(t *testing.T) {
 	app := newApp(t)
 	up := initScope(t, app, "up")
 	wc := initScope(t, app, "wc")
-	addProject(t, up, "up-aa22", "core", "todo", "a0", "# Core\n", false, "")
-	addProject(t, wc, "wc-bb22", "feat", "todo", "a0", "# Feature\n", false, "")
+	addTicket(t, up, "up-aa22", "core", "todo", "a0", "# Core\n", false, "")
+	addTicket(t, wc, "wc-bb22", "feat", "todo", "a0", "# Feature\n", false, "")
 
 	// Target exists in registered scope after reconcile.
 	if _, _, err := run(t, app, "meta", "add", "wc-bb22", "depends", "up-aa22"); err != nil {
@@ -489,8 +489,8 @@ func TestMetaCrossScopeDepends(t *testing.T) {
 func TestMetaRelatedAndTags(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
-	addProject(t, dir, "wc-de34", "auth", "todo", "a1", "# Auth\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
+	addTicket(t, dir, "wc-de34", "auth", "todo", "a1", "# Auth\n", false, "")
 
 	if _, _, err := run(t, app, "meta", "add", "wc-ab2c", "related", "de34"); err != nil {
 		t.Fatalf("related short: %v", err)
@@ -592,7 +592,7 @@ func TestMetaRelatedAndTags(t *testing.T) {
 func TestMetaWrongClassAndImmutable(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "network", "todo", "a0", "# Network\n", false, "")
 
 	if _, _, err := run(t, app, "meta", "set", "wc-ab2c", "depends", "x"); ExitCodeFromError(err) != exitUsage {
 		t.Errorf("set depends should exit 2, got %v", err)
@@ -610,12 +610,12 @@ func TestMetaWrongClassAndImmutable(t *testing.T) {
 		}
 	}
 	_, _, err := run(t, app, "meta", "set", "wc-ab2c", "status", "todo")
-	if !strings.Contains(err.Error(), "pj mark") {
-		t.Errorf("status immutable should point at pj mark: %v", err)
+	if !strings.Contains(err.Error(), "tk mark") {
+		t.Errorf("status immutable should point at tk mark: %v", err)
 	}
 	_, _, err = run(t, app, "meta", "set", "wc-ab2c", "order", "a1")
-	if !strings.Contains(err.Error(), "pj reorder") {
-		t.Errorf("order immutable should point at pj reorder: %v", err)
+	if !strings.Contains(err.Error(), "tk reorder") {
+		t.Errorf("order immutable should point at tk reorder: %v", err)
 	}
 }
 
@@ -624,7 +624,7 @@ func TestMetaSelfCommitAndRepoDrivenQuiet(t *testing.T) {
 	app := newApp(t)
 
 	dir, repo := initGitScope(t, app, "ac", true)
-	addProject(t, dir, "ac-ab2c", "work", "todo", "a0", "# Work\n", false, "")
+	addTicket(t, dir, "ac-ab2c", "work", "todo", "a0", "# Work\n", false, "")
 	runGit(t, repo, "add", ".")
 	runGit(t, repo, "commit", "-m", "seed")
 	if _, _, err := run(t, app, "meta", "set", "ac-ab2c", "summary", "s"); err != nil {
@@ -636,7 +636,7 @@ func TestMetaSelfCommitAndRepoDrivenQuiet(t *testing.T) {
 	}
 
 	dir2, repo2 := initGitScope(t, app, "rd", false)
-	addProject(t, dir2, "rd-ab2c", "work", "todo", "a0", "# Work\n", false, "")
+	addTicket(t, dir2, "rd-ab2c", "work", "todo", "a0", "# Work\n", false, "")
 	runGit(t, repo2, "add", ".")
 	runGit(t, repo2, "commit", "-m", "seed")
 	before := gitLog(t, repo2)

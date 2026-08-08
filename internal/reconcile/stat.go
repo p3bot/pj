@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/p3bot/pj/internal/id"
+	"github.com/p3bot/tk/internal/id"
 )
 
 // archiveDir is the lone tool-managed subdirectory reconcile scans (immediate children only).
@@ -18,7 +18,7 @@ type statEntry struct {
 	Size     int64
 }
 
-// statScope lists project files at the dir root and archive/ children. reachable
+// statScope lists ticket files at the dir root and archive/ children. reachable
 // false means the dir cannot be listed (rows stay; unreachable_scope). Missing archive/ is normal.
 func statScope(scope, dir string) (files map[string]statEntry, reachable bool) {
 	files = map[string]statEntry{}
@@ -30,7 +30,7 @@ func statScope(scope, dir string) (files map[string]statEntry, reachable bool) {
 	return files, true
 }
 
-// collectDir adds project files under root. ok is false only when root itself cannot be read.
+// collectDir adds ticket files under root. ok is false only when root itself cannot be read.
 func collectDir(scope, root string, archived bool, files map[string]statEntry) bool {
 	entries, err := os.ReadDir(root)
 	if err != nil {
@@ -40,7 +40,7 @@ func collectDir(scope, root string, archived bool, files map[string]statEntry) b
 		if e.IsDir() {
 			continue
 		}
-		fullID, ok := projectID(scope, e.Name())
+		fullID, ok := ticketID(scope, e.Name())
 		if !ok {
 			continue
 		}
@@ -59,9 +59,9 @@ func collectDir(scope, root string, archived bool, files map[string]statEntry) b
 	return true
 }
 
-// projectID extracts <scope>-<short-id> from <scope>-<short-id>[-slug].md so
+// ticketID extracts <scope>-<short-id> from <scope>-<short-id>[-slug].md so
 // parse_error files remain locatable from the filename alone.
-func projectID(scope, name string) (string, bool) {
+func ticketID(scope, name string) (string, bool) {
 	rest, ok := strings.CutSuffix(name, ".md")
 	if !ok {
 		return "", false

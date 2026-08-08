@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// QueryResult is the tabular result of a read-only pj query (cells as strings for TSV).
+// QueryResult is the tabular result of a read-only tk query (cells as strings for TSV).
 type QueryResult struct {
 	Columns []string
 	Rows    [][]string
@@ -95,7 +95,7 @@ func ensureReadOnly(sqlText string) error {
 }
 
 func readOnlyRefusal(what string) error {
-	return fmt.Errorf("pj query is read-only: refusing %s — the index is a derived cache; durable change is the project files or pj doctor --repair, not the DB", what)
+	return fmt.Errorf("tk query is read-only: refusing %s — the index is a derived cache; durable change is the ticket files or tk doctor --repair, not the DB", what)
 }
 
 // splitStatements is literal-aware: ';' inside '…' or "…" is not a separator;

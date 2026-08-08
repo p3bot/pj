@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/p3bot/pj/internal/git"
-	"github.com/p3bot/pj/internal/gitstate"
-	"github.com/p3bot/pj/internal/pathutil"
-	"github.com/p3bot/pj/internal/testgit"
+	"github.com/p3bot/tk/internal/git"
+	"github.com/p3bot/tk/internal/gitstate"
+	"github.com/p3bot/tk/internal/pathutil"
+	"github.com/p3bot/tk/internal/testgit"
 )
 
 // requireGit skips when git is missing and hermeticises env for production git under test.
@@ -43,7 +43,7 @@ func initGitScope(t *testing.T, app *App, name string, autoCommit bool) (string,
 	repo := t.TempDir()
 	runGit(t, repo, "init")
 	runGit(t, repo, "config", "user.email", "a@b.c")
-	runGit(t, repo, "config", "user.name", "pj-test")
+	runGit(t, repo, "config", "user.name", "tk-test")
 	runGit(t, repo, "config", "commit.gpgsign", "false")
 	dir := filepath.Join(repo, name)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -318,8 +318,8 @@ func TestReorderArgErrors(t *testing.T) {
 func TestClaimWritesInProgress(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "one", "todo", "a0", "# One\n", false, "")
-	addProject(t, dir, "wc-de34", "two", "todo", "a1", "# Two\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "one", "todo", "a0", "# One\n", false, "")
+	addTicket(t, dir, "wc-de34", "two", "todo", "a1", "# Two\n", false, "")
 
 	out, _, err := run(t, app, "next", "--claim", "--scope", "wc")
 	if err != nil {
@@ -356,7 +356,7 @@ func TestClaimSkipsParseErrorCandidate(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "wc-ab2c-broke.md"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	addProject(t, dir, "wc-de34", "ok", "todo", "a1", "# Ok\n", false, "")
+	addTicket(t, dir, "wc-de34", "ok", "todo", "a1", "# Ok\n", false, "")
 
 	out, _, err := run(t, app, "next", "--claim", "--scope", "wc")
 	if err != nil {
@@ -371,10 +371,10 @@ func TestWriteVerbsRefuseUnparseableConfig(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
 	_, id := createID(t, app, "wc", "Work")
-	addProject(t, dir, "wc-nb01", "n", "todo", "a5", "# N\n", false, "")
+	addTicket(t, dir, "wc-nb01", "n", "todo", "a5", "# N\n", false, "")
 
 	bad := "name: \"wc\"\nautoCommit: false\nfields: {x: {type: \"float\"}}\n"
-	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte(bad), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "tk.cue"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -402,7 +402,7 @@ func TestWriteVerbsRefuseUnparseableConfig(t *testing.T) {
 func TestWriteVerbsSurfaceIntegrityWarnings(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-de34", "ok", "todo", "a1", "# Ok\n", false, "")
+	addTicket(t, dir, "wc-de34", "ok", "todo", "a1", "# Ok\n", false, "")
 	bad := "---\nid: wc-ab2c\nstatus: [x\n---\n# broke\n"
 	if err := os.WriteFile(filepath.Join(dir, "wc-ab2c-broke.md"), []byte(bad), 0o644); err != nil {
 		t.Fatal(err)
@@ -442,7 +442,7 @@ func TestAutoCommitSelfCommitLifecycle(t *testing.T) {
 		t.Fatalf("mark done: %v", err)
 	}
 	log := gitLog(t, repo)
-	if len(log) != 2 || log[0] != "pj: "+id+" -> done" || log[1] != "pj: "+id+" -> todo" {
+	if len(log) != 2 || log[0] != "tk: "+id+" -> done" || log[1] != "tk: "+id+" -> todo" {
 		t.Fatalf("unexpected commit log: %v", log)
 	}
 	moved := strings.TrimSpace(out)
@@ -455,9 +455,9 @@ func TestAutoCommitSelfCommitLifecycle(t *testing.T) {
 	if containsPath(tree, oldRel) {
 		t.Errorf("old root path %q must not remain in the committed tree", oldRel)
 	}
-	// Only the project file was staged: pj.cue stays untracked (committed later by sync).
-	if containsPath(tree, filepath.Join("wc", "pj.cue")) {
-		t.Errorf("self-commit must stage only the touched project path, not pj.cue")
+	// Only the ticket file was staged: tk.cue stays untracked (committed later by sync).
+	if containsPath(tree, filepath.Join("wc", "tk.cue")) {
+		t.Errorf("self-commit must stage only the touched ticket path, not tk.cue")
 	}
 }
 
@@ -480,7 +480,7 @@ func TestClaimSelfCommitsInProgress(t *testing.T) {
 	requireGit(t)
 	app := newApp(t)
 	dir, repo := initGitScope(t, app, "wc", true)
-	addProject(t, dir, "wc-ab2c", "one", "todo", "a0", "# One\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "one", "todo", "a0", "# One\n", false, "")
 
 	out, _, err := run(t, app, "next", "--claim", "--scope", "wc")
 	if err != nil {
@@ -490,7 +490,7 @@ func TestClaimSelfCommitsInProgress(t *testing.T) {
 		t.Errorf("claim must set in-progress, got %q", got)
 	}
 	log := gitLog(t, repo)
-	if len(log) != 1 || log[0] != "pj: wc-ab2c -> in-progress" {
+	if len(log) != 1 || log[0] != "tk: wc-ab2c -> in-progress" {
 		t.Fatalf("claim should self-commit one in-progress commit, got %v", log)
 	}
 }
@@ -580,15 +580,15 @@ func TestPjDrivenCreateSyncNeededDirty(t *testing.T) {
 
 	_, errOut, err := run(t, app, "create", "Sync needed dirty", "--scope", "wc")
 	if err != nil {
-		t.Fatalf("pj-driven create: %v", err)
+		t.Fatalf("tk-driven create: %v", err)
 	}
 	if !strings.Contains(errOut, "sync_needed: dirty") {
-		t.Errorf("pj-driven create should ride sync_needed: dirty, got %q", errOut)
+		t.Errorf("tk-driven create should ride sync_needed: dirty, got %q", errOut)
 	}
 	if strings.Contains(errOut, "uncommitted:") {
-		t.Errorf("pj-driven must not overload uncommitted, got %q", errOut)
+		t.Errorf("tk-driven must not overload uncommitted, got %q", errOut)
 	}
-	if strings.Contains(errOut, "run pj sync") || strings.Contains(errOut, "commit with the host") {
+	if strings.Contains(errOut, "run tk sync") || strings.Contains(errOut, "commit with the host") {
 		t.Errorf("token body must not prescribe the action, got %q", errOut)
 	}
 }
@@ -598,7 +598,7 @@ func TestPjDrivenSelfCommitSyncNeededUnpushed(t *testing.T) {
 	remote := newBareRemote(t)
 	m := cloneMachine(t, remote)
 	dir := m.initScopeAutoCommit(t)
-	addProject(t, dir, "wc-ab2c", "work", "todo", "a0", "# Work\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "work", "todo", "a0", "# Work\n", false, "")
 	// Snapshot scope files so the self-commit is the only local advance.
 	gitIn(t, m.clone, "add", "-A")
 	gitIn(t, m.clone, "commit", "-m", "seed scope")
@@ -606,12 +606,12 @@ func TestPjDrivenSelfCommitSyncNeededUnpushed(t *testing.T) {
 
 	_, errOut, err := run(t, m.app, "mark", "wc-ab2c", "in-progress")
 	if err != nil {
-		t.Fatalf("pj-driven mark: %v", err)
+		t.Fatalf("tk-driven mark: %v", err)
 	}
 	if !strings.Contains(errOut, "sync_needed: unpushed") {
 		t.Errorf("self-commit ahead of upstream should ride sync_needed: unpushed, got %q", errOut)
 	}
-	if strings.Contains(errOut, "run pj sync") || strings.Contains(errOut, "git push") {
+	if strings.Contains(errOut, "run tk sync") || strings.Contains(errOut, "git push") {
 		t.Errorf("token body must not prescribe push/sync wording, got %q", errOut)
 	}
 	// Pure read stays silent.
@@ -625,7 +625,7 @@ func TestPjDrivenWriteSyncNeededPushFailed(t *testing.T) {
 	remote := newBareRemote(t)
 	m := cloneMachine(t, remote)
 	dir := m.initScopeAutoCommit(t)
-	addProject(t, dir, "wc-ab2c", "work", "todo", "a0", "# Work\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "work", "todo", "a0", "# Work\n", false, "")
 	gitIn(t, m.clone, "add", "-A")
 	gitIn(t, m.clone, "commit", "-m", "seed scope")
 	gitIn(t, m.clone, "push", "-u", "origin", "main")
@@ -635,7 +635,7 @@ func TestPjDrivenWriteSyncNeededPushFailed(t *testing.T) {
 	}
 	_, errOut, err := run(t, m.app, "mark", "wc-ab2c", "in-progress")
 	if err != nil {
-		t.Fatalf("pj-driven mark: %v", err)
+		t.Fatalf("tk-driven mark: %v", err)
 	}
 	if !strings.Contains(errOut, "sync_needed: push failed") {
 		t.Errorf("last-push-error should ride sync_needed: push failed, got %q", errOut)

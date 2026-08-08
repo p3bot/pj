@@ -11,21 +11,21 @@ func TestScopeRenameEndToEnd(t *testing.T) {
 	app := newApp(t)
 	wcDir := initScope(t, app, "wc")
 	apiDir := initScope(t, app, "api")
-	addProject(t, wcDir, "wc-ab2c", "target", "todo", "a0", "# Target\n", false, "")
-	addProject(t, wcDir, "wc-de34", "dep", "todo", "a1", "# Dep\n", false, "depends: [wc-ab2c]\n")
-	addProject(t, apiDir, "api-mm22", "x", "todo", "a0", "# X\n", false, "depends: [wc-ab2c]\n")
+	addTicket(t, wcDir, "wc-ab2c", "target", "todo", "a0", "# Target\n", false, "")
+	addTicket(t, wcDir, "wc-de34", "dep", "todo", "a1", "# Dep\n", false, "depends: [wc-ab2c]\n")
+	addTicket(t, apiDir, "api-mm22", "x", "todo", "a0", "# X\n", false, "depends: [wc-ab2c]\n")
 
 	out, _, err := run(t, app, "scope", "rename", "wc", "core")
 	if err != nil {
 		t.Fatalf("rename: %v", err)
 	}
 
-	data, _ := os.ReadFile(filepath.Join(wcDir, "pj.cue"))
+	data, _ := os.ReadFile(filepath.Join(wcDir, "tk.cue"))
 	if !strings.Contains(string(data), `"core"`) || strings.Contains(string(data), `"wc"`) {
-		t.Errorf("pj.cue name not rewritten to core: %q", data)
+		t.Errorf("tk.cue name not rewritten to core: %q", data)
 	}
 	if !fileExists(wcDir, "core-ab2c-target.md") || !fileExists(wcDir, "core-de34-dep.md") {
-		t.Errorf("filenames not rewritten to the new scope: %v", projectFiles(t, wcDir))
+		t.Errorf("filenames not rewritten to the new scope: %v", ticketFiles(t, wcDir))
 	}
 	if fileExists(wcDir, "wc-ab2c-target.md") {
 		t.Errorf("old-prefixed file must be removed")
@@ -67,7 +67,7 @@ func TestScopeRenameEndToEnd(t *testing.T) {
 func TestScopeRenameRePrefixesTheFrontmatterID(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "wc-ab2c", "auth", "todo", "a0", "# Auth\n", false, "")
+	addTicket(t, dir, "wc-ab2c", "auth", "todo", "a0", "# Auth\n", false, "")
 	if err := os.Rename(filepath.Join(dir, "wc-ab2c-auth.md"), filepath.Join(dir, "wc-zz9y-auth.md")); err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestScopeRenameRePrefixesTheFrontmatterID(t *testing.T) {
 		t.Fatalf("rename: %v", err)
 	}
 	if !fileExists(dir, "core-ab2c-auth.md") {
-		t.Fatalf("the filename must follow the declared id, files=%v", projectFiles(t, dir))
+		t.Fatalf("the filename must follow the declared id, files=%v", ticketFiles(t, dir))
 	}
 	if got := fmValue(t, filepath.Join(dir, "core-ab2c-auth.md"), "id"); got != "core-ab2c" {
 		t.Errorf("declared id must be re-prefixed, got %q want core-ab2c", got)
@@ -86,7 +86,7 @@ func TestScopeRenameRePrefixesTheFrontmatterID(t *testing.T) {
 func TestScopeRenameRefusesForeignFrontmatterID(t *testing.T) {
 	app := newApp(t)
 	dir := initScope(t, app, "wc")
-	addProject(t, dir, "other-ab2c", "auth", "todo", "a0", "# Auth\n", false, "")
+	addTicket(t, dir, "other-ab2c", "auth", "todo", "a0", "# Auth\n", false, "")
 	if err := os.Rename(filepath.Join(dir, "other-ab2c-auth.md"), filepath.Join(dir, "wc-ab2c-auth.md")); err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestScopeRenameRefusesForeignFrontmatterID(t *testing.T) {
 		t.Errorf("the refusal must name the offending id, got %v", err)
 	}
 	if !fileExists(dir, "wc-ab2c-auth.md") {
-		t.Errorf("a refused rename must not have moved anything, files=%v", projectFiles(t, dir))
+		t.Errorf("a refused rename must not have moved anything, files=%v", ticketFiles(t, dir))
 	}
 }
 
@@ -131,7 +131,7 @@ func TestScopeRenameValidation(t *testing.T) {
 func TestScopeRenameIdempotentReentry(t *testing.T) {
 	app := newApp(t)
 	wcDir := initScope(t, app, "wc")
-	addProject(t, wcDir, "wc-ab2c", "target", "todo", "a0", "# Target\n", false, "")
+	addTicket(t, wcDir, "wc-ab2c", "target", "todo", "a0", "# Target\n", false, "")
 
 	if err := os.Rename(filepath.Join(wcDir, "wc-ab2c-target.md"), filepath.Join(wcDir, "core-ab2c-target.md")); err != nil {
 		t.Fatal(err)
@@ -140,7 +140,7 @@ func TestScopeRenameIdempotentReentry(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(wcDir, "core-ab2c-target.md"), []byte(migrated), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(wcDir, "pj.cue"), []byte("name: \"core\"\nautoCommit: false\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(wcDir, "tk.cue"), []byte("name: \"core\"\nautoCommit: false\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -160,7 +160,7 @@ func TestScopeRenameIdempotentReentry(t *testing.T) {
 func TestScopeRenameRefusesNameTakenUnderLock(t *testing.T) {
 	app := newApp(t)
 	wcDir := initScope(t, app, "wc")
-	addProject(t, wcDir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
+	addTicket(t, wcDir, "wc-ab2c", "x", "todo", "a0", "# X\n", false, "")
 
 	e, err := app.openEngine(newRootCmd(app))
 	if err != nil {
@@ -221,7 +221,7 @@ func TestScopeRenameRekeyStaysIdempotentAfterCompletion(t *testing.T) {
 func TestScopeRenameRejectsGenuineDrift(t *testing.T) {
 	app := newApp(t)
 	wcDir := initScope(t, app, "wc")
-	if err := os.WriteFile(filepath.Join(wcDir, "pj.cue"), []byte("name: \"other\"\nautoCommit: false\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(wcDir, "tk.cue"), []byte("name: \"other\"\nautoCommit: false\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, _, err := run(t, app, "scope", "rename", "wc", "core")

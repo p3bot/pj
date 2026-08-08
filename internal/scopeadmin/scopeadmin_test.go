@@ -9,11 +9,11 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
-	"github.com/p3bot/pj/internal/pathutil"
-	"github.com/p3bot/pj/internal/registry"
-	"github.com/p3bot/pj/internal/scopeconfig"
-	"github.com/p3bot/pj/internal/testgit"
-	"github.com/p3bot/pj/internal/token"
+	"github.com/p3bot/tk/internal/pathutil"
+	"github.com/p3bot/tk/internal/registry"
+	"github.com/p3bot/tk/internal/scopeconfig"
+	"github.com/p3bot/tk/internal/testgit"
+	"github.com/p3bot/tk/internal/token"
 )
 
 type harness struct {
@@ -60,12 +60,12 @@ func TestInitPlainFiles(t *testing.T) {
 	if got != want {
 		t.Errorf("registered dir = %q want %q", got, want)
 	}
-	if _, err := os.Stat(filepath.Join(got, "pj.cue")); err != nil {
-		t.Errorf("pj.cue not written: %v", err)
+	if _, err := os.Stat(filepath.Join(got, "tk.cue")); err != nil {
+		t.Errorf("tk.cue not written: %v", err)
 	}
 	gi, err := os.ReadFile(filepath.Join(got, ".gitignore"))
-	if err != nil || !strings.Contains(string(gi), ".pj.lock") {
-		t.Errorf(".gitignore missing .pj.lock: %v %q", err, gi)
+	if err != nil || !strings.Contains(string(gi), ".tk.lock") {
+		t.Errorf(".gitignore missing .tk.lock: %v %q", err, gi)
 	}
 	if h.reg(t).Scopes["home"].Root != want {
 		t.Errorf("plain-files root should default to dir")
@@ -76,7 +76,7 @@ func TestInitRepoDefaultsAndAutoName(t *testing.T) {
 	h := newHarness(t)
 	repo := filepath.Join(t.TempDir(), "webctl")
 	gitInit(t, repo)
-	dir := filepath.Join(repo, ".agents", "pj")
+	dir := filepath.Join(repo, ".agents", "tk")
 
 	got, err := h.admin.Init(InitParams{Dir: dir, AutoName: true, AutoCommit: true, AutoCommitGiven: true})
 	if err != nil {
@@ -107,7 +107,7 @@ func TestInitExactlyOneName(t *testing.T) {
 func TestInitPreexistingPjCue(t *testing.T) {
 	h := newHarness(t)
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte("name: \"x\"\nautoCommit: false\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "tk.cue"), []byte("name: \"x\"\nautoCommit: false\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, err := h.admin.Init(InitParams{Dir: dir, Name: "x"})
@@ -120,7 +120,7 @@ func TestInitCodeRootOutsideRepo(t *testing.T) {
 	h := newHarness(t)
 	repo := filepath.Join(t.TempDir(), "repo")
 	gitInit(t, repo)
-	dir := filepath.Join(repo, ".agents", "pj")
+	dir := filepath.Join(repo, ".agents", "tk")
 	outside := filepath.Join(t.TempDir(), "elsewhere")
 	_, err := h.admin.Init(InitParams{Dir: dir, Name: "x", CodeRoot: outside, CodeRootGiven: true})
 	if err == nil || !strings.Contains(err.Error(), "not inside the git repository") {
@@ -149,7 +149,7 @@ func TestInitFreshDirInRepoDefaultsToRepoRoot(t *testing.T) {
 	repo := filepath.Join(t.TempDir(), "repo")
 	gitInit(t, repo)
 	// Dir that does not yet exist still derives repo root — derivation must not create it.
-	dir := filepath.Join(repo, ".agents", "pj")
+	dir := filepath.Join(repo, ".agents", "tk")
 	if _, err := h.admin.Init(InitParams{Dir: dir, Name: "rr"}); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestInitOutsideRepoExplicitCodeRoot(t *testing.T) {
 	h := newHarness(t)
 	base := t.TempDir()
 	dir := filepath.Join(base, "scope")
-	codeRoot := filepath.Join(base, "project")
+	codeRoot := filepath.Join(base, "ticket")
 	if _, err := h.admin.Init(InitParams{Dir: dir, Name: "cr", CodeRoot: codeRoot, CodeRootGiven: true}); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
@@ -176,13 +176,13 @@ func TestInitAutoCommitInheritAndContradict(t *testing.T) {
 	repo := filepath.Join(t.TempDir(), "repo")
 	gitInit(t, repo)
 
-	a := filepath.Join(repo, "a", ".agents", "pj")
+	a := filepath.Join(repo, "a", ".agents", "tk")
 	if _, err := h.admin.Init(InitParams{Dir: a, Name: "aa", CodeRoot: filepath.Join(repo, "a"), CodeRootGiven: true, AutoCommit: true, AutoCommitGiven: true}); err != nil {
 		t.Fatalf("first scope: %v", err)
 	}
 
 	// Sibling omitting the flag inherits autoCommit=true.
-	b := filepath.Join(repo, "b", ".agents", "pj")
+	b := filepath.Join(repo, "b", ".agents", "tk")
 	if _, err := h.admin.Init(InitParams{Dir: b, Name: "bb", CodeRoot: filepath.Join(repo, "b"), CodeRootGiven: true}); err != nil {
 		t.Fatalf("inherit sibling: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestInitAutoCommitInheritAndContradict(t *testing.T) {
 	}
 
 	// Sibling with a contradicting explicit flag errors with the token.
-	c := filepath.Join(repo, "c", ".agents", "pj")
+	c := filepath.Join(repo, "c", ".agents", "tk")
 	_, err := h.admin.Init(InitParams{Dir: c, Name: "cc", CodeRoot: filepath.Join(repo, "c"), CodeRootGiven: true, AutoCommit: false, AutoCommitGiven: true})
 	if err == nil || !strings.HasPrefix(err.Error(), token.AutoCommitMismatch) {
 		t.Fatalf("expected auto_commit_mismatch, got %v", err)
@@ -221,18 +221,18 @@ func TestInitCollisions(t *testing.T) {
 func TestImportReadsConfigAndGuards(t *testing.T) {
 	h := newHarness(t)
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte("name: \"im\"\nautoCommit: false\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "tk.cue"), []byte("name: \"im\"\nautoCommit: false\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := h.admin.Import(ImportParams{Dir: dir}); err != nil {
 		t.Fatalf("Import: %v", err)
 	}
 	if _, ok := h.reg(t).Scopes["im"]; !ok {
-		t.Error("import did not register under pj.cue name")
+		t.Error("import did not register under tk.cue name")
 	}
 
 	bad := t.TempDir()
-	if err := os.WriteFile(filepath.Join(bad, "pj.cue"), []byte("name: \"b\" broken:::"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(bad, "tk.cue"), []byte("name: \"b\" broken:::"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, err := h.admin.Import(ImportParams{Dir: bad})
@@ -246,17 +246,17 @@ func TestImportAutoCommitMismatch(t *testing.T) {
 	repo := filepath.Join(t.TempDir(), "repo")
 	gitInit(t, repo)
 
-	a := filepath.Join(repo, "a", ".agents", "pj")
+	a := filepath.Join(repo, "a", ".agents", "tk")
 	if _, err := h.admin.Init(InitParams{Dir: a, Name: "aa", CodeRoot: filepath.Join(repo, "a"), CodeRootGiven: true, AutoCommit: true, AutoCommitGiven: true}); err != nil {
 		t.Fatal(err)
 	}
 
 	// Sibling on disk with autoCommit=false disagrees; import cannot inherit.
-	b := filepath.Join(repo, "b", ".agents", "pj")
+	b := filepath.Join(repo, "b", ".agents", "tk")
 	if err := os.MkdirAll(b, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(b, "pj.cue"), []byte("name: \"bb\"\nautoCommit: false\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(b, "tk.cue"), []byte("name: \"bb\"\nautoCommit: false\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, err := h.admin.Import(ImportParams{Dir: b, CodeRoot: filepath.Join(repo, "b"), CodeRootGiven: true})
@@ -270,16 +270,16 @@ func TestSiblingConfigUnparseableRefusesRegistration(t *testing.T) {
 	repo := filepath.Join(t.TempDir(), "repo")
 	gitInit(t, repo)
 
-	// Registered sibling with broken pj.cue supplies no trustworthy autoCommit.
-	a := filepath.Join(repo, "a", ".agents", "pj")
+	// Registered sibling with broken tk.cue supplies no trustworthy autoCommit.
+	a := filepath.Join(repo, "a", ".agents", "tk")
 	if _, err := h.admin.Init(InitParams{Dir: a, Name: "aa", CodeRoot: filepath.Join(repo, "a"), CodeRootGiven: true, AutoCommit: true, AutoCommitGiven: true}); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(a, "pj.cue"), []byte("name: \"aa\" broken:::"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(a, "tk.cue"), []byte("name: \"aa\" broken:::"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	b := filepath.Join(repo, "b", ".agents", "pj")
+	b := filepath.Join(repo, "b", ".agents", "tk")
 	_, err := h.admin.Init(InitParams{Dir: b, Name: "bb", CodeRoot: filepath.Join(repo, "b"), CodeRootGiven: true, AutoCommit: true, AutoCommitGiven: true})
 	if err == nil || !strings.HasPrefix(err.Error(), token.ConfigUnparseable) {
 		t.Fatalf("expected config_unparseable naming the broken sibling, got %v", err)
@@ -298,7 +298,7 @@ func TestRebind(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Move the dir; keep the same pj.cue (name rb). Root unchanged (no --code-root).
+	// Move the dir; keep the same tk.cue (name rb). Root unchanged (no --code-root).
 	moved := filepath.Join(base, "moved")
 	if err := os.Rename(orig, moved); err != nil {
 		t.Fatal(err)
@@ -329,7 +329,7 @@ func TestRebind(t *testing.T) {
 	}
 
 	wrong := t.TempDir()
-	if err := os.WriteFile(filepath.Join(wrong, "pj.cue"), []byte("name: \"other\"\nautoCommit: false\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(wrong, "tk.cue"), []byte("name: \"other\"\nautoCommit: false\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := h.admin.Rebind(RebindParams{Dir: wrong, Name: "rb"}); err == nil {
@@ -358,7 +358,7 @@ func TestForget(t *testing.T) {
 	if _, ok := reg.Lens["fg"]; ok {
 		t.Error("lens still present after forget")
 	}
-	if _, err := os.Stat(filepath.Join(dir, "pj.cue")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, "tk.cue")); err != nil {
 		t.Error("forget must not touch scope files")
 	}
 	if err := h.admin.Forget("ghost"); err == nil {
@@ -376,13 +376,13 @@ func TestListModesAndDiagnostics(t *testing.T) {
 	}
 	repo := filepath.Join(base, "repo")
 	gitInit(t, repo)
-	pjd := filepath.Join(repo, ".agents", "pj")
+	pjd := filepath.Join(repo, ".agents", "tk")
 	if _, err := h.admin.Init(InitParams{Dir: pjd, Name: "pd", AutoCommit: true, AutoCommitGiven: true}); err != nil {
 		t.Fatal(err)
 	}
 	repo2 := filepath.Join(base, "repo2")
 	gitInit(t, repo2)
-	rpd := filepath.Join(repo2, ".agents", "pj")
+	rpd := filepath.Join(repo2, ".agents", "tk")
 	if _, err := h.admin.Init(InitParams{Dir: rpd, Name: "rd"}); err != nil {
 		t.Fatal(err)
 	}
@@ -395,7 +395,7 @@ func TestListModesAndDiagnostics(t *testing.T) {
 	for _, r := range listing.Rows {
 		modes[r.Name] = r.Mode
 	}
-	if modes["pl"] != ModePlainFiles || modes["pd"] != ModePjDriven || modes["rd"] != ModeRepoDriven {
+	if modes["pl"] != ModePlainFiles || modes["pd"] != ModeTkDriven || modes["rd"] != ModeRepoDriven {
 		t.Errorf("modes = %v", modes)
 	}
 	var names []string
@@ -406,10 +406,10 @@ func TestListModesAndDiagnostics(t *testing.T) {
 		t.Errorf("rows not sorted ascending: %v", names)
 	}
 
-	if err := os.WriteFile(filepath.Join(plain, "pj.cue"), []byte("name: \"plnew\"\nautoCommit: false\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(plain, "tk.cue"), []byte("name: \"plnew\"\nautoCommit: false\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(pjd, "pj.cue"), []byte("name: \"pd\" broken:::"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(pjd, "tk.cue"), []byte("name: \"pd\" broken:::"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.RemoveAll(rpd); err != nil {
@@ -438,7 +438,7 @@ func TestListModesAndDiagnostics(t *testing.T) {
 		t.Errorf("broken/gone scopes should be unknown: %v", modes)
 	}
 	if modes["pl"] != ModePlainFiles {
-		t.Errorf("drifted scope keeps a real mode from its readable pj.cue: %v", modes["pl"])
+		t.Errorf("drifted scope keeps a real mode from its readable tk.cue: %v", modes["pl"])
 	}
 }
 
@@ -450,7 +450,7 @@ func TestListDriftAndUnparseableCoEmit(t *testing.T) {
 	}
 	// Compiles under a legal name but fails schema validation (autoCommit missing)
 	// and drifts: co-emit name_drift + config_unparseable via ReadName fallback.
-	if err := os.WriteFile(filepath.Join(dir, "pj.cue"), []byte("name: \"conew\"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "tk.cue"), []byte("name: \"conew\"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -477,7 +477,7 @@ func TestListDriftAndUnparseableCoEmit(t *testing.T) {
 		t.Errorf("expected config_unparseable diagnostic, got:\n%s", diag)
 	}
 	if !strings.Contains(diag, "conew") {
-		t.Errorf("drift line should name the recovered pj.cue name %q, got:\n%s", "conew", diag)
+		t.Errorf("drift line should name the recovered tk.cue name %q, got:\n%s", "conew", diag)
 	}
 }
 
@@ -496,7 +496,7 @@ func mustAutoCommit(t *testing.T, ctx *cue.Context, dir string) bool {
 	t.Helper()
 	s, err := scopeconfig.Load(ctx, dir)
 	if err != nil {
-		t.Fatalf("load pj.cue at %s: %v", dir, err)
+		t.Fatalf("load tk.cue at %s: %v", dir, err)
 	}
 	return s.AutoCommit
 }

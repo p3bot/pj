@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/p3bot/pj/internal/testgit"
+	"github.com/p3bot/tk/internal/testgit"
 )
 
 func requireGit(t *testing.T) {
@@ -27,7 +27,7 @@ func newRepo(t *testing.T) string {
 	repo := t.TempDir()
 	gitCmd(t, repo, "init")
 	gitCmd(t, repo, "config", "user.email", "a@b.c")
-	gitCmd(t, repo, "config", "user.name", "pj-test")
+	gitCmd(t, repo, "config", "user.name", "tk-test")
 	gitCmd(t, repo, "config", "commit.gpgsign", "false")
 	return repo
 }
@@ -66,7 +66,7 @@ func TestAddCommitAndStagedChanges(t *testing.T) {
 	if !staged {
 		t.Error("the added path should be staged")
 	}
-	if err := Commit(ctx, repo, "pj: wc-ab2c -> todo"); err != nil {
+	if err := Commit(ctx, repo, "tk: wc-ab2c -> todo"); err != nil {
 		t.Fatal(err)
 	}
 	if !Tracked(ctx, repo, p) {
@@ -133,7 +133,7 @@ func TestDirtyPathsScopedAndExpanded(t *testing.T) {
 	ctx := context.Background()
 	repo := newRepo(t)
 	// Untracked scope dir must expand to individual files; paths outside dir must not.
-	write(t, filepath.Join(repo, "wc", "pj.cue"), "name: \"wc\"\n")
+	write(t, filepath.Join(repo, "wc", "tk.cue"), "name: \"wc\"\n")
 	write(t, filepath.Join(repo, "wc", "wc-ab2c-x.md"), "# x\n")
 	write(t, filepath.Join(repo, "other", "unrelated.md"), "# y\n")
 
@@ -146,7 +146,7 @@ func TestDirtyPathsScopedAndExpanded(t *testing.T) {
 	for _, p := range paths {
 		found[filepath.Base(p)] = true
 	}
-	if !found["pj.cue"] || !found["wc-ab2c-x.md"] {
+	if !found["tk.cue"] || !found["wc-ab2c-x.md"] {
 		t.Errorf("scoped dirty paths should list the scope's files, got %v", paths)
 	}
 	if found["unrelated.md"] {

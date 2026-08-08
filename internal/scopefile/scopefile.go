@@ -9,15 +9,15 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/p3bot/pj/internal/flock"
-	"github.com/p3bot/pj/internal/git"
-	"github.com/p3bot/pj/internal/gitroot"
-	"github.com/p3bot/pj/internal/id"
-	"github.com/p3bot/pj/internal/slug"
+	"github.com/p3bot/tk/internal/flock"
+	"github.com/p3bot/tk/internal/git"
+	"github.com/p3bot/tk/internal/gitroot"
+	"github.com/p3bot/tk/internal/id"
+	"github.com/p3bot/tk/internal/slug"
 )
 
 // LockName is the per-scope advisory lock file at the scope dir root.
-const LockName = ".pj.lock"
+const LockName = ".tk.lock"
 
 // AcquireLock takes the exclusive per-scope flock at dir/LockName.
 // The scope directory must already exist.
@@ -53,8 +53,8 @@ func CountAllowlistedDirty(ctx context.Context, dir, root string, hasRoot bool) 
 	return n
 }
 
-// IsAllowlisted reports whether path is a project .md at dir root or archive/,
-// or pj.cue/.gitignore at root.
+// IsAllowlisted reports whether path is a ticket .md at dir root or archive/,
+// or tk.cue/.gitignore at root.
 func IsAllowlisted(path, dir string) bool {
 	rel, err := filepath.Rel(dir, path)
 	if err != nil || rel == "." || strings.HasPrefix(rel, "..") {
@@ -63,17 +63,17 @@ func IsAllowlisted(path, dir string) bool {
 	base := filepath.Base(rel)
 	switch filepath.Dir(rel) {
 	case ".":
-		return base == "pj.cue" || base == ".gitignore" || LooksLikeProject(base)
+		return base == "tk.cue" || base == ".gitignore" || LooksLikeTicket(base)
 	case "archive":
-		return LooksLikeProject(base)
+		return LooksLikeTicket(base)
 	default:
 		return false
 	}
 }
 
-// LooksLikeProject reports whether base is a project filename: full-id stem
+// LooksLikeTicket reports whether base is a ticket filename: full-id stem
 // with optional valid slug tail.
-func LooksLikeProject(base string) bool {
+func LooksLikeTicket(base string) bool {
 	stem, ok := strings.CutSuffix(base, ".md")
 	if !ok {
 		return false
@@ -82,7 +82,7 @@ func LooksLikeProject(base string) bool {
 	if len(parts) < 2 {
 		return false
 	}
-	if !id.IsFullProjectID(parts[0] + "-" + parts[1]) {
+	if !id.IsFullTicketID(parts[0] + "-" + parts[1]) {
 		return false
 	}
 	if len(parts) == 3 {
